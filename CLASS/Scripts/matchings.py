@@ -221,28 +221,28 @@ def action_reward_per_course(
     prev_app = prev_m >= T
     next_app = next_m >= T
 
-    # 1) sblocchi immediati
-    crossings = int(np.sum(~prev_app & next_app))
-    if crossings > 6:
-        print(crossings)
-    multi_factor = 1.0 + 0.5 * min(max(crossings - 1, 0), cross_cap - 1) ** 0.5
-    crossings = (crossings * multi_factor) / max(num_jobs, 1)
+    # 1) sblocchi immediati (tieni separato il conteggio GREZZO per i controlli episodici)
+    crossings_raw = int(np.sum(~prev_app & next_app))
+    # fattore sub-lineare più stabile
+    multi_factor = 1.0 + 0.3 * np.log1p(max(crossings_raw - 1, 0))
+    crossings = (crossings_raw * multi_factor) / max(num_jobs, 1)
 
     # 2) potenziale: nuovi ingressi nella fascia [T-band, T)
     prev_in_band = (prev_m >= band_lo) & (prev_m < T)
     next_in_band = (next_m >= band_lo) & (next_m < T)
     new_in_band  = int(np.sum(~prev_in_band & ~prev_app & next_in_band))
-    new_in_band /= num_jobs
+    new_in_band /= max(num_jobs, 1)
 
-    # 3) progresso utile continuo, SOLO in fascia (clippato a [band_lo, T])
-    prev_c = np.clip(prev_m, band_lo, T)
-    next_c = np.clip(next_m, band_lo, T)
-    band_gain = (np.maximum(next_c - prev_c, 0.0).sum() / max(band, 1e-8)) / num_jobs
+    # 3) progresso utile continuo: rendilo liscio vicino alla soglia invece del solo clip
+    #    sigmoide centrata in T con pendenza ~1/band (così la "fascia" resta rilevante)
+    k = 12.0 / max(band, 1e-8)   # pendenza; 12 ~ ripidità buona in pratica
+    def s(x):  # in (0,1)
+        return 1.0 / (1.0 + np.exp(-k * (x - T)))
+    # guadagno solo se si avanza (come prima), ma misurato su punteggio liscio
+    band_gain = np.maximum(s(next_m) - s(prev_m), 0.0).mean()
 
     # 4) stabilità: drop
-    drops = int(np.sum(prev_app & ~next_app)) / num_jobs
-
-    #print(f"Crossing: {crossings}, new_in_band: {new_in_band}, band_gain: {band_gain}, drops: {drops}")
+    drops = int(np.sum(prev_app & ~next_app)) / max(num_jobs, 1)
 
     reward = w_cross * crossings + w_setup * new_in_band + w_margin * band_gain - w_drop * drops
 
@@ -255,8 +255,8 @@ def action_reward_per_course(
         final_applicable = float(next_app.mean())  # ∈[0,1]
         reward += w_final_app * final_applicable
 
-        # penalità morbide (niente confronti con float!)
-        if (ep_crossings_so_far + crossings) == 0:
+        # FIX: confronta con il conteggio GREZZO, non con il rate
+        if (ep_crossings_so_far + crossings_raw) == 0:
             reward -= w_zero_cross * scale
         if final_applicable == 0.0:
             reward -= w_zero_app * scale
@@ -264,9 +264,9 @@ def action_reward_per_course(
     reward = float(np.clip(reward, -1.0, 1.0))
 
     info = {
-        "crossings": crossings,
+        "crossings": crossings,              # rate (come prima)
         "new_in_band": new_in_band,
-        "band_gain": band_gain,
+        "band_gain": band_gain,              # ora liscio ma stesso nome
         "drops": drops,
         "reward_total": float(reward),
         "applicable_prev": int(prev_app.sum()),
