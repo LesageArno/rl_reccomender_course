@@ -1,0 +1,102 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.env
+.venv
+env.bak/
+venv.bak/
+
+# IDE
+.idea/
+.vscode/
+
+# PyCharm
+#  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
+#  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
+#  and can be added to the global gitignore or merged into this file.  For a more nuclear
+#  option (not recommended) you can uncomment the following to ignore the entire idea folder.
+#.idea/
+
+# Other
+trash*
+diag_*
+check_*
+~$*
+*_ss*
+ids.txt
+playground.ipynb
+setup.py
+
+#Experiment file
+Reproduct_pipeline.py
+Newfeature_pipeline.py
+
+
+#mlflow
+mlflow/
+
+# EDA folder and its contents
+eda/
+eda/**/*
+
+# Backups
+backups/
+
+
+*.swp
+*.swo
+.DS_Store
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# Logs and databases
+*.log
+*.sqlite
+*.db
+
+# Project specific
+results/
+logs/
+*.pkl
+*.h5
+*.pt
+*.pth
+*.onnx
+*.mlflow
+mlruns/
+wandb/
+
+# EDA folder and its contents
+eda/
+eda/**/*
+
+# Backups
+backups/
+
+# OS
+Thumbs.db
