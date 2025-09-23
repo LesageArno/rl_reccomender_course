@@ -197,76 +197,77 @@ def action_reward_per_course(
     next_learner,
     jobs,
     threshold: float,
-    band: float = 0.10,         # epsilon: ampiezza della fascia pre-soglia
-    w_cross: float = 0.18,       # premio per sblocco immediato
-    w_final_app: float = 0.60,     # premio per multi crossing
-    w_setup: float = 0.06,       # premio per “mettere in fascia” (potenziale)
-    w_margin: float = 0.16,      # premio continuo nella fascia (progresso utile)
-    w_drop: float = 0.12,         # penale per job che ricadono
+    band: float = 0.10,         # width of the pre-threshold band
+    w_cross: float = 0.18,      # weight for immediate unlocks
+    w_final_app: float = 0.60,  # weight for % jobs above threshold at end of episode
+    w_setup: float = 0.06,      # weight for entering the band
+    w_margin: float = 0.16,     # weight for continuous progress inside the band
+    w_drop: float = 0.12,       # penalty for falling back below threshold
     is_last: bool = False,
-    ep_crossings_so_far: int = 0,         # crossing cumulati PRIMA di questo step
-    w_zero_cross: float = 0.10,       # penalità se crossing totali episodio = 0
-    w_zero_app: float = 0.10,         # penalità se job finali = 0
-    opp0: int | None = None,              # #job vicino soglia all'inizio episodio (opportunità)
+    ep_crossings_so_far: int = 0,   # cumulative crossings before this step
+    w_zero_cross: float = 0.10,     # penalty if total crossings in episode = 0
+    w_zero_app: float = 0.10,       # penalty if no jobs above threshold at end
+    opp0: int | None = None,        # jobs near threshold at episode start (opportunity)
     opp_ref: int = 5,
-    cross_cap: int = 3
+    cross_cap: int = 3              # currently unused, kept for compatibility
 ):
+    # get match arrays for all jobs
     prev_m = matches_array(prev_learner, jobs)
     next_m = matches_array(next_learner, jobs)
 
     T = float(threshold)
+    num_jobs = max(len(jobs), 1)
     band_lo = T - band
-    num_jobs = len(jobs)
 
     prev_app = prev_m >= T
     next_app = next_m >= T
 
-    # 1) sblocchi immediati (tieni separato il conteggio GREZZO per i controlli episodici)
-    crossings_raw = int(np.sum(~prev_app & next_app))
-    # fattore sub-lineare più stabile
+    # 1) Crossings: jobs that moved from below to above threshold
+    crossings_mask = (~prev_app) & next_app
+    crossings_raw = int(np.sum(crossings_mask))
+    # sublinear growth: reward extra unlocks but with diminishing returns
     multi_factor = 1.0 + 0.3 * np.log1p(max(crossings_raw - 1, 0))
-    crossings = (crossings_raw * multi_factor) / max(num_jobs, 1)
+    crossings = (crossings_raw * multi_factor) / num_jobs
 
-    # 2) potenziale: nuovi ingressi nella fascia [T-band, T)
+    # 2) New entries into the band [T-band, T)
     prev_in_band = (prev_m >= band_lo) & (prev_m < T)
     next_in_band = (next_m >= band_lo) & (next_m < T)
-    new_in_band  = int(np.sum(~prev_in_band & ~prev_app & next_in_band))
-    new_in_band /= max(num_jobs, 1)
+    new_in_band = int(np.sum((~prev_in_band) & (~prev_app) & next_in_band)) / num_jobs
 
-    # 3) progresso utile continuo: rendilo liscio vicino alla soglia invece del solo clip
-    #    sigmoide centrata in T con pendenza ~1/band (così la "fascia" resta rilevante)
-    k = 12.0 / max(band, 1e-8)   # pendenza; 12 ~ ripidità buona in pratica
-    def s(x):  # in (0,1)
-        return 1.0 / (1.0 + np.exp(-k * (x - T)))
-    # guadagno solo se si avanza (come prima), ma misurato su punteggio liscio
-    band_gain = np.maximum(s(next_m) - s(prev_m), 0.0).mean()
+    # 3) Continuous progress inside the band
+    prev_clip = np.clip(prev_m, band_lo, T)
+    next_clip = np.clip(next_m, band_lo, T)
+    band_gain = np.maximum(next_clip - prev_clip, 0.0).mean() / max(band, 1e-8)
 
-    # 4) stabilità: drop
-    drops = int(np.sum(prev_app & ~next_app)) / max(num_jobs, 1)
+    # 4) Drops: jobs that fell back below threshold
+    drops = int(np.sum(prev_app & (~next_app))) / num_jobs
 
-    reward = w_cross * crossings + w_setup * new_in_band + w_margin * band_gain - w_drop * drops
+    # per-step reward
+    reward = (
+        w_cross * crossings
+        + w_setup * new_in_band
+        + w_margin * band_gain
+        - w_drop * drops
+    )
 
     if is_last:
-        # scala opportunità
+        # opportunity scaling for penalties
         scale = 1.0
         if opp0 is not None and opp_ref > 0:
             scale = float(np.clip(opp0 / float(opp_ref), 0.0, 1.0))
 
-        final_applicable = float(next_app.mean())  # ∈[0,1]
+        final_applicable = float(next_app.mean())  # fraction of jobs above threshold
         reward += w_final_app * final_applicable
 
-        # FIX: confronta con il conteggio GREZZO, non con il rate
         if (ep_crossings_so_far + crossings_raw) == 0:
             reward -= w_zero_cross * scale
         if final_applicable == 0.0:
             reward -= w_zero_app * scale
 
-    reward = float(np.clip(reward, -1.0, 1.0))
-
     info = {
-        "crossings": crossings,              # rate (come prima)
+        "crossings": crossings,
         "new_in_band": new_in_band,
-        "band_gain": band_gain,              # ora liscio ma stesso nome
+        "band_gain": band_gain,
         "drops": drops,
         "reward_total": float(reward),
         "applicable_prev": int(prev_app.sum()),
