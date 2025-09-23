@@ -173,7 +173,7 @@ class Reinforce:
                     self.train_env,
                     device="auto",
                     learning_rate=lambda frac: 1e-4 * frac,  # o schedule lineare da 3e-4 → 1e-5
-                    n_steps=4096,
+                    n_steps=5000,
                     batch_size=256,
                     n_epochs=8,
                     gamma=0.99,
