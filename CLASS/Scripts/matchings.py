@@ -228,20 +228,20 @@ def action_reward_per_course(
     '''# sublinear growth: reward extra unlocks but with diminishing returns
     multi_factor = 1.0 + 0.3 * np.log1p(max(crossings_raw - 1, 0))
     crossings = (crossings_raw * multi_factor) / num_jobs'''
-    crossings = crossings_raw + 0.1 * (crossings_raw ** 2)
+    crossings = crossings_raw + 0.4 * (crossings_raw ** 2)
 
     # 2) New entries into the band [T-band, T)
     prev_in_band = (prev_m >= band_lo) & (prev_m < T)
     next_in_band = (next_m >= band_lo) & (next_m < T)
-    new_in_band = int(np.sum((~prev_in_band) & (~prev_app) & next_in_band)) / num_jobs
+    new_in_band = int(np.sum((~prev_in_band) & (~prev_app) & next_in_band)) #/ num_jobs
 
     # 3) Continuous progress inside the band
     prev_clip = np.clip(prev_m, band_lo, T)
     next_clip = np.clip(next_m, band_lo, T)
-    band_gain = np.maximum(next_clip - prev_clip, 0.0).mean() / max(band, 1e-8)
+    band_gain = np.maximum(next_clip - prev_clip, 0.0).sum() #mean() / max(band, 1e-8)
 
     # 4) Drops: jobs that fell back below threshold
-    drops = int(np.sum(prev_app & (~next_app))) / num_jobs
+    drops = int(np.sum(prev_app & (~next_app))) # / num_jobs
 
     # per-step reward
     reward = (

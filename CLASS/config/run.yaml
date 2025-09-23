@@ -59,11 +59,11 @@ use_pretrained: false                                 # Whether to use or not a 
 
 # Reward function parameters
 band: 0.15
-w_cross: 0.60         # piccolo, perché il termine crossings cresce molto
+w_cross: 0.50         # piccolo, perché il termine crossings cresce molto
 w_setup: 0.50
 w_margin: 0.80
 w_drop: 1.20          # tieni alto: perdere job deve far male
-w_final_app: 0.80     # per-job; 25 job → +20 di reward finale
+w_final_app: 2
 w_zero_cross: 0.50
 w_zero_app: 0.50
 
