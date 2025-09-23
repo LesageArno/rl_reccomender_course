@@ -349,7 +349,8 @@ class CourseRecEnv(gym.Env):
         self.nb_recommendations += 1
         terminated = self.nb_recommendations == self.k
 
-        #print(f"This is the reward: {reward}")
+        '''if reward >= 10:
+            print(f"This is the reward: {reward}")'''
         return observation, reward, terminated, False, info
 
 
