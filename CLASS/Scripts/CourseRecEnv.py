@@ -132,7 +132,7 @@ class CourseRecEnv(gym.Env):
         Returns:
             np.ndarray: Current learner's skill vector representing the state
         """
-        skills = (self._agent_skills.astype(np.float32) / 3.0)
+        skills = self._agent_skills # (self._agent_skills.astype(np.float32) / 3.0)
         step_left = np.array([(self.k - self.nb_recommendations) / self.k])
 
         # near_frac: quota di job in [T-band, T)
