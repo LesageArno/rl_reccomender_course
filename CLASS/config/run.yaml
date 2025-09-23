@@ -63,7 +63,7 @@ w_cross: 0.50         # piccolo, perché il termine crossings cresce molto
 w_setup: 0.50
 w_margin: 0.80
 w_drop: 1.20          # tieni alto: perdere job deve far male
-w_final_app: 2
+w_final_app: 4
 w_zero_cross: 0.50
 w_zero_app: 0.50
 
