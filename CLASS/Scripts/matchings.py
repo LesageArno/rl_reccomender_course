@@ -192,89 +192,196 @@ def matches_array(learner, jobs):
     return np.array([matching(learner, j) for j in jobs], dtype=np.float32)
 
 
-'''def action_reward_per_course(
+import numpy as np
+
+def action_reward_per_course(
     prev_learner,
     next_learner,
     jobs,
     threshold: float,
     band: float = 0.10,         # width of the pre-threshold band
-    w_cross: float = 0.18,      # weight for immediate unlocks
-    w_final_app: float = 0.60,  # weight for % jobs above threshold at end of episode
-    w_setup: float = 0.06,      # weight for entering the band
-    w_margin: float = 0.16,     # weight for continuous progress inside the band
-    w_drop: float = 0.12,       # penalty for falling back below threshold
+    w_cross: float = 0.45,      # weight for immediate unlocks (normalized crossings)
+    w_final_app: float = 0.30,  # weight for % jobs above threshold at end of episode
+    w_setup: float = 0.10,      # weight for entering the band
+    w_margin: float = 0.25,     # weight for continuous progress inside the band
+    w_drop: float = 0.15,       # penalty for falling back below threshold
     is_last: bool = False,
     ep_crossings_so_far: int = 0,   # cumulative crossings before this step
     w_zero_cross: float = 0.10,     # penalty if total crossings in episode = 0
     w_zero_app: float = 0.10,       # penalty if no jobs above threshold at end
     opp0: int | None = None,        # jobs near threshold at episode start (opportunity)
     opp_ref: int = 5,
-    cross_cap: int = 3              # currently unused, kept for compatibility
+    cross_cap: int = 3              # kept for compatibility (unused here)
 ):
-    # get match arrays for all jobs
+    """
+    Compute a dense, bounded reward in [-1, 1] for a CourseRec-like step.
+
+    Design goals (kept from your logic):
+    - Crossings: reward jobs moving from below T to >= T (sublinear via sqrt).
+    - Retention proxy: discourage drops (>=T to <T).
+    - Shaping: entering band [T-band, T) and positive progress within the band.
+    - Final step: reward the final share of applicable jobs.
+    - Episode-level safeguards: penalties if no crossings occurred (scaled by learner potential),
+      and if at the very end no job is applicable.
+
+    Implementation notes:
+    - All component terms are normalized into [0,1] to make a well-defined scale.
+      The final raw score is linearly mapped to [-1,1] using theoretical min/max from weights.
+    - Learner potential scaling uses `opp0` if provided; otherwise it is estimated as the
+      fraction of jobs that are close to the threshold at this step.
+    - Logging prints the main components for easy inspection.
+    """
+
+    # ---- Extract matching arrays for all jobs
     prev_m = matches_array(prev_learner, jobs)
     next_m = matches_array(next_learner, jobs)
 
     T = float(threshold)
     num_jobs = max(len(jobs), 1)
+    band = float(band)
+    band = max(band, 1e-8)  # avoid division by zero
     band_lo = T - band
 
+    # ---- Base masks
     prev_app = prev_m >= T
     next_app = next_m >= T
 
-    # 1) Crossings: jobs that moved from below to above threshold
-    crossings_mask = (~prev_app) & next_app
-    crossings_raw = int(np.sum(crossings_mask))
-    # sublinear growth: reward extra unlocks but with diminishing returns
-    #multi_factor = 1.0 + 0.3 * np.log1p(max(crossings_raw - 1, 0))
-    #crossings = (crossings_raw * multi_factor) / num_jobs
+    # ---- (1) Crossings: below -> above
+    crossings_raw = int(np.sum((~prev_app) & next_app))
+    # Keep your sublinear logic but make it bounded in [0,1] by dividing by sqrt(num_jobs)
     crossings = np.sqrt(crossings_raw)
+    crossings_norm = crossings / np.sqrt(num_jobs)  # in [0,1]
 
-    # 2) New entries into the band [T-band, T)
+    # ---- (2) New entries into the pre-threshold band [T-band, T)
     prev_in_band = (prev_m >= band_lo) & (prev_m < T)
     next_in_band = (next_m >= band_lo) & (next_m < T)
-    new_in_band = int(np.sum((~prev_in_band) & (~prev_app) & next_in_band)) / num_jobs
+    new_in_band_count = int(np.sum((~prev_in_band) & (~prev_app) & next_in_band))
+    new_in_band = new_in_band_count / num_jobs  # in [0,1]
 
-    # 3) Continuous progress inside the band
+    # ---- (3) Continuous progress inside the band (positive only)
     prev_clip = np.clip(prev_m, band_lo, T)
     next_clip = np.clip(next_m, band_lo, T)
-    band_gain = np.maximum(next_clip - prev_clip, 0.0).mean() / max(band, 1e-8)
+    # mean positive progress normalized by band width → in [0,1]
+    band_gain = np.maximum(next_clip - prev_clip, 0.0).mean() / band
+    band_gain = float(np.clip(band_gain, 0.0, 1.0))
 
-    # 4) Drops: jobs that fell back below threshold
-    drops = int(np.sum(prev_app & (~next_app))) / num_jobs
+    # ---- (4) Drops: above -> below
+    drops_count = int(np.sum(prev_app & (~next_app)))
+    drops = drops_count / num_jobs  # in [0,1]
 
-    # per-step reward
-    reward = (
-        w_cross * crossings
-        + w_setup * new_in_band
-        + w_margin * band_gain
-        - w_drop * drops
+    # ---- (5) Final share of applicable jobs (only if last step)
+    final_applicable_share = float(next_app.sum()) / num_jobs  # in [0,1]
+
+    # ---- (6) Learner potential for zero-cross penalty scaling
+    # If opp0 is given, scale = clip(opp0/opp_ref, 0,1).
+    # Else estimate potential as the fraction near threshold (within the band) among those below T.
+    if opp0 is not None and opp_ref > 0:
+        potential_scale = float(np.clip(opp0 / float(opp_ref), 0.0, 1.0))
+    else:
+        below_T = ~prev_app
+        near_T = (prev_m >= band_lo) & (prev_m < T)
+        denom = max(int(np.sum(below_T)), 1)
+        potential_scale = float(np.sum(near_T & below_T)) / float(denom)  # in [0,1]
+
+    # ------------------------------------------------------------------
+    # Raw weighted score (all components in [0,1]; drops enters with -)
+    # ------------------------------------------------------------------
+    step_core = (
+        w_cross  * crossings_norm +
+        w_setup  * new_in_band +
+        w_margin * band_gain   -
+        w_drop   * drops
     )
 
-    if is_last:
-        # opportunity scaling for penalties
-        scale = 1.0
-        if opp0 is not None and opp_ref > 0:
-            scale = float(np.clip(opp0 / float(opp_ref), 0.0, 1.0))
+    # Final-step addition
+    final_bonus = (w_final_app * final_applicable_share) if is_last else 0.0
 
-        final_applicable = next_app.sum()  # fraction of jobs above threshold
-        reward += w_final_app * final_applicable
+    # Episode-level penalties
+    zero_cross_pen = 0.0
+    if (ep_crossings_so_far + crossings_raw) == 0:
+        zero_cross_pen = w_zero_cross * potential_scale
 
-        if (ep_crossings_so_far + crossings_raw) == 0:
-            reward -= w_zero_cross * scale
-        if final_applicable == 0.0:
-            reward -= w_zero_app * scale
+    zero_app_pen = 0.0
+    if is_last and final_applicable_share == 0.0:
+        zero_app_pen = w_zero_app * potential_scale
 
+    raw_score = step_core + final_bonus - zero_cross_pen - zero_app_pen
+
+    # ------------------------------------------------------------------
+    # Map raw_score to [-1, 1] using theoretical min/max for this step
+    # Max when all positive terms =1 and negative=0; Min viceversa.
+    # ------------------------------------------------------------------
+    pos_sum = (w_cross + w_setup + w_margin + (w_final_app if is_last else 0.0))
+    # Worst negative: max drops (=1) + max penalties (=potential_scale)
+    neg_sum = (w_drop + (w_zero_cross if (ep_crossings_so_far + crossings_raw) == 0 else 0.0) * potential_scale
+                        + (w_zero_app   if (is_last and final_applicable_share == 0.0) else 0.0) * potential_scale)
+
+    r_max = float(pos_sum)                     # all positives at 1, negatives at 0
+    r_min = float(-neg_sum)                    # all negatives at max, positives at 0
+
+    # Safeguard: if degenerate (shouldn't happen), center at 0
+    if np.isclose(r_max, r_min):
+        reward_scaled = 0.0
+    else:
+        # Linear map [r_min, r_max] -> [-1, 1]
+        reward_scaled = 2.0 * (raw_score - r_min) / (r_max - r_min) - 1.0
+        reward_scaled = float(np.clip(reward_scaled, -1.0, 1.0))
+
+    # ---- Info & logging (human-friendly)
     info = {
-        "crossings": crossings,
-        "new_in_band": new_in_band,
-        "band_gain": band_gain,
-        "drops": drops,
-        "reward_total": float(reward),
-        "applicable_prev": int(prev_app.sum()),
-        "applicable_next": int(next_app.sum()),
+        "counts": {
+            "num_jobs": int(num_jobs),
+            "crossings_raw": int(crossings_raw),
+            "drops_count": int(drops_count),
+            "new_in_band_count": int(new_in_band_count),
+            "applicable_prev": int(prev_app.sum()),
+            "applicable_next": int(next_app.sum()),
+        },
+        "norm_terms": {
+            "crossings_norm": float(crossings_norm),
+            "new_in_band": float(new_in_band),
+            "band_gain": float(band_gain),
+            "drops": float(drops),
+            "final_applicable_share": float(final_applicable_share),
+        },
+        "episode": {
+            "is_last": bool(is_last),
+            "ep_crossings_so_far": int(ep_crossings_so_far),
+            "potential_scale": float(potential_scale),
+        },
+        "weights": {
+            "w_cross": float(w_cross),
+            "w_setup": float(w_setup),
+            "w_margin": float(w_margin),
+            "w_drop": float(w_drop),
+            "w_final_app": float(w_final_app),
+            "w_zero_cross": float(w_zero_cross),
+            "w_zero_app": float(w_zero_app),
+        },
+        "reward_components": {
+            "step_core_raw": float(step_core),
+            "final_bonus": float(final_bonus),
+            "zero_cross_pen": float(zero_cross_pen),
+            "zero_app_pen": float(zero_app_pen),
+            "raw_score": float(raw_score),
+            "r_min": float(r_min),
+            "r_max": float(r_max),
+        },
+        "reward_scaled": float(reward_scaled),
     }
-    return reward, info'''
+
+    # Compact log line (kept close to your style)
+    """print(
+        f"r_scaled: {reward_scaled:.4f} | raw: {raw_score:.4f} | "
+        f"cross: {crossings_norm:.3f} (raw {crossings_raw}) | "
+        f"drops: {drops:.3f} (raw {drops_count}) | "
+        f"band_setup: {new_in_band:.3f} | band_gain: {band_gain:.3f} | "
+        f"final_share: {final_applicable_share:.3f} | "
+        f"zero_pen: {zero_cross_pen + zero_app_pen:.3f} | last:{is_last}"
+    )"""
+
+    return reward_scaled, info
+
 
 
 '''def action_reward_per_course(
@@ -382,7 +489,7 @@ def matches_array(learner, jobs):
     return float(reward), info'''
 
 
-def action_reward_per_course(
+'''def action_reward_per_course(
     prev_learner,
     next_learner,
     jobs,
@@ -484,4 +591,13 @@ def action_reward_per_course(
         },
         "reward_total": float(reward),
     }
-    return float(reward), info
+
+    print("r:", reward,
+          "| cross:", info["counts"]["crossings"],
+          "| drops:", info["counts"]["drops"],
+          "| new_band:", info["counts"]["new_in_band"],
+          "| band_uplift:", info["shaping"]["band_uplift_bandwidths_sum"],
+          "| headroom:", info["shaping"]["headroom_gain_sum"],
+          "| final:", info["counts"]["final_applicable_cnt"],
+          "| is_last:", is_last)
+    return float(reward), info'''

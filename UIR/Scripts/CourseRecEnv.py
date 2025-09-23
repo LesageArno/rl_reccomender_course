@@ -328,6 +328,7 @@ class CourseRecEnv(gym.Env):
         self.nb_recommendations += 1
         terminated = self.nb_recommendations == self.k
 
+        print(f"This is the reward: {reward}")
         return observation, reward, terminated, False, info
 
 
@@ -381,11 +382,11 @@ class EvaluateCallback(BaseCallback):
             for learner in self.eval_env.dataset.learners:
                 self.eval_env.reset(learner=learner)  # Reset environment with current learner
                 done = False  # Flag to control evaluation episode
-                tmp_avg_jobs = self.eval_env.get_info()["nb_applicable_jobs"]  # Initial jobs applicable without any recommendations
+                tmp_avg_jobs = self.eval_env._get_info()["nb_applicable_jobs"]  # Initial jobs applicable without any recommendations
 
                 # Run one full evaluation episode for the learner
                 while not done:
-                    obs = self.eval_env.get_obs()  # Get current observation (learner's skills)
+                    obs = self.eval_env._get_obs()  # Get current observation (learner's skills)
                     action, _state = self.model.predict(obs, deterministic=True)  # Predict action using current policy
                     obs, reward, terminated, truncated, info = self.eval_env.step(action)  # Step in environment
                     done = terminated or truncated  # Properly compute done flag

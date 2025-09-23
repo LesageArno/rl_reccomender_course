@@ -295,7 +295,7 @@ class CourseRecEnv(gym.Env):
 
         post_skills = self._agent_skills.copy()
 
-        is_last = self.k == self.nb_recommendations
+        is_last = self.k == self.nb_recommendations + 1
         reward, logs = matchings.action_reward_per_course(
             prev_learner=prev_skills,
             next_learner=post_skills,
@@ -349,6 +349,7 @@ class CourseRecEnv(gym.Env):
         self.nb_recommendations += 1
         terminated = self.nb_recommendations == self.k
 
+        #print(f"This is the reward: {reward}")
         return observation, reward, terminated, False, info
 
 

@@ -59,12 +59,12 @@ use_pretrained: false                                 # Whether to use or not a 
 
 # Reward function parameters
 band: 0.15
-w_cross: 3.0        # [2.0 – 4.0]  -> ogni crossing deve pesare tanto
-w_setup: 0.5        # [0.2 – 0.8]  -> entrare in banda conta, ma non domina
-w_margin: 1.0       # [0.8 – 1.5]  -> progressi continui + headroom sopra soglia
-w_drop: 4.0         # [3.0 – 5.0]  -> un drop deve fare molto più male di un crossing
-w_final_app: 5.0    # [3.0 – 7.0]  -> ultimo step: numero di job sopra soglia, segnale fortissimo
-w_zero_cross: 0.0   # ignorato, non serve con k piccolo
-w_zero_app: 0.0     # idem
+w_cross: 0.45        # driver principale: attraversamenti (sqrt-normalized)
+w_setup: 0.10        # entrare nella banda
+w_margin: 0.25       # shaping denso di progresso in banda
+w_drop: 0.15         # penalità per ricadute
+w_final_app: 0.30    # quota finale (solo is_last)
+w_zero_cross: 0.10   # penalità ep se nessun crossing (scalata su potential_scale)
+w_zero_app: 0.10     # penalità se a fine episodio nessun job è sopra soglia
 
 obs_shape: 51
