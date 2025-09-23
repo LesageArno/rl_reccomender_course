@@ -33,7 +33,7 @@ nb_runs: 1                                            # Number of independent ru
 seed: 42                                              # Random seed for reproducibility
 
 # Clustering Configuration
-use_clustering: false                                  # Whether to use clustering for reward adjustment
+use_clustering: true                                  # Whether to use clustering for reward adjustment
 auto_clusters: true                                   # Whether to automatically determine optimal number of clusters
 max_clusters: 10                                      # Maximum number of clusters to try when using elbow method
 n_clusters: 4                                         # Number of clusters for K-means clustering (used if auto_clusters=false)
@@ -58,14 +58,14 @@ enable_cluster_log: true                              # if true, each step will 
 use_pretrained: false                                 # Whether to use or not a pretrained model
 
 # Reward function parameters
-band: 0.08
-w_cross: 1.5
-w_final_app: 2.5
-w_setup: 0.5
-w_margin: 1.0
-w_drop: 1.0
-zero_cross_weight: 0.5
-zero_app_weight: 0.5
+band: 0.15
+w_cross: 0.60         # piccolo, perché il termine crossings cresce molto
+w_setup: 0.50
+w_margin: 0.80
+w_drop: 1.20          # tieni alto: perdere job deve far male
+w_final_app: 0.80     # per-job; 25 job → +20 di reward finale
+w_zero_cross: 0.50
+w_zero_app: 0.50
 
 
 obs_shape: 51

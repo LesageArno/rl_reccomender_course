@@ -180,7 +180,7 @@ class Reinforce:
                     gae_lambda=0.95,
                     clip_range=0.2,
                     clip_range_vf=1.0,
-                    ent_coef=0.001,  # bassa → meno esplorazione inutile
+                    ent_coef=0.02,
                     vf_coef=0.8,
                     max_grad_norm=0.5,
                     policy_kwargs=policy_kwargs,
