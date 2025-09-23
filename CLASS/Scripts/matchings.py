@@ -225,9 +225,10 @@ def action_reward_per_course(
     # 1) Crossings: jobs that moved from below to above threshold
     crossings_mask = (~prev_app) & next_app
     crossings_raw = int(np.sum(crossings_mask))
-    # sublinear growth: reward extra unlocks but with diminishing returns
+    '''# sublinear growth: reward extra unlocks but with diminishing returns
     multi_factor = 1.0 + 0.3 * np.log1p(max(crossings_raw - 1, 0))
-    crossings = (crossings_raw * multi_factor) / num_jobs
+    crossings = (crossings_raw * multi_factor) / num_jobs'''
+    crossings = crossings_raw + 0.1 * (crossings_raw ** 2)
 
     # 2) New entries into the band [T-band, T)
     prev_in_band = (prev_m >= band_lo) & (prev_m < T)
@@ -256,7 +257,7 @@ def action_reward_per_course(
         if opp0 is not None and opp_ref > 0:
             scale = float(np.clip(opp0 / float(opp_ref), 0.0, 1.0))
 
-        final_applicable = float(next_app.mean())  # fraction of jobs above threshold
+        final_applicable = next_app.sum()  # fraction of jobs above threshold
         reward += w_final_app * final_applicable
 
         if (ep_crossings_so_far + crossings_raw) == 0:
