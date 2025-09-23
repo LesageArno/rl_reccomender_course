@@ -183,8 +183,8 @@ class Reinforce:
                     ent_coef=0.02,
                     vf_coef=0.85,
                     max_grad_norm=0.5,
-                    policy_kwargs=policy_kwargs,
-                    verbose=1,
+                    # policy_kwargs=policy_kwargs,
+                    # verbose=1,
                 )
 
                 #self.model = MaskablePPO(env=self.train_env, verbose=0, policy="MlpPolicy")
