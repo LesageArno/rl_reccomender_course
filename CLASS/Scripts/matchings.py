@@ -214,15 +214,18 @@ def action_reward(
 
     nb_potential_applicable_jobs = np.sum(matchings, axis=0)
 
+    print(f"nb_potential_applicable_jobs: {nb_potential_applicable_jobs}")
+
     nb_new_applicable_jobs = actual_nb_applicable_jobs - prev_nb_applicable_jobs
     #print(f"nb_new_applicable_jobs: {nb_new_applicable_jobs}")
 
     #reward = nb_new_applicable_jobs
+    wasted_potential = (nb_new_applicable_jobs) / (nb_new_applicable_jobs + nb_potential_applicable_jobs + 1e-5)
+    penalty = potential_penalty * wasted_potential
+    print(f"You wasted: {wasted_potential}")
     if not is_last:
-        reward = alpha*actual_nb_applicable_jobs + beta*nb_new_applicable_jobs + gamma*nb_potential_applicable_jobs
+        reward = alpha*actual_nb_applicable_jobs + beta*nb_new_applicable_jobs + gamma*nb_potential_applicable_jobs - penalty
     else:
-        wasted_potential = nb_new_applicable_jobs / (nb_new_applicable_jobs + nb_potential_applicable_jobs)
-        penalty = potential_penalty * wasted_potential
         reward = alpha * actual_nb_applicable_jobs + beta * nb_new_applicable_jobs - penalty
 
     return reward, ""
