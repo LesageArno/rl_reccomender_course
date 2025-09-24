@@ -193,6 +193,7 @@ def matches_array(learner, jobs):
 
 
 def action_reward(
+        dataset,
         prev_skills,
         actual_skills,
         jobs,
@@ -205,6 +206,8 @@ def action_reward(
         potential_penalty=0.5,
         band=0.10,
         is_last=False):
+
+    skill_rarities = dataset.get_skill_rarities()
 
     matchings = matches_array(actual_skills, jobs)
     soft_threshold = threshold - band
@@ -229,6 +232,3 @@ def action_reward(
         reward = alpha * actual_nb_applicable_jobs + beta * nb_new_applicable_jobs - penalty
 
     return reward, ""
-
-
-

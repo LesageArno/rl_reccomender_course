@@ -293,7 +293,8 @@ class CourseRecEnv(gym.Env):
         actual_nb_applicable_jobs = info["nb_applicable_jobs"]
 
         is_last = self.k == self.nb_recommendations + 1
-        reward, logs = matchings.action_reward(prev_skills=prev_skills,
+        reward, logs = matchings.action_reward(dataset=self.dataset,
+                                               prev_skills=prev_skills,
                                                actual_skills=post_skills,
                                                jobs=self.dataset.jobs,
                                                threshold=self.threshold,
@@ -302,7 +303,8 @@ class CourseRecEnv(gym.Env):
                                                alpha=self.alpha,
                                                beta=self.beta,
                                                potential_penalty=self.potential_penalty,
-                                               band=self.band)
+                                               band=self.band,
+                                               is_last=is_last)
         # print("Reward: ", reward)
 
         '''# Set reward as number of applicable jobs
