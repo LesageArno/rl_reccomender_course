@@ -73,13 +73,10 @@ class CourseRecEnv(gym.Env):
         
         # Initialize basic attributes
         self.band = self.dataset.config.get('band', 0.1)
-        self.w_cross = self.dataset.config.get('w_cross', 1)
-        self.w_final_app = self.dataset.config.get('w_final_app', 1)
-        self.w_setup = self.dataset.config.get('w_setup', 1)
-        self.w_margin = self.dataset.config.get('w_margin', 1)
-        self.w_drop = self.dataset.config.get('w_drop', 1)
-        self.w_zero_cross = self.dataset.config.get('zero_cross_weight', 1)
-        self.w_zero_app = self.dataset.config.get('zero_app_weight', 1)
+        self.alpha = self.dataset.config.get('alpha', 0.7)
+        self.beta = self.dataset.config.get('beta', 1)
+        self.gamma = self.dataset.config.get('gamma', 0.5)
+        self.potential_penalty = self.dataset.config.get("potential_penalty", 0.5)
         self.obs_shape = self.dataset.config.get('obs_shape', 51)
         self.nb_skills = len(dataset.skills)  # 46 skills
         self.mastery_levels = [1, 2, 3]
@@ -213,11 +210,8 @@ class CourseRecEnv(gym.Env):
             self._agent_skills = learner
         else:
             self._agent_skills = self.get_random_learner()
-        self.nb_recommendations = 0
 
-        m0 = matchings.matches_array(self._agent_skills, self.dataset.jobs)
-        band = 0.10  # lo stesso usato nella reward
-        self._opp0 = int(((m0 >= self.threshold - band) & (m0 < self.threshold)).sum())
+        self.nb_recommendations = 0
         self._crossings_total = 0
 
         # Reset clustering-related attributes
@@ -287,33 +281,28 @@ class CourseRecEnv(gym.Env):
             return observation, reward, terminated, False, info
 
         # print(f"This is value matching BEFORE a course was selected {matchings.compute_coverage_percentage(self._agent_skills, self.dataset.jobs)}")
-        
+        prev_info = self.get_info()
+        prev_nb_applicable_jobs = prev_info["nb_applicable_jobs"]
+
         # Update learner's skills
         self._agent_skills = np.maximum(self._agent_skills, course[1])
         observation = self.get_obs()
         info = self.get_info()
 
         post_skills = self._agent_skills.copy()
+        actual_nb_applicable_jobs = info["nb_applicable_jobs"]
 
         is_last = self.k == self.nb_recommendations + 1
-        reward, logs = matchings.action_reward_per_course(
-            prev_learner=prev_skills,
-            next_learner=post_skills,
-            jobs=self.dataset.jobs,
-            threshold=self.threshold,
-            band=self.band,
-            w_cross=self.w_cross,
-            w_final_app=self.w_final_app,
-            w_setup=self.w_setup,  # segnala il potenziale per lo step successivo
-            w_margin=self.w_margin,
-            w_drop=self.w_drop,
-            is_last=is_last,
-            ep_crossings_so_far=self._crossings_total,
-            w_zero_cross=self.w_zero_cross,
-            w_zero_app=self.w_zero_app,
-            opp0=self._opp0,
-            opp_ref=5
-        )
+        reward, logs = matchings.action_reward(prev_skills=prev_skills,
+                                               actual_skills=post_skills,
+                                               jobs=self.dataset.jobs,
+                                               threshold=self.threshold,
+                                               prev_nb_applicable_jobs=prev_nb_applicable_jobs,
+                                               actual_nb_applicable_jobs=actual_nb_applicable_jobs,
+                                               alpha=self.alpha,
+                                               beta=self.beta,
+                                               potential_penalty=self.potential_penalty,
+                                               band=self.band)
         # print("Reward: ", reward)
 
         '''# Set reward as number of applicable jobs

@@ -28,7 +28,7 @@ threshold: 0.8                                         # Minimum matching thresh
 k: 2                                                  # Number of course recommendations to generate
 model: ppo_mask #dqn                                            # Reinforcement learning algorithm (ppo, dqn, a2c, ppo_mask)
 total_steps: 500000 #5000000                                # Total training steps
-eval_freq: 5000 # 1000                                       # Evaluation frequency during training
+eval_freq: 2000 # 1000                                       # Evaluation frequency during training
 nb_runs: 1                                            # Number of independent runs
 seed: 42                                              # Random seed for reproducibility
 
@@ -58,14 +58,11 @@ enable_cluster_log: true                              # if true, each step will 
 use_pretrained: false                                 # Whether to use or not a pretrained model
 
 # Reward function parameters
-band: 0.15
-w_cross: 1.2
-w_setup: 0.30
-w_margin: 0.80
-w_drop: 2.0       # un filo più basso del tuo 2.5 per non frenare l’esplorazione
-w_final_app: 2.0   # più basso del tuo 3.0 per non far dominare gli applicabili
-w_zero_cross: 0.70
-w_zero_app: 0.70
+band: 0.10                                            # Param for soft thresold
+alpha: 0.7                                            # Weight for nb_applicable_jobs
+beta: 0.9                                             # Weight for new_nb_applicable_jobs
+gamma: 0.4                                            # Weight for nb of jobs in soft threshold
+potential_penalty: 0.5                                # Penalty weight for wasted potential(jobs in soft threshold not exploited)
 
 
 obs_shape: 51

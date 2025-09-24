@@ -191,303 +191,41 @@ def compute_coverage_percentage(learner: np.ndarray, jobs: np.ndarray) -> float:
 def matches_array(learner, jobs):
     return np.array([matching(learner, j) for j in jobs], dtype=np.float32)
 
-import numpy as np
 
-def action_reward_per_course(
-    prev_learner,
-    next_learner,
-    jobs,
-    threshold: float,
-    band: float = 0.10,
-    w_cross: float = 0.8,        # crossing normalizzati (non domina)
-    w_final_app: float = 2.0,    # premio finale sugli "applicabili" morbidi (media 0-1)
-    w_setup: float = 0.0,        # ignorato (compatibilità)
-    w_margin: float = 0.0,       # ignorato
-    w_drop: float = 0.0,         # rimosso come richiesto
-    is_last: bool = False,
-    ep_crossings_so_far: int = 0,   # ignorato
-    w_zero_cross: float = 0.0,      # ignorato
-    w_zero_app: float = 0.0,        # ignorato
-    opp0: int | None = None,        # ignorato
-    opp_ref: int = 0,               # ignorato
-    cross_cap: int = 0,             # ignorato
-    # nuovo peso "denso" e sua temperatura
-    w_soft: float = 8.0,
-    sigma_soft: float = None,    # se None -> band/2
-):
-    """
-    Reward minimale:
-      R = w_soft * Δsoft_mean  +  w_cross * crossings_norm  +  1_{last} * w_final_app * soft_mean_next
-    dove soft_mean = mean(sigmoid((match - T)/tau)), tau = (sigma_soft or band/2).
+def action_reward(
+        prev_skills,
+        actual_skills,
+        jobs,
+        threshold,
+        prev_nb_applicable_jobs,
+        actual_nb_applicable_jobs,
+        alpha=0.7,
+        beta=1,
+        gamma=0.5,
+        potential_penalty=0.5,
+        band=0.10,
+        is_last=False):
 
-    - Niente penalità di drop.
-    - Tutto normalizzato per non farsi dominare dal numero di job.
-    - Mantiene la signature per non rompere call esistenti.
-    """
+    matchings = matches_array(actual_skills, jobs)
+    soft_threshold = threshold - band
 
-    # --- helper esterni attesi: matches_array(prev_learner, jobs) -> np.ndarray[float]
-    prev_m = matches_array(prev_learner, jobs)
-    next_m = matches_array(next_learner, jobs)
+    matchings[matchings < soft_threshold] = 0
+    matchings[matchings >= soft_threshold] = 1
 
-    T = float(threshold)
-    n = max(len(jobs), 1)
-    tau = float(band) / 2.0 if sigma_soft is None else float(sigma_soft)
-    tau = max(tau, 1e-6)
+    nb_potential_applicable_jobs = np.sum(matchings, axis=0)
 
-    # Sigmoide "applicabile morbido" (0..1) per evitare gradini
-    s_prev = 1.0 / (1.0 + np.exp(-(prev_m - T) / tau))
-    s_next = 1.0 / (1.0 + np.exp(-(next_m - T) / tau))
+    nb_new_applicable_jobs = actual_nb_applicable_jobs - prev_nb_applicable_jobs
+    #print(f"nb_new_applicable_jobs: {nb_new_applicable_jobs}")
 
-    soft_mean_prev = float(np.mean(s_prev))
-    soft_mean_next = float(np.mean(s_next))
-    delta_soft = soft_mean_next - soft_mean_prev
-
-    # Crossing reali ma normalizzati per il numero di job
-    crossings = int(np.sum((prev_m < T) & (next_m >= T)))
-    crossings_norm = crossings / float(n)
-
-    # Reward compatto
-    reward = (
-        w_soft * delta_soft +
-        w_cross * crossings_norm +
-        w_final_app * soft_mean_next
-    )
-
-    info = {
-        "n_jobs": n,
-        "threshold": T,
-        "tau": tau,
-        "soft_mean_prev": soft_mean_prev,
-        "soft_mean_next": soft_mean_next,
-        "delta_soft": delta_soft,
-        "crossings": crossings,
-        "crossings_norm": crossings_norm,
-        "weights": {
-            "w_soft": w_soft,
-            "w_cross": w_cross,
-            "w_final_app": w_final_app,
-        },
-        "total_reward": float(reward),
-    }
-
-    return float(reward), info
-
-
-
-'''def action_reward_per_course(
-    prev_learner,
-    next_learner,
-    jobs,
-    threshold: float,
-    band: float = 0.10,         # width of the pre-threshold band
-    w_cross: float = 1.5,       # strong weight: each crossing adds directly to reward
-    w_final_app: float = 1.0,   # final count of applicable jobs (only if is_last)
-    w_setup: float = 0.20,      # reward for NEW entries into the band (count)
-    w_margin: float = 0.60,     # dense shaping: band uplift + headroom above T
-    w_drop: float = 2.0,        # strong penalty: each drop hurts more than one crossing
-    is_last: bool = False,
-    ep_crossings_so_far: int = 0,   # kept for API compatibility (unused here)
-    w_zero_cross: float = 0.0,      # kept for API compatibility (unused here)
-    w_zero_app: float = 0.0,        # kept for API compatibility (unused here)
-    opp0: int | None = None,        # kept for API compatibility (unused here)
-    opp_ref: int = 5,               # kept for API compatibility (unused here)
-    cross_cap: int = 0              # kept for API compatibility (unused here)
-):
-    """
-    Reward tailored for very short episodes (k≈2):
-    - Uses RAW COUNTS so a course that unlocks many jobs is immediately high-reward.
-    - Dense shaping = (band uplift) + (headroom above T):
-        * band uplift  : sum of positive progress inside [T-band, T] measured in 'band widths'
-        * headroom     : sum of positive margin gained above T (secures retention next step)
-    - No normalization by num_jobs. No caps. Signals stay linear in 'how many jobs improved'.
-
-    All names of inputs/weights kept unchanged for drop-in replacement.
-    """
-
-    # get match arrays for all jobs
-    prev_m = matches_array(prev_learner, jobs)
-    next_m = matches_array(next_learner, jobs)
-
-    T = float(threshold)
-    num_jobs = max(len(jobs), 1)
-    band = float(band)
-    band = max(band, 1e-8)  # avoid divide-by-zero
-    band_lo = T - band
-
-    # masks: applicability relative to threshold
-    prev_app = prev_m >= T
-    next_app = next_m >= T
-
-    # 1) Crossings: below -> above (RAW COUNT)
-    crossings_raw = int(np.sum((~prev_app) & next_app))
-
-    # 2) Drops: above -> below (RAW COUNT)
-    drops_raw = int(np.sum(prev_app & (~next_app)))
-
-    # 3) New entries into the band [T-band, T) (RAW COUNT)
-    prev_in_band = (prev_m >= band_lo) & (prev_m < T)
-    next_in_band = (next_m >= band_lo) & (next_m < T)
-    new_in_band_cnt = int(np.sum((~prev_in_band) & (~prev_app) & next_in_band))
-
-    # 4) Dense shaping in two parts (both scale with "how many jobs" improved):
-    # 4a) Band uplift: positive progress *inside* [T-band, T], measured in band widths and SUMMED
-    prev_clip = np.clip(prev_m, band_lo, T)
-    next_clip = np.clip(next_m, band_lo, T)
-    band_uplift = float(np.sum(np.maximum(0.0, next_clip - prev_clip)) / band)  # in "band widths"
-
-    # 4b) Headroom above T: extra margin gained above threshold (helps retention next step)
-    #     Sum only *additional* margin: max(0, next - max(prev, T)) across jobs.
-    prev_head = np.maximum(prev_m, T)
-    headroom_gain = float(np.sum(np.maximum(0.0, next_m - prev_head)))
-
-    # Per-step reward (no final term yet)
-    reward = (
-        w_cross  * float(crossings_raw) +
-        w_setup  * float(new_in_band_cnt) +
-        w_margin * float(band_uplift + headroom_gain) -
-        w_drop   * float(drops_raw)
-    )
-
-    # Final step: add raw count of applicable jobs (not normalized)
-    if is_last:
-        final_applicable_cnt = int(np.sum(next_app))
-        reward += w_final_app * float(final_applicable_cnt)
+    #reward = nb_new_applicable_jobs
+    if not is_last:
+        reward = alpha*actual_nb_applicable_jobs + beta*nb_new_applicable_jobs + gamma*nb_potential_applicable_jobs
     else:
-        final_applicable_cnt = 0
+        wasted_potential = nb_new_applicable_jobs / (nb_new_applicable_jobs + nb_potential_applicable_jobs)
+        penalty = potential_penalty * wasted_potential
+        reward = alpha * actual_nb_applicable_jobs + beta * nb_new_applicable_jobs - penalty
 
-    info = {
-        "counts": {
-            "num_jobs": int(num_jobs),
-            "crossings": int(crossings_raw),
-            "drops": int(drops_raw),
-            "new_in_band": int(new_in_band_cnt),
-            "final_applicable_cnt": int(final_applicable_cnt),
-        },
-        "shaping": {
-            "band_uplift_bandwidths_sum": float(band_uplift),
-            "headroom_gain_sum": float(headroom_gain),
-        },
-        "weights": {
-            "w_cross": float(w_cross),
-            "w_setup": float(w_setup),
-            "w_margin": float(w_margin),
-            "w_drop": float(w_drop),
-            "w_final_app": float(w_final_app),
-        },
-        "reward_total": float(reward),
-    }
-    return float(reward), info'''
+    return reward, ""
 
 
-'''def action_reward_per_course(
-    prev_learner,
-    next_learner,
-    jobs,
-    threshold: float,
-    band: float = 0.10,         # width of the pre-threshold band
-    w_cross: float = 1.5,       # strong weight: each crossing adds directly to reward
-    w_final_app: float = 1.0,   # final count of applicable jobs (only if is_last)
-    w_setup: float = 0.20,      # reward for NEW entries into the band (count)
-    w_margin: float = 0.60,     # dense shaping: band uplift + headroom above T
-    w_drop: float = 2.0,        # strong penalty: each drop hurts more than one crossing
-    is_last: bool = False,
-    ep_crossings_so_far: int = 0,   # kept for API compatibility (unused here)
-    w_zero_cross: float = 0.0,      # kept for API compatibility (unused here)
-    w_zero_app: float = 0.0,        # kept for API compatibility (unused here)
-    opp0: int | None = None,        # kept for API compatibility (unused here)
-    opp_ref: int = 5,               # kept for API compatibility (unused here)
-    cross_cap: int = 0              # kept for API compatibility (unused here)
-):
-    """
-    Reward tailored for very short episodes (k≈2):
-    - Uses RAW COUNTS so a course that unlocks many jobs is immediately high-reward.
-    - Dense shaping = (band uplift) + (headroom above T):
-        * band uplift  : sum of positive progress inside [T-band, T] measured in 'band widths'
-        * headroom     : sum of positive margin gained above T (secures retention next step)
-    - No normalization by num_jobs. No caps. Signals stay linear in 'how many jobs improved'.
 
-    All names of inputs/weights kept unchanged for drop-in replacement.
-    """
-
-    # get match arrays for all jobs
-    prev_m = matches_array(prev_learner, jobs)
-    next_m = matches_array(next_learner, jobs)
-
-    T = float(threshold)
-    num_jobs = max(len(jobs), 1)
-    band = float(band)
-    band = max(band, 1e-8)  # avoid divide-by-zero
-    band_lo = T - band
-
-    # masks: applicability relative to threshold
-    prev_app = prev_m >= T
-    next_app = next_m >= T
-
-    # 1) Crossings: below -> above (RAW COUNT)
-    crossings_raw = int(np.sum((~prev_app) & next_app))
-
-    # 2) Drops: above -> below (RAW COUNT)
-    drops_raw = int(np.sum(prev_app & (~next_app)))
-
-    # 3) New entries into the band [T-band, T) (RAW COUNT)
-    prev_in_band = (prev_m >= band_lo) & (prev_m < T)
-    next_in_band = (next_m >= band_lo) & (next_m < T)
-    new_in_band_cnt = int(np.sum((~prev_in_band) & (~prev_app) & next_in_band))
-
-    # 4) Dense shaping in two parts (both scale with "how many jobs" improved):
-    # 4a) Band uplift: positive progress *inside* [T-band, T], measured in band widths and SUMMED
-    prev_clip = np.clip(prev_m, band_lo, T)
-    next_clip = np.clip(next_m, band_lo, T)
-    band_uplift = float(np.sum(np.maximum(0.0, next_clip - prev_clip)) / band)  # in "band widths"
-
-    # 4b) Headroom above T: extra margin gained above threshold (helps retention next step)
-    #     Sum only *additional* margin: max(0, next - max(prev, T)) across jobs.
-    prev_head = np.maximum(prev_m, T)
-    headroom_gain = float(np.sum(np.maximum(0.0, next_m - prev_head)))
-
-    # Per-step reward (no final term yet)
-    reward = (
-        w_cross  * float(crossings_raw) +
-        w_setup  * float(new_in_band_cnt) +
-        w_margin * float(band_uplift + headroom_gain) -
-        w_drop   * float(drops_raw)
-    )
-
-    # Final step: add raw count of applicable jobs (not normalized)
-    if is_last:
-        final_applicable_cnt = int(np.sum(next_app))
-        reward += w_final_app * float(final_applicable_cnt)
-    else:
-        final_applicable_cnt = 0
-
-    info = {
-        "counts": {
-            "num_jobs": int(num_jobs),
-            "crossings": int(crossings_raw),
-            "drops": int(drops_raw),
-            "new_in_band": int(new_in_band_cnt),
-            "final_applicable_cnt": int(final_applicable_cnt),
-        },
-        "shaping": {
-            "band_uplift_bandwidths_sum": float(band_uplift),
-            "headroom_gain_sum": float(headroom_gain),
-        },
-        "weights": {
-            "w_cross": float(w_cross),
-            "w_setup": float(w_setup),
-            "w_margin": float(w_margin),
-            "w_drop": float(w_drop),
-            "w_final_app": float(w_final_app),
-        },
-        "reward_total": float(reward),
-    }
-
-    print("r:", reward,
-          "| cross:", info["counts"]["crossings"],
-          "| drops:", info["counts"]["drops"],
-          "| new_band:", info["counts"]["new_in_band"],
-          "| band_uplift:", info["shaping"]["band_uplift_bandwidths_sum"],
-          "| headroom:", info["shaping"]["headroom_gain_sum"],
-          "| final:", info["counts"]["final_applicable_cnt"],
-          "| is_last:", is_last)
-    return float(reward), info'''
