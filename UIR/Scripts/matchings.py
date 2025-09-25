@@ -157,3 +157,28 @@ def learner_course_matching(learner: np.ndarray, course: np.ndarray) -> float:
     provided_matching = learner_course_provided_matching(learner, course)
 
     return required_matching * (1 - provided_matching)  # user-course relevantness
+
+def learner_course_required_matching(learner: np.ndarray, course: np.ndarray) -> float:
+    """
+    Compute the matching score between a learner and a course's required skills.
+    Takes into account the mastery levels of skills.
+
+    Args:
+        learner (np.ndarray): Learner's skill vector where values (1-3) indicate
+                            mastery levels of skills.
+        course (np.ndarray): Course's skills array [required, provided] where
+                            required skills are in the first dimension.
+
+    Returns:
+        float: Matching score between 0 and 1, where:
+            - 1.0 means the learner has all required skills at required levels
+            - 0.0 means the learner has none of the required skills
+            - Values in between represent partial matches based on skill levels
+    """
+    required_course = course[0]  # required skills
+
+    # check if the course has no required skills and return 1
+    if not np.any(required_course):
+        return 1.0
+
+    return matching(learner, required_course)

@@ -95,6 +95,8 @@ added to the configuration file used by pipeline.py.
 """
 
 import numpy as np
+from sb3_contrib import MaskablePPO
+from sb3_contrib.common.wrappers import ActionMasker
 from stable_baselines3 import PPO, DQN
 from CourseRecEnv import CourseRecEnv
 from Dataset import Dataset
@@ -134,6 +136,30 @@ class WeightOptimizer:
             model = DQN("MlpPolicy", env_train, verbose=0)
         elif self.model_name == "ppo":
             model = PPO("MlpPolicy", env_train, verbose=0)
+        elif self.model_name == "ppo_mask":
+
+            def mask_fn(env):  # ActionMasker function
+                return env.unwrapped.get_action_mask().astype(bool)  # env.get_action_mask()
+
+            env_train = ActionMasker(env_train, mask_fn)
+
+            model = MaskablePPO(
+                "MlpPolicy",
+                env_train,
+                device="auto",
+                learning_rate=lambda frac: 1e-4 * frac,  # o schedule lineare da 3e-4 → 1e-5
+                n_steps=500,
+                batch_size=256,
+                n_epochs=6,
+                gamma=0.95,
+                gae_lambda=0.95,
+                clip_range=0.35,
+                clip_range_vf=1.0,
+                ent_coef=0.01,
+                vf_coef=0.7,
+                max_grad_norm=0.5,
+                # verbose=1,
+            )
         else:
             raise ValueError(f"Unsupported model: {self.model_name}")
         model.learn(total_timesteps=self.total_steps)
@@ -158,7 +184,7 @@ class WeightOptimizer:
             env_eval.reset(learner=learner)
             done = False
             while not done:
-                obs = env_eval._get_obs()
+                obs = env_eval.get_obs()
                 action, _ = model.predict(obs, deterministic=True)
                 obs, reward, done, _, info = env_eval.step(action)
             total_app_jobs += env_eval.dataset.get_nb_applicable_jobs(env_eval._agent_skills, self.threshold)

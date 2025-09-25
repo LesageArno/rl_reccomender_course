@@ -4,6 +4,8 @@ import json
 import numpy as np
 from time import process_time
 from stable_baselines3 import DQN, A2C, PPO
+from sb3_contrib.common.wrappers import ActionMasker
+from sb3_contrib import MaskablePPO
 
 from CourseRecEnv import CourseRecEnv, EvaluateCallback
 
@@ -65,6 +67,15 @@ class Reinforce:
         # Create the training and evaluation environments
         self.train_env = CourseRecEnv(dataset, threshold=self.threshold, k=self.k, baseline = self.baseline, feature=self.feature, beta1=self.beta1, beta2=self.beta2)
         self.eval_env = CourseRecEnv(dataset, threshold=self.threshold, k=self.k, baseline = self.baseline, feature=self.feature, beta1=self.beta1, beta2=self.beta2)
+
+        # Masking of unavailable actions
+        if self.model_name == "ppo_mask":
+            def mask_fn(env):  # ActionMasker function
+                return env.unwrapped.get_action_mask().astype(bool)  # env.get_action_mask()
+
+            self.train_env = ActionMasker(self.train_env, mask_fn)
+            self.eval_env = ActionMasker(self.eval_env, mask_fn)
+
         self.get_model()
         if self.baseline: #baseline model
             self.all_results_filename = (
@@ -125,7 +136,7 @@ class Reinforce:
             all_results_filename=self.all_results_filename,
         )
 
-    def get_model(self):
+    '''def get_model(self):
         """Initialize the reinforcement learning model.
         
         Sets up the specified RL algorithm (DQN, A2C, or PPO) with default parameters.
@@ -137,7 +148,57 @@ class Reinforce:
         elif self.model_name == "a2c":
             self.model = A2C(env=self.train_env, verbose=0, policy="MlpPolicy", device="cpu")
         elif self.model_name == "ppo":
-            self.model = PPO(env=self.train_env, verbose=0, policy="MlpPolicy")
+            self.model = PPO(env=self.train_env, verbose=0, policy="MlpPolicy")'''
+
+    def get_model(self):
+        """Initialize or load the reinforcement learning model.
+
+        If a pretrained model path is provided in the dataset config, load the model.
+        Otherwise, initialize a new model with default parameters.
+        The model is configured to use a Multi-Layer Perceptron (MLP) policy.
+
+        Supported algorithms:
+        - DQN: Deep Q-Network for discrete action spaces
+        - A2C: Advantage Actor-Critic
+        - PPO: Proximal Policy Optimization
+        """
+        pretrained_path = self.dataset.config.get("pretrained_model_path", None)
+        use_pretrained = self.dataset.config.get("use_pretrained", False)
+
+        if self.model_name == "dqn":
+            if use_pretrained:
+                self.model = DQN.load(pretrained_path, env=self.train_env)
+                print(f"Loaded pretrained DQN model from {pretrained_path}")
+            else:
+                self.model = DQN(env=self.train_env, verbose=0, policy="MlpPolicy")
+
+        elif self.model_name == "a2c":
+            if use_pretrained:
+                self.model = A2C.load(pretrained_path, env=self.train_env, device="cpu")
+                print(f"Loaded pretrained A2C model from {pretrained_path}")
+            else:
+                self.model = A2C(env=self.train_env, verbose=0, policy="MlpPolicy", device="cpu")
+
+        elif self.model_name == "ppo":
+            if use_pretrained:
+                self.model = PPO.load(pretrained_path, env=self.train_env)
+                print(f"Loaded pretrained PPO model from {pretrained_path}")
+            else:
+                self.model = PPO(env=self.train_env, verbose=0, policy="MlpPolicy", seed=42)
+        elif self.model_name == "ppo_mask":
+            if use_pretrained:
+                self.model = MaskablePPO.load(pretrained_path, env=self.train_env)
+            else:
+                self.model = MaskablePPO(
+                    "MlpPolicy",
+                    env=self.train_env,
+                    device="auto",
+                    seed=42
+                )
+
+                #self.model = MaskablePPO(env=self.train_env, verbose=0, policy="MlpPolicy")
+        else:
+            raise ValueError(f"Unsupported model type: {self.model_name}")
 
     def update_learner_profile(self, learner, course):
         """Updates the learner's profile with the skills and levels of the course.
@@ -187,7 +248,7 @@ class Reinforce:
         time_start = process_time()
         recommendations = dict()
         for i, learner in enumerate(self.dataset.learners):#run by row
-            self.eval_env.reset(learner=learner) #initialize _agent_skills = learner if not NONE
+            self.eval_env.reset(options={"learner":learner}) #initialize _agent_skills = learner if not NONE
             done = False
             index = self.dataset.learners_index[i]
             recommendation_sequence = []

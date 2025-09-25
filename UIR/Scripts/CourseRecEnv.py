@@ -5,6 +5,7 @@ from time import process_time
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
+from sb3_contrib import MaskablePPO
 from stable_baselines3.common.callbacks import BaseCallback
 
 import matchings
@@ -85,7 +86,7 @@ class CourseRecEnv(gym.Env):
         # The agent will select an integer in [0, nb_courses - 1], representing the index of the recommended course.
         self.action_space = gym.spaces.Discrete(self.nb_courses)
 
-    def _get_obs(self):
+    def get_obs(self):
         """Get the current observation of the environment.
         
         Returns:
@@ -93,7 +94,7 @@ class CourseRecEnv(gym.Env):
         """
         return self._agent_skills
 
-    def _get_info(self):
+    def get_info(self):
         """Get additional information about the current state.
         
         Returns:
@@ -130,7 +131,7 @@ class CourseRecEnv(gym.Env):
         )
         return initial_skills
 
-    def reset(self, seed=None, learner=None):
+    def reset(self, seed=None, options=None, learner=None):
         """Method required by the gym environment. It resets the environment to its initial state.
 
         Args:
@@ -144,14 +145,16 @@ class CourseRecEnv(gym.Env):
         """
         # We need the following line to seed self.np_random
         super().reset(seed=seed)
+        if learner is None and options is not None:
+            learner = options["learner"]
 
         if learner is not None:
             self._agent_skills = learner
         else:
             self._agent_skills = self.get_random_learner()
         self.nb_recommendations = 0
-        observation = self._get_obs()
-        info = self._get_info()
+        observation = self.get_obs()
+        info = self.get_info()
         return observation, info
 
     def calculate_course_metrics(self, learner, course):
@@ -269,6 +272,27 @@ class CourseRecEnv(gym.Env):
         
         return utility
 
+    def get_action_mask(self) -> np.ndarray:
+        """
+        True = valid actions, False = invalid actions.
+        Invalid:
+          - required_matching < threshold
+          - provided_matching >= 1.0
+        """
+        learner = self._agent_skills
+        valid = np.ones(self.dataset.courses.shape[0], dtype=bool)
+
+        for i, course in enumerate(self.dataset.courses):
+            prov = matchings.learner_course_provided_matching(learner, course)
+            if prov >= 1.0:
+                valid[i] = False
+        if valid.sum() <= 15:
+            print(np.count_nonzero(valid))
+
+        if not valid.any():  # fallback difensivo
+            valid[0] = True
+        return valid
+
     def step(self, action):
         """Execute one step in the environment.
         
@@ -298,24 +322,24 @@ class CourseRecEnv(gym.Env):
         # Skip-expertise case: use new metrics and utility
         provided_matching = matchings.learner_course_provided_matching(learner, course)
         if provided_matching == 1.0:
-            observation = self._get_obs()
+            observation = self.get_obs()
             reward = -1
             terminated = True
-            info = self._get_info()
+            info = self.get_info()
             return observation, reward, terminated, False, info
         
         if self.baseline : #baseline model
             self._agent_skills = np.maximum(self._agent_skills, course[1])
-            observation = self._get_obs()
-            info = self._get_info()
+            observation = self.get_obs()
+            info = self.get_info()
             reward = info["nb_applicable_jobs"]
         else: # No-Mastery-Levels Models
             # Calculate Usefulness-of-info-as-Rwd
             utility = self.calculate_utility(learner, course)
             
             self._agent_skills = np.maximum(self._agent_skills, course[1])
-            observation = self._get_obs()
-            info = self._get_info()
+            observation = self.get_obs()
+            info = self.get_info()
             info["utility"] = utility
             
             if self.feature == "Usefulness-as-Rwd":
@@ -328,8 +352,6 @@ class CourseRecEnv(gym.Env):
         self.nb_recommendations += 1
         terminated = self.nb_recommendations == self.k
 
-        if reward >= 4:
-            print(f"This is the reward: {reward}")
         return observation, reward, terminated, False, info
 
 
@@ -381,14 +403,20 @@ class EvaluateCallback(BaseCallback):
 
             # Loop through each learner in the evaluation dataset
             for learner in self.eval_env.dataset.learners:
-                self.eval_env.reset(learner=learner)  # Reset environment with current learner
+                self.eval_env.reset(options={"learner": learner}) #learner=learner)  # Reset environment with current learner
                 done = False  # Flag to control evaluation episode
-                tmp_avg_jobs = self.eval_env._get_info()["nb_applicable_jobs"]  # Initial jobs applicable without any recommendations
+                tmp_avg_jobs = self.eval_env.get_info()["nb_applicable_jobs"]  # Initial jobs applicable without any recommendations
 
                 # Run one full evaluation episode for the learner
                 while not done:
-                    obs = self.eval_env._get_obs()  # Get current observation (learner's skills)
-                    action, _state = self.model.predict(obs, deterministic=True)  # Predict action using current policy
+                    obs = self.eval_env.unwrapped.get_obs()
+                    if isinstance(self.model, MaskablePPO):
+                        mask = self.eval_env.unwrapped.get_action_mask()
+                        action, _state = self.model.predict(obs, action_masks=mask, deterministic=True)
+                    else:
+                        action, _state = self.model.predict(obs, deterministic=True)  # Predict action using current policy
+                    #obs = self.eval_env.get_obs()  # Get current observation (learner's skills)
+
                     obs, reward, terminated, truncated, info = self.eval_env.step(action)  # Step in environment
                     done = terminated or truncated  # Properly compute done flag
 
