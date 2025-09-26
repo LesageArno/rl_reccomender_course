@@ -3,6 +3,8 @@ import json
 
 import numpy as np
 from time import process_time
+
+import torch
 from stable_baselines3 import DQN, A2C, PPO
 from sb3_contrib.common.wrappers import ActionMasker
 from sb3_contrib import MaskablePPO
@@ -193,8 +195,27 @@ class Reinforce:
                     "MlpPolicy",
                     env=self.train_env,
                     device="auto",
-                    seed=42
+                    seed=42,
+                    gamma=0.99,
+                    n_steps=256,
+                    batch_size=1024,
+                    learning_rate=1e-4,
+                    ent_coef=0.02,
+                    clip_range=0.25,
+                    policy_kwargs=dict(
+                        net_arch=[256, 256],
+                        activation_fn=torch.nn.Tanh,
+                        ortho_init=True,
+                    ),
+                    verbose=0
                 )
+
+                '''self.model = MaskablePPO(
+                    "MlpPolicy",
+                    env=self.train_env,
+                    device="auto",
+                    seed=42
+                )'''
 
                 #self.model = MaskablePPO(env=self.train_env, verbose=0, policy="MlpPolicy")
         else:
@@ -243,6 +264,12 @@ class Reinforce:
 
         # Train the model using train env
         self.model.learn(total_timesteps=self.total_steps, callback=self.eval_callback)# find the policy
+
+        # Save model after training
+        save_dir = self.dataset.config.get("save_dir", "UIR")
+        model_dir = os.path.join(save_dir, "models_weights")
+        os.makedirs(model_dir, exist_ok=True)
+        self.model.save(os.path.join(model_dir, self.final_results_filename))
 
         # Evaluate the model using eval env
         time_start = process_time()

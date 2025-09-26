@@ -99,7 +99,7 @@ from sb3_contrib import MaskablePPO
 from sb3_contrib.common.wrappers import ActionMasker
 from stable_baselines3 import PPO, DQN
 from CourseRecEnv import CourseRecEnv
-from Dataset import Dataset
+from Dataset2 import Dataset
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import argparse

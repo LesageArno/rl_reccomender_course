@@ -78,7 +78,7 @@ class CourseRecEnv(gym.Env):
         # The vector contains skill levels, where the minimum level is 0 and the maximum level is max_level (e.g., 3).
         # We cannot set the lower bound to -1 because negative values are not allowed in this Box space.
         self.observation_space = gym.spaces.Box(
-            low=0, high=self.max_level, shape=(self.nb_skills,), dtype=np.int32)
+            low=0, high=self.max_level, shape=(self.nb_skills+1,), dtype=np.int32)
 
         # Define the action space for the environment.
         # This is a discrete space where each action corresponds to recommending a specific course.
@@ -92,7 +92,10 @@ class CourseRecEnv(gym.Env):
         Returns:
             np.ndarray: Current learner's skill vector representing the state
         """
-        return self._agent_skills
+        step_left = np.array([(self.k - self.nb_recommendations) / self.k])
+
+        obs = np.concatenate([self._agent_skills, step_left])
+        return obs
 
     def get_info(self):
         """Get additional information about the current state.
@@ -174,15 +177,15 @@ class CourseRecEnv(gym.Env):
         """
         # Calculate skills after learning the course
         cons_skills = np.maximum(learner, course[1])
-        cons_skills_set = set(np.nonzero(cons_skills)[0])
-        
+        cons_skills_set = set(np.nonzero(cons_skills > 0)[0])
+
         # Get skills provided by the course
-        course_provided_skills = set(np.nonzero(course[1])[0])
+        course_provided_skills = set(np.nonzero((course[1] - learner) > 0)[0])
         
         # Initialize N1 and N2
         N1 = 0
         N2 = 0
-        
+
         # Calculate for each job
         for job_id in range(len(self.dataset.jobs)):
             # Get missing skills for this job before learning
@@ -202,6 +205,63 @@ class CourseRecEnv(gym.Env):
             all_missing_skills.update(self.dataset.get_learner_missing_skills(learner, job_id))
         N3 = len(course_provided_skills - all_missing_skills)
         
+        return N1, N2, N3
+
+    def calculate_course_metrics_deficit(self, learner, course):
+        """
+        Calculate N1, N2, N3 metrics for a course recommendation (deficit-based version).
+
+        In this version, missing skills are quantified as the number of mastery levels
+        still lacking compared to job requirements.
+
+        Definitions:
+            - N1: Total reduction of deficits (in mastery levels) for all unachievable jobs.
+            - N2: Total remaining deficits (in mastery levels) after taking the course,
+                  for the same unachievable jobs.
+            - N3: Total number of mastery levels gained from the course that are not
+                  required by any unachievable job (i.e., overshoot or irrelevant gains).
+
+        Args:
+            learner (np.ndarray): Learner's skill vector (mastery levels, e.g., 0–3).
+            course (np.ndarray): Course representation [required, provided], where
+                                 course[1] is the vector of mastery levels provided.
+
+        Returns:
+            tuple: (N1, N2, N3) metrics as integers (measured in mastery levels).
+        """
+        # Skills after taking the course (target-level model)
+        cons_skills = np.maximum(learner, course[1])
+
+        # Initialize N1 and N2
+        N1 = 0  # total deficit reduction across unachievable jobs
+        N2 = 0  # total remaining deficits after the course
+
+        # Track which skills are needed by at least one unachievable job
+        needed = np.zeros(shape=(self.nb_skills,), dtype=bool)
+
+        # Iterate over all jobs
+        for job_id in range(len(self.dataset.jobs)):
+            # Deficits before and after the course (per skill)
+            n_missing_skills_before = np.clip(self.dataset.jobs[job_id] - learner, 0, None)
+            n_missing_skills_after = np.clip(self.dataset.jobs[job_id] - cons_skills, 0, None)
+
+            # Check if this job is in Ga (unachievable goals)
+            if np.sum(n_missing_skills_before) > 0:
+                # Mark skills that are needed for at least one unachievable job
+                needed |= (n_missing_skills_before > 0)
+
+                # N1: total deficit reduction (levels gained on missing skills)
+                N1 += np.sum(n_missing_skills_before - n_missing_skills_after)
+
+                # N2: total remaining deficits after the course
+                N2 += np.sum(n_missing_skills_after)
+
+        # Gains provided by the course per skill (in mastery levels)
+        gains = np.maximum(0, cons_skills - learner)
+
+        # N3: gains on skills not required by any unachievable job
+        N3 = gains[~needed].sum()
+
         return N1, N2, N3
 
     def calculate_achievable_goals(self, learner, course):
@@ -227,7 +287,7 @@ class CourseRecEnv(gym.Env):
         
         return initial_goals, new_goals
 
-    def calculate_utility(self, learner, course):
+    def calculate_utility(self, learner, course, method=1):
         """Calculate the utility of a course recommendation.
         
         The utility function is defined as:
@@ -243,12 +303,16 @@ class CourseRecEnv(gym.Env):
         Args:
             learner (np.ndarray): Current learner's skill vector
             course (np.ndarray): Course's skills array [required, provided]
+            method (int): Whether to use binary information or skills mastery deficit, default 1(mastery deficit)
             
         Returns:
             float: Utility value of the course recommendation
         """
         # Calculate N1, N2, N3 metrics
-        N1, N2, N3 = self.calculate_course_metrics(learner, course)
+        if method == 0:
+            N1, N2, N3 = self.calculate_course_metrics(learner, course)
+        else:
+            N1, N2, N3 = self.calculate_course_metrics_deficit(learner, course)
         
         # Calculate achievable goals
         initial_goals, new_goals = self.calculate_achievable_goals(learner, course)
@@ -283,11 +347,10 @@ class CourseRecEnv(gym.Env):
         valid = np.ones(self.dataset.courses.shape[0], dtype=bool)
 
         for i, course in enumerate(self.dataset.courses):
+            req = matchings.learner_course_required_matching(learner, course)
             prov = matchings.learner_course_provided_matching(learner, course)
-            if prov >= 1.0:
+            if prov >= 1.0 or req < self.threshold:
                 valid[i] = False
-        if valid.sum() <= 15:
-            print(np.count_nonzero(valid))
 
         if not valid.any():  # fallback difensivo
             valid[0] = True
