@@ -167,8 +167,7 @@ class Dataset: #modified class
         for learner_id, learner in learners.items():
 
 
-            learner_base_skills = self.get_base_skills(learner) #remove expertise
-            learner_skills = {skill: 1 for skill in learner_base_skills}
+            learner_skills = self.get_avg_skills(learner, replace_unk)
             
 
             # if the number of skills is greater than the max_learner_skills, we skip the learner
@@ -187,8 +186,7 @@ class Dataset: #modified class
         # we update the learners numpy array with the correct number of rows
         self.learners = self.learners[:index]
 
-
-    def load_jobs(self,replace_unk=3):
+    def load_jobs(self, replace_unk=3):
         """Load the jobs from the file specified in the config and store it in the class attribute.
         Only jobs with at least one required skill are kept.
 
@@ -203,8 +201,7 @@ class Dataset: #modified class
             self.jobs_index[index] = job_id
             self.jobs_index[job_id] = index
 
-            job_base_skills = self.get_base_skills(job)
-            job_skills = {skill: 1 for skill in job_base_skills}
+            job_skills = self.get_avg_skills(job, replace_unk)
 
             for skill, level in job_skills.items():
                 self.jobs[index][skill] = level
@@ -231,10 +228,7 @@ class Dataset: #modified class
             self.courses_index[course_id] = index
             self.courses_index[index] = course_id
 
-
-
-            provided_base_skills = self.get_base_skills(course["to_acquire"]) #remove expertise
-            provided_skills = {skill: 1 for skill in provided_base_skills}
+            provided_skills = self.get_avg_skills(course["to_acquire"],replace_unk)
 
             for skill, level in provided_skills.items():
                 self.courses[index][1][skill] = level
@@ -383,6 +377,13 @@ class Dataset: #modified class
             set: Set of skill indices that the learner has acquired (value = 1)
         """
         return set(np.nonzero(learner)[0])
+
+    def get_learner_missing_skills_mastery(self, learner, job_id):
+        # Get learner current skills
+        learner_skills = self.get_learner_acquired_skills(learner)
+
+
+
 
     def get_learner_missing_skills(self, learner, job_id):
         """Identify skills that a learner needs to acquire to be eligible for a specific job.
