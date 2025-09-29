@@ -11,16 +11,16 @@ from Dataset import Dataset
 from Reinforce import Reinforce
 
 
-def make_handler(log_path):
+def make_handler(log_path, path_name):
     def handle_sigint(sig, frame):
         print("\n[INFO] Manual Interruption (Ctrl+C).")
-        plot_from_log(log_path)
+        plot_from_log(log_path, path_name)
         print("[INFO] Graphic generated. exit from the program.")
         sys.exit(0)
     return handle_sigint
 
 
-def plot_from_log(log_path):
+def plot_from_log(log_path, path_name):
     log_path = os.path.join("UIR", "results", log_path)
     if not os.path.exists(log_path):
         raise FileNotFoundError(f"[ERROR] path not found : {log_path}")
@@ -40,7 +40,7 @@ def plot_from_log(log_path):
     os.makedirs(plot_dir, exist_ok=True)
 
     # nome file del plot
-    base_name = os.path.splitext(os.path.basename(log_path))[0]
+    base_name = path_name
     plot_path = os.path.join(plot_dir, f"{base_name}.png")
 
     # plot
@@ -153,11 +153,11 @@ def main():
         )
         plot_filename = f"{config["model"]}"
 
-        signal.signal(signal.SIGINT, make_handler(plot_filename))
+        signal.signal(signal.SIGINT, make_handler(recommender.all_results_filename,plot_filename))
 
         recommender.reinforce_recommendation()
 
-        plot_from_log(plot_filename)
+        plot_from_log(recommender.all_results_filename, plot_filename)
         print(f"Model plot saved in: UIR/plot/{plot_filename}")
 
         
