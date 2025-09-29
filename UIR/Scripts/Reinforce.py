@@ -199,14 +199,8 @@ class Reinforce:
                     gamma=0.99,
                     n_steps=256,
                     batch_size=1024,
-                    learning_rate=1e-4,
                     ent_coef=0.02,
-                    clip_range=0.25,
-                    policy_kwargs=dict(
-                        net_arch=[256, 256],
-                        activation_fn=torch.nn.Tanh,
-                        ortho_init=True,
-                    ),
+                    clip_range=0.2,
                     verbose=0
                 )
 
@@ -280,7 +274,7 @@ class Reinforce:
             index = self.dataset.learners_index[i]
             recommendation_sequence = []
             while not done:
-                obs = self.eval_env._get_obs() #return _agent_skills which is current state
+                obs = self.eval_env.unwrapped.get_obs() #return _agent_skills which is current state
                 # The self model was trained on historical data and has already learned a policy.
                 action, _state = self.model.predict(obs, deterministic=True) #deterministic != transition probab in env
                 # action is Recommended course index [0,99]action_space

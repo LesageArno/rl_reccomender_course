@@ -1,11 +1,61 @@
 import os
 import argparse
+import signal
+
 import yaml
+import sys
+
+from matplotlib import pyplot as plt
 
 from Dataset import Dataset
 from Reinforce import Reinforce
 
 
+def make_handler(log_path):
+    def handle_sigint(sig, frame):
+        print("\n[INFO] Manual Interruption (Ctrl+C).")
+        plot_from_log(log_path)
+        print("[INFO] Graphic generated. exit from the program.")
+        sys.exit(0)
+    return handle_sigint
+
+
+def plot_from_log(log_path):
+    log_path = os.path.join("UIR", "results", log_path)
+    if not os.path.exists(log_path):
+        raise FileNotFoundError(f"[ERROR] path not found : {log_path}")
+
+    steps, val1, val2 = [], [], []
+    with open(log_path, "r") as f:
+        for line in f:
+            parts = line.strip().split()
+            if len(parts) == 3:
+                s, v1, v2 = parts
+                steps.append(int(s))
+                val1.append(float(v1))
+                val2.append(float(v2))
+
+    # crea cartella di output se non esiste
+    plot_dir = os.path.join("UIR", "plot")
+    os.makedirs(plot_dir, exist_ok=True)
+
+    # nome file del plot
+    base_name = os.path.splitext(os.path.basename(log_path))[0]
+    plot_path = os.path.join(plot_dir, f"{base_name}.png")
+
+    # plot
+    plt.figure()
+    plt.plot(steps, val1, label="Valore 1")
+    plt.xlabel("Step")
+    plt.ylabel("Metriche")
+    plt.title(f"Andamento training - {base_name}")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(plot_path)
+    plt.close()
+
+    print(f"[INFO] Grafico salvato in: {plot_path}")
 def create_and_print_dataset(config):
     """Create and initialize the dataset for the recommendation system.
     
@@ -101,7 +151,14 @@ def main():
             beta1,
             beta2
         )
+        plot_filename = f"{config["model"]}"
+
+        signal.signal(signal.SIGINT, make_handler(plot_filename))
+
         recommender.reinforce_recommendation()
+
+        plot_from_log(plot_filename)
+        print(f"Model plot saved in: UIR/plot/{plot_filename}")
 
         
 
