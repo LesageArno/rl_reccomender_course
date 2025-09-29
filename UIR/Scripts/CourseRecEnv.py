@@ -46,7 +46,7 @@ class CourseRecEnv(gym.Env):
         baseline (bool): Whether to use baseline reward (True) or utility-based reward (False)
     """
     
-    def __init__(self, dataset, threshold=0.8, k=3, baseline=False, feature="Usefulness-as-Rwd", beta1=0.5, beta2=0.5):
+    def __init__(self, dataset, threshold=0.8, k=3, baseline=False, feature="Usefulness-as-Rwd", beta1=0.5, beta2=0.5, seed=42):
         """Initialize the course recommendation environment.
         
         Args:
@@ -74,6 +74,8 @@ class CourseRecEnv(gym.Env):
         self.max_skills = max(np.count_nonzero(self.dataset.learners, axis=1)) # 15
         self.threshold = threshold 
         self.k = k
+        self.seed = seed
+        self.rng = np.random.default_rng(seed=self.seed)
         # The observation space is a vector of length nb_skills that represents the learner's skills.
         # The vector contains skill levels, where the minimum level is 0 and the maximum level is max_level (e.g., 3).
         # We cannot set the lower bound to -1 because negative values are not allowed in this Box space.
@@ -156,6 +158,7 @@ class CourseRecEnv(gym.Env):
         else:
             self._agent_skills = self.get_random_learner()
         self.nb_recommendations = 0
+        self.rng = np.random.default_rng(self.seed)
         observation = self.get_obs()
         info = self.get_info()
         return observation, info
@@ -356,6 +359,32 @@ class CourseRecEnv(gym.Env):
             valid[0] = True
         return valid
 
+    def _sample_mastery_outcome(self, base_levels):
+        """
+        base_levels: course level target {1,2,3}
+        :returns updated levels coming from overlearning.
+        """
+        base_levels = np.asarray(base_levels, dtype=int)
+        p_double = 0.008
+        p_over = 0.05
+
+        mask = base_levels > 0
+
+        k = np.sum(mask)
+        p_double /= k
+        p_over /= k
+
+        # Indipendent Bernoulli +2 and +1
+        # Note: if +2, we don't apply +1 (higher jump priority)
+        jump2 = self.rng.random(base_levels.shape) < p_double
+        jump1 = (self.rng.random(base_levels.shape) < p_over) & (~jump2)
+
+        outcome = base_levels + jump1.astype(int) + (2 * jump2.astype(int))
+        outcome = np.clip(outcome, 0, 3)  # livelli cap a 3
+        outcome[~mask] = 0
+
+        return outcome
+
     def step(self, action):
         """Execute one step in the environment.
         
@@ -399,8 +428,10 @@ class CourseRecEnv(gym.Env):
         else: # No-Mastery-Levels Models
             # Calculate Usefulness-of-info-as-Rwd
             utility = self.calculate_utility(learner, course)
+
+            learned_course = self._sample_mastery_outcome(course[1])
             
-            self._agent_skills = np.maximum(self._agent_skills, course[1])
+            self._agent_skills = np.maximum(self._agent_skills, learned_course)
             observation = self.get_obs()
             info = self.get_info()
             info["utility"] = utility
