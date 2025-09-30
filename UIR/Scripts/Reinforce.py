@@ -277,8 +277,11 @@ class Reinforce:
             recommendation_sequence = []
             while not done:
                 obs = self.eval_env.unwrapped.get_obs() #return _agent_skills which is current state
-                # The self model was trained on historical data and has already learned a policy.
-                action, _state = self.model.predict(obs, deterministic=True) #deterministic != transition probab in env
+                if isinstance(self.model, MaskablePPO):
+                    mask = self.eval_env.unwrapped.get_action_mask()
+                    action, _state = self.model.predict(obs, action_masks=mask, deterministic=True)
+                else:
+                    action, _state = self.model.predict(obs, deterministic=True)  # Predict action using current policy
                 # action is Recommended course index [0,99]action_space
                 obs, reward, done, _, info = self.eval_env.step(action)
                 if reward != -1:
