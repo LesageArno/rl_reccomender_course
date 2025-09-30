@@ -38,7 +38,7 @@ class Reinforce:
     """
     
     def __init__(
-        self, dataset, model, k, threshold, run, total_steps=1000, eval_freq=100, feature = "Usefulness-of-info-as-Rwd", baseline = False, beta1=None, beta2=None
+        self, dataset, model, k, threshold, run, total_steps=1000, eval_freq=100, feature = "Usefulness-of-info-as-Rwd", baseline = False, method=1, beta1=None, beta2=None
     ):  
         """Initialize the reinforcement learning recommendation system.
         
@@ -51,11 +51,13 @@ class Reinforce:
             total_steps (int, optional): Total training steps. Defaults to 1000.
             eval_freq (int, optional): Evaluation frequency. Defaults to 100.
             feature (str, optional): Feature type for reward. Defaults to "Usefulness-of-info-as-Rwd".
+            method (int, optional): Whether to use Strict mastery or deficit based UIR function. Defaults to 1.
             baseline (bool, optional): Whether to use baseline reward. Defaults to False.
             beta1 (float, optional): Weight for job applications in reward calculation. Defaults to None.
             beta2 (float, optional): Weight for utility in reward calculation. Defaults to None.
         """
         self.baseline = baseline
+        self.method = max(0, min(1, method))
         self.dataset = dataset
         self.model_name = model
         self.k = k
@@ -67,8 +69,8 @@ class Reinforce:
         self.beta1 = beta1
         self.beta2 = beta2
         # Create the training and evaluation environments
-        self.train_env = CourseRecEnv(dataset, threshold=self.threshold, k=self.k, baseline = self.baseline, feature=self.feature, beta1=self.beta1, beta2=self.beta2)
-        self.eval_env = CourseRecEnv(dataset, threshold=self.threshold, k=self.k, baseline = self.baseline, feature=self.feature, beta1=self.beta1, beta2=self.beta2)
+        self.train_env = CourseRecEnv(dataset, threshold=self.threshold, k=self.k, baseline = self.baseline, method=self.method, feature=self.feature, beta1=self.beta1, beta2=self.beta2)
+        self.eval_env = CourseRecEnv(dataset, threshold=self.threshold, k=self.k, baseline = self.baseline, method=self.method, feature=self.feature, beta1=self.beta1, beta2=self.beta2)
 
         # Masking of unavailable actions
         if self.model_name == "ppo_mask":
@@ -197,11 +199,11 @@ class Reinforce:
                     device="auto",
                     seed=42,
                     gamma=0.99,
-                    n_steps=256,
+                    n_steps=2048,
                     batch_size=1024,
                     ent_coef=0.02,
                     clip_range=0.2,
-                    verbose=0
+                    verbose=0,
                 )
 
                 '''self.model = MaskablePPO(

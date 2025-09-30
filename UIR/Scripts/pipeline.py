@@ -45,10 +45,10 @@ def plot_from_log(log_path, path_name):
 
     # plot
     plt.figure()
-    plt.plot(steps, val1, label="Valore 1")
-    plt.xlabel("Step")
-    plt.ylabel("Metriche")
-    plt.title(f"Andamento training - {base_name}")
+    plt.plot(steps, val1)
+    plt.xlabel("Steps")
+    plt.ylabel("avg")
+    plt.title(f"average_nb_applicable_jobs - {base_name}")
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
@@ -139,21 +139,22 @@ def main():
             print("-------------------------------------------")
             
         recommender = Reinforce(
-            dataset,
-            config["model"],
-            config["k"],
-            config["threshold"],
-            run,
-            config["total_steps"],
-            config["eval_freq"],
-            config["feature"],
-            config["baseline"],
-            beta1,
-            beta2
+            dataset=dataset,
+            model=config["model"],
+            k=config["k"],
+            threshold=config["threshold"],
+            run=run,
+            total_steps=config["total_steps"],
+            eval_freq=config["eval_freq"],
+            feature=config["feature"],
+            baseline=config["baseline"],
+            method=config['method'],
+            beta1=beta1,
+            beta2=beta2
         )
-        plot_filename = f"{config["model"]}"
+        plot_filename = f"{config['name_exp']}"
 
-        signal.signal(signal.SIGINT, make_handler(recommender.all_results_filename,plot_filename))
+        signal.signal(signal.SIGINT, make_handler(recommender.all_results_filename, plot_filename))
 
         recommender.reinforce_recommendation()
 

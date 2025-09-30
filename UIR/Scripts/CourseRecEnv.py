@@ -46,7 +46,7 @@ class CourseRecEnv(gym.Env):
         baseline (bool): Whether to use baseline reward (True) or utility-based reward (False)
     """
     
-    def __init__(self, dataset, threshold=0.8, k=3, baseline=False, feature="Usefulness-as-Rwd", beta1=0.5, beta2=0.5, seed=42):
+    def __init__(self, dataset, threshold=0.8, k=3, baseline=False, method=1, feature="Usefulness-as-Rwd", beta1=0.5, beta2=0.5, seed=42):
         """Initialize the course recommendation environment.
         
         Args:
@@ -60,6 +60,7 @@ class CourseRecEnv(gym.Env):
         """
         self.feature = feature
         self.baseline = baseline
+        self.method = method
         self.beta1 = beta1
         self.beta2 = beta2
         self.dataset = dataset 
@@ -420,18 +421,18 @@ class CourseRecEnv(gym.Env):
             info = self.get_info()
             return observation, reward, terminated, False, info
         
-        if self.baseline : #baseline model
+        if self.baseline: #baseline model
             self._agent_skills = np.maximum(self._agent_skills, course[1])
             observation = self.get_obs()
             info = self.get_info()
             reward = info["nb_applicable_jobs"]
         else: # No-Mastery-Levels Models
             # Calculate Usefulness-of-info-as-Rwd
-            utility = self.calculate_utility(learner, course)
+            utility = self.calculate_utility(learner, course, self.method)
 
-            learned_course = self._sample_mastery_outcome(course[1])
+            # learned_course = self._sample_mastery_outcome(course[1])
             
-            self._agent_skills = np.maximum(self._agent_skills, learned_course)
+            self._agent_skills = np.maximum(self._agent_skills, course[1]) #learned_course)
             observation = self.get_obs()
             info = self.get_info()
             info["utility"] = utility
