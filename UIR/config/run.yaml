@@ -9,6 +9,7 @@ cv_path: Data - Collection/Final/resumes.json           # Path to learner profil
 job_path: Data - Collection/Final/jobs.json             # Path to job listings
 mastery_levels_path: Data - Collection/Final/mastery_levels.json  # Path to skill mastery levels
 results_path: UIR/results                              # Directory for storing results
+name_exp: UIR-deficit-based
 
 # Data Processing Parameters
 level_3: true                                          # Use third level of taxonomy (true) or fourth level (false)
@@ -25,7 +26,7 @@ nb_jobs: 100                                           # Number of jobs to inclu
 threshold: 0.8                                         # Minimum matching threshold for job eligibility
 k: 2                                                 # Number of course recommendations to generate
 model: ppo_mask # dqn                                          # Reinforcement learning algorithm (DQN, PPO, A2C)
-total_steps: 300000 #500000                                   # Total training steps
+total_steps: 500000 #500000                                   # Total training steps
 eval_freq: 2000 # 1000                                       # Evaluation frequency during training
 nb_runs: 1                                            # Number of independent runs
 seed: 42                                              # Random seed for reproducibility
@@ -34,8 +35,10 @@ seed: 42                                              # Random seed for reproduc
 baseline: false                                        # Model type:
                                                        # true: Baseline model (skip-expertise only)
                                                        # false: Enhanced model with mastery levels and clustering
-feature: "Weighted-Usefulness-as-Rwd"                         # Feature type for non-baseline model 
+feature: "Usefulness-as-Rwd"                         # Feature type for non-baseline model
 #options: "Usefulness-as-Rwd" or "Weighted-Usefulness-as-Rwd"
+
+method: 1                                              # When baseline=False whether to use strict-mastery or deficit based (0,1 respectively)
 
 # Purpose
 # This configuration is designed to compare different approaches:
