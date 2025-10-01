@@ -38,7 +38,7 @@ class Reinforce:
     """
     
     def __init__(
-        self, dataset, model, k, threshold, run, total_steps=1000, eval_freq=100, feature = "Usefulness-of-info-as-Rwd", baseline = False, method=1, beta1=None, beta2=None
+        self, dataset, model, k, threshold, run, save_name, total_steps=1000, eval_freq=100, feature="Usefulness-of-info-as-Rwd", baseline=False, method=1, beta1=None, beta2=None
     ):  
         """Initialize the reinforcement learning recommendation system.
         
@@ -63,6 +63,7 @@ class Reinforce:
         self.k = k
         self.threshold = threshold
         self.run = run
+        self.save_name = save_name
         self.total_steps = total_steps
         self.eval_freq = eval_freq
         self.feature = feature
@@ -81,11 +82,23 @@ class Reinforce:
             self.eval_env = ActionMasker(self.eval_env, mask_fn)
 
         self.get_model()
-        if self.baseline: #baseline model
+        self.all_results_filename = (
+            save_name
+            + "_k"
+            + str(self.k)
+            + ".txt"
+        )
+        self.final_results_filename = (
+            save_name
+            + "_k"
+            + str(self.k)
+            + ".json"
+        )
+        '''if self.baseline: #baseline model
             self.all_results_filename = (
                 "all_"
                 + self.model_name
-                + "_skip-expertise_"
+                + "_skip-expertise"
                 + "_nbskills_"
                 + str(len(self.dataset.skills))
                 + "_k_"
@@ -97,7 +110,7 @@ class Reinforce:
             self.final_results_filename = (
                 "final_"
                 + self.model_name
-                + "_skip-expertise_"
+                + "_skip-expertise"
                 + "_nbskills_"
                 + str(len(self.dataset.skills))
                 + "_k_"
@@ -131,7 +144,7 @@ class Reinforce:
                 + str(self.k)
                 + "_run_"
                 + str(self.run)
-                + ".json")
+                + ".json")'''
             
 
         self.eval_callback = EvaluateCallback(
@@ -188,7 +201,12 @@ class Reinforce:
                 self.model = PPO.load(pretrained_path, env=self.train_env)
                 print(f"Loaded pretrained PPO model from {pretrained_path}")
             else:
-                self.model = PPO(env=self.train_env, verbose=0, policy="MlpPolicy", seed=42)
+                self.model = PPO(env=self.train_env,
+                                 verbose=0,
+                                 seed=42,
+                                 policy="MlpPolicy"
+                                 )
+
         elif self.model_name == "ppo_mask":
             if use_pretrained:
                 self.model = MaskablePPO.load(pretrained_path, env=self.train_env)
@@ -239,10 +257,10 @@ class Reinforce:
         3. Evaluates the model on all learners
         4. Generates course recommendations for each learner
         5. Updates learner profiles based on recommendations
-        6. Calculates final metrics and saves results
+        6. Calculates final metrics and saves results_k2
         
-        The results are saved in two files:
-        - A text file with intermediate evaluation results
+        The results_k2 are saved in two files:
+        - A text file with intermediate evaluation results_k2
         - A JSON file with final metrics and recommendations
         """
         results = dict()
@@ -321,7 +339,7 @@ class Reinforce:
             results,
             open(
                 os.path.join(
-                    self.dataset.config["results_path"],
+                    f"{self.dataset.config["results_path"]}_k{self.dataset.config['k']}",
                     self.final_results_filename,
                 ),
                 "w",

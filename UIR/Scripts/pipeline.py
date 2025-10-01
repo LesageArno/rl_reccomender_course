@@ -21,7 +21,7 @@ def make_handler(log_path, path_name):
 
 
 def plot_from_log(log_path, path_name):
-    log_path = os.path.join("UIR", "results", log_path)
+    log_path = os.path.join("UIR", "results_k2", log_path)
     if not os.path.exists(log_path):
         raise FileNotFoundError(f"[ERROR] path not found : {log_path}")
 
@@ -144,6 +144,7 @@ def main():
             k=config["k"],
             threshold=config["threshold"],
             run=run,
+            save_name=config["name_exp"],
             total_steps=config["total_steps"],
             eval_freq=config["eval_freq"],
             feature=config["feature"],
@@ -152,7 +153,7 @@ def main():
             beta1=beta1,
             beta2=beta2
         )
-        plot_filename = f"{config['name_exp']}"
+        plot_filename = f"{config['name_exp']}_k{config['k']}"
 
         signal.signal(signal.SIGINT, make_handler(recommender.all_results_filename, plot_filename))
 

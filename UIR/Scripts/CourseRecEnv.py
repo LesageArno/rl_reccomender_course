@@ -413,8 +413,9 @@ class CourseRecEnv(gym.Env):
         learner = self._agent_skills
 
         # Skip-expertise case: use new metrics and utility
+        required_matching = matchings.learner_course_required_matching(learner, course)
         provided_matching = matchings.learner_course_provided_matching(learner, course)
-        if provided_matching == 1.0:
+        if provided_matching == 1.0 or required_matching < self.threshold:
             observation = self.get_obs()
             reward = -1
             terminated = True
@@ -455,12 +456,12 @@ class EvaluateCallback(BaseCallback):
     
     This callback evaluates the model's performance at regular intervals during training.
     It calculates the average number of applicable jobs across all learners and logs
-    the results to a file.
+    the results_k2 to a file.
     
     Attributes:
         eval_env: Environment used for evaluation
         eval_freq (int): Frequency of evaluation in training steps
-        all_results_filename (str): Path to save evaluation results
+        all_results_filename (str): Path to save evaluation results_k2
         mode (str): File opening mode ('w' for first write, 'a' for append)
     """
     
@@ -470,7 +471,7 @@ class EvaluateCallback(BaseCallback):
         Args:
             eval_env: Environment to use for evaluation
             eval_freq (int): Frequency of evaluation in training steps
-            all_results_filename (str): Path to save evaluation results
+            all_results_filename (str): Path to save evaluation results_k2
             verbose (int, optional): Verbosity level. Defaults to 1.
         """
         super(EvaluateCallback, self).__init__(verbose)
@@ -485,7 +486,7 @@ class EvaluateCallback(BaseCallback):
         This method:
         1. Evaluates the model every eval_freq steps
         2. Calculates average number of applicable jobs
-        3. Logs results to file
+        3. Logs results_k2 to file
         4. Prints progress information
         
         Returns:
@@ -533,7 +534,7 @@ class EvaluateCallback(BaseCallback):
             # Write evaluation result to file
             with open(
                 os.path.join(
-                    self.eval_env.dataset.config["results_path"],
+                    f"{self.eval_env.dataset.config['results_path']}_k{self.eval_env.dataset.config['k']}",
                     self.all_results_filename,
                 ),
                 self.mode,  # 'w' for first time, 'a' for append afterward
