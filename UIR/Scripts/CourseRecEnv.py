@@ -531,14 +531,17 @@ class EvaluateCallback(BaseCallback):
                 f"Time: {time_end - time_start}"
             )
 
+            results_dir = os.path.join(
+                f"{self.eval_env.dataset.config['results_path']}_k{self.eval_env.dataset.config['k']}"
+            )
+
+            # Crea la directory se non esiste già
+            os.makedirs(results_dir, exist_ok=True)
+
+            file_path = os.path.join(results_dir, self.all_results_filename)
+
             # Write evaluation result to file
-            with open(
-                os.path.join(
-                    f"{self.eval_env.dataset.config['results_path']}_k{self.eval_env.dataset.config['k']}",
-                    self.all_results_filename,
-                ),
-                self.mode,  # 'w' for first time, 'a' for append afterward
-            ) as f:
+            with open(file_path, self.mode) as f:  # 'w' for first time, 'a' for append afterward
                 f.write(
                     f"{self.n_calls} "
                     f"{avg_jobs / len(self.eval_env.dataset.learners)} "
