@@ -209,7 +209,18 @@ class Reinforce:
 
         elif self.model_name == "ppo_mask":
             if use_pretrained:
-                self.model = MaskablePPO.load(pretrained_path, env=self.train_env)
+                self.model = MaskablePPO.load(
+                    pretrained_path,
+                    env=self.train_env,
+                    device="auto",
+                    custom_objects={
+                        "n_steps": 4096,  # ↑ più dati per update
+                        "batch_size": 2048,  # deve dividere n_envs*n_steps
+                        "clip_range": 0.25,  # un filo più ampio
+                        "learning_rate": 1e-4,  # fine-tuning più cauto
+                        "seed": 42,
+                    },
+                )
             else:
                 self.model = MaskablePPO(
                     "MlpPolicy",
