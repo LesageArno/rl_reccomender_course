@@ -86,12 +86,16 @@ class Reinforce:
             save_name
             + "_k"
             + str(self.k)
+            + "_seed"
+            + str(self.dataset.config['seed'])
             + ".txt"
         )
         self.final_results_filename = (
             save_name
             + "_k"
             + str(self.k)
+            + "_seed"
+            + str(self.dataset.config['seed'])
             + ".json"
         )
         '''if self.baseline: #baseline model
@@ -198,7 +202,23 @@ class Reinforce:
 
         elif self.model_name == "ppo":
             if use_pretrained:
-                self.model = PPO.load(pretrained_path, env=self.train_env)
+                self.model = PPO.load(
+                    pretrained_path,
+                    env=self.train_env,
+                    device="auto",
+                    custom_objects={
+                        "n_steps": 2048,  # ↑ più dati per update
+                        "batch_size": 1024,  # deve dividere n_envs*n_steps
+                        "clip_range": 0.25,  # un filo più ampio
+                        "ent_coef": 0.005,
+                        "learning_rate": 2e-3,  # fine-tuning più cauto
+                        "target_kl": 0.02,
+                        "gae_lambda": 0.95,
+                        "gamma": 0.90,
+                        "seed": 42,
+                        "verbose": 1
+                    },
+                )
                 print(f"Loaded pretrained PPO model from {pretrained_path}")
             else:
                 self.model = PPO(env=self.train_env,
@@ -214,11 +234,16 @@ class Reinforce:
                     env=self.train_env,
                     device="auto",
                     custom_objects={
-                        "n_steps": 4096,  # ↑ più dati per update
-                        "batch_size": 2048,  # deve dividere n_envs*n_steps
+                        "n_steps": 2048,  # ↑ più dati per update
+                        "batch_size": 1024,  # deve dividere n_envs*n_steps
                         "clip_range": 0.25,  # un filo più ampio
-                        "learning_rate": 1e-4,  # fine-tuning più cauto
+                        "ent_coef": 0.005,
+                        "learning_rate": 2e-3,  # fine-tuning più cauto
+                        "target_kl": 0.02,
+                        "gae_lambda": 0.95,
+                        "gamma": 0.90,
                         "seed": 42,
+                        "verbose": 1
                     },
                 )
             else:
@@ -288,7 +313,7 @@ class Reinforce:
         results["original_applicable_jobs"] = avg_app_j_debut
 
         # Train the model using train env
-        self.model.learn(total_timesteps=self.total_steps, callback=self.eval_callback)# find the policy
+        self.model.learn(total_timesteps=self.total_steps, callback=self.eval_callback, log_interval=10)# find the policy
 
         # Save model after training
         save_dir = self.dataset.config.get("save_dir", "UIR")
@@ -350,7 +375,7 @@ class Reinforce:
             results,
             open(
                 os.path.join(
-                    f"{self.dataset.config["results_path"]}_k{self.dataset.config['k']}",
+                    f"{self.dataset.config['results_path']}_k{self.k}_seed{self.dataset.config['seed']}",
                     self.final_results_filename,
                 ),
                 "w",
