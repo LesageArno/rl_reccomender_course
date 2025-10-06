@@ -2,6 +2,7 @@ import os
 import argparse
 import signal
 
+import numpy as np
 import yaml
 import sys
 
@@ -21,7 +22,7 @@ def make_handler(log_path, path_name):
 
 
 def plot_from_log(log_path, path_name):
-    log_path = os.path.join("UIR", "results_k2", log_path)
+    log_path = os.path.join("UIR", log_path)
     if not os.path.exists(log_path):
         raise FileNotFoundError(f"[ERROR] path not found : {log_path}")
 
@@ -73,7 +74,7 @@ def create_and_print_dataset(config):
     return dataset
 
 
-def main():
+def main(k, seed):
     """Main entry point for the recommendation system pipeline.
     
     This function:
@@ -124,7 +125,8 @@ def main():
         beta2 = current_weights.get("beta2")
     else:
         config = initial_config
-
+    config['k'] = k
+    config['seed'] = seed
     for run in range(config["nb_runs"]):
         
         
@@ -154,16 +156,22 @@ def main():
             beta2=beta2
         )
         plot_filename = f"{config['name_exp']}_k{config['k']}"
+        log_path = f"results_k{config['k']}/{recommender.all_results_filename}"
 
         signal.signal(signal.SIGINT, make_handler(recommender.all_results_filename, plot_filename))
 
         recommender.reinforce_recommendation()
 
-        plot_from_log(recommender.all_results_filename, plot_filename)
+        plot_from_log(log_path, plot_filename)
         print(f"Model plot saved in: UIR/plot/{plot_filename}")
 
         
 
 
 if __name__ == "__main__":
-    main()
+    k_s = np.arange(1, 6)
+    seeds = np.arange(42, 53)
+    for k in k_s:
+        for seed in seeds:
+            print(f"Processing experiment with sequence {k} and seed {seed}")
+            main(k=k, seed=seed)

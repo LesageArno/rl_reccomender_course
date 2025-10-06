@@ -532,7 +532,7 @@ class EvaluateCallback(BaseCallback):
             )
 
             results_dir = os.path.join(
-                f"{self.eval_env.dataset.config['results_path']}_k{self.eval_env.dataset.config['k']}"
+                f"{self.eval_env.unwrapped.dataset.config['results_path']}_k{self.eval_env.unwrapped.dataset.config['k']}_seed{self.eval_env.unwrapped.dataset.config['seed']}"
             )
 
             # Crea la directory se non esiste già
@@ -544,7 +544,7 @@ class EvaluateCallback(BaseCallback):
             with open(file_path, self.mode) as f:  # 'w' for first time, 'a' for append afterward
                 f.write(
                     f"{self.n_calls} "
-                    f"{avg_jobs / len(self.eval_env.dataset.learners)} "
+                    f"{avg_jobs / len(self.eval_env.unwrapped.dataset.learners)} "
                     f"{time_end - time_start}\n"
                 )
 

@@ -86,12 +86,16 @@ class Reinforce:
             save_name
             + "_k"
             + str(self.k)
+            + "_seed"
+            + str(self.dataset.config['seed'])
             + ".txt"
         )
         self.final_results_filename = (
             save_name
             + "_k"
             + str(self.k)
+            + "_seed"
+            + str(self.dataset.config['seed'])
             + ".json"
         )
         '''if self.baseline: #baseline model
@@ -198,7 +202,23 @@ class Reinforce:
 
         elif self.model_name == "ppo":
             if use_pretrained:
-                self.model = PPO.load(pretrained_path, env=self.train_env)
+                self.model = PPO.load(
+                    pretrained_path,
+                    env=self.train_env,
+                    device="auto",
+                    custom_objects={
+                        "n_steps": 2048,  # ↑ più dati per update
+                        "batch_size": 1024,  # deve dividere n_envs*n_steps
+                        "clip_range": 0.25,  # un filo più ampio
+                        "ent_coef": 0.005,
+                        "learning_rate": 2e-3,  # fine-tuning più cauto
+                        "target_kl": 0.02,
+                        "gae_lambda": 0.95,
+                        "gamma": 0.90,
+                        "seed": 42,
+                        "verbose": 1
+                    },
+                )
                 print(f"Loaded pretrained PPO model from {pretrained_path}")
             else:
                 self.model = PPO(env=self.train_env,
@@ -209,20 +229,54 @@ class Reinforce:
 
         elif self.model_name == "ppo_mask":
             if use_pretrained:
-                self.model = MaskablePPO.load(pretrained_path, env=self.train_env)
-            else:
-                self.model = MaskablePPO(
-                    "MlpPolicy",
+                self.model = MaskablePPO.load(
+                    pretrained_path,
                     env=self.train_env,
                     device="auto",
-                    seed=42,
-                    gamma=0.99,
-                    n_steps=2048,
-                    batch_size=1024,
-                    ent_coef=0.02,
-                    clip_range=0.2,
-                    verbose=0,
+                    custom_objects={
+<<<<<<< Updated upstream
+                        "n_steps": 2048,  # ↑ più dati per update
+                        "batch_size": 1024,  # deve dividere n_envs*n_steps
+                        "clip_range": 0.25,  # un filo più ampio
+                        "ent_coef": 0.005,
+                        "learning_rate": 2e-3,  # fine-tuning più cauto
+                        "target_kl": 0.02,
+                        "gae_lambda": 0.95,
+                        "gamma": 0.90,
+                        "seed": 42,
+                        "verbose": 1
+=======
+                        'device': 'cuda',
+                        "n_steps": 512,  # ↑ più dati per update
+                        "batch_size": 256,  # deve dividere n_envs*n_steps
+                        "clip_range": 0.2,  # un filo più ampio
+                        "learning_rate": 2e-3,  # fine-tuning più cauto
+                        'ent_coef': 0.005,
+                        'n_epochs': 15,
+                        'gae_lambda': 0.90,
+                        'gamma': 0.95,
+                        'target_kl': 0.02,
+                        "seed": 42,
+                        'verbose': 1
+>>>>>>> Stashed changes
+                    },
                 )
+            else:
+                self.model = MaskablePPO(
+                        "MlpPolicy",
+                        env=self.train_env,
+                        device="cuda",
+                        seed=42,
+                        gamma=0.95,          # più corto-orizzonte per episodi brevi
+                        gae_lambda=0.97,     # riduce varianza del vantaggio su ep. corti
+                        n_steps=256,         # rollout piccolo = update frequenti
+                        batch_size=128,      # = n_steps * n_envs
+                        n_epochs=10,         # ok
+                        learning_rate=5e-4,  # più alto (puoi provare anche 1e-3)
+                        ent_coef=0.025,        
+                        clip_range=0.2,      # default ok
+                        verbose=0,
+                    )
 
                 '''self.model = MaskablePPO(
                     "MlpPolicy",
@@ -277,7 +331,7 @@ class Reinforce:
         results["original_applicable_jobs"] = avg_app_j_debut
 
         # Train the model using train env
-        self.model.learn(total_timesteps=self.total_steps, callback=self.eval_callback)# find the policy
+        self.model.learn(total_timesteps=self.total_steps, callback=self.eval_callback, log_interval=10)# find the policy
 
         # Save model after training
         save_dir = self.dataset.config.get("save_dir", "UIR")
@@ -339,7 +393,7 @@ class Reinforce:
             results,
             open(
                 os.path.join(
-                    f"{self.dataset.config["results_path"]}_k{self.dataset.config['k']}",
+                    f"{self.dataset.config['results_path']}_k{self.k}_seed{self.dataset.config['seed']}",
                     self.final_results_filename,
                 ),
                 "w",
