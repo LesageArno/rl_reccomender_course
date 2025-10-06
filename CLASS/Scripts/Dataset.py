@@ -47,7 +47,7 @@ class Dataset:
 
     def load_data(self):
         """Load the data from the files specified in the config and store it in the class attributes"""
-        self.rng = random.Random(seed=42)
+        self.rng = random.Random(42)
         self.load_skills() 
         self.load_mastery_levels()
         self.load_learners()

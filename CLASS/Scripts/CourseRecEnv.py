@@ -72,8 +72,8 @@ class CourseRecEnv(gym.Env):
         self.is_training = is_training
         
         # Initialize basic attributes
-        self.obs_shape = self.nb_skills
         self.nb_skills = len(dataset.skills)  # 46 skills
+        self.obs_shape = self.nb_skills
         self.mastery_levels = [1, 2, 3]
         self.max_level = 3
         self.nb_courses = len(dataset.courses)  # 100 courses
@@ -254,7 +254,7 @@ class CourseRecEnv(gym.Env):
             reward = -1
             terminated = True
             info = self.get_info()
-            print(f"Ho scelto l'azione {action} ma non va. MALEDIZIONE AL DEMONIO")
+            # print(f"Ho scelto l'azione {action} ma non va. MALEDIZIONE AL DEMONIO")
             return observation, reward, terminated, False, info
 
         # print(f"This is value matching BEFORE a course was selected {matchings.compute_coverage_percentage(self._agent_skills, self.dataset.jobs)}")
@@ -387,7 +387,7 @@ class EvaluateCallback(BaseCallback):
                 f"Iteration {self.n_calls}. "
                 f"Average jobs: {avg_jobs / len(self.eval_env.dataset.learners)} "
                 f"Time: {time_end - time_start} "
-                f"Zero rate: {zero_rate / len(self.eval_env.dataset.learners)}"
+                # f"Zero rate: {zero_rate / len(self.eval_env.dataset.learners)}"
             )
 
             # Write evaluation result to file

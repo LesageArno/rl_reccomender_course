@@ -9,8 +9,6 @@ from sb3_contrib import MaskablePPO
 from CourseRecEnv import CourseRecEnv, EvaluateCallback
 from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
 
-import torch.nn as nn
-
 
 class Reinforce:
     """Reinforcement Learning-based Course Recommendation System.
