@@ -9,8 +9,6 @@ from sb3_contrib import MaskablePPO
 from CourseRecEnv import CourseRecEnv, EvaluateCallback
 from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
 
-import torch.nn as nn
-
 
 class Reinforce:
     """Reinforcement Learning-based Course Recommendation System.
@@ -79,17 +77,17 @@ class Reinforce:
         # Check if model uses clustering based on config
         if self.train_env.unwrapped.use_clustering:  # Only use clustering if explicitly enabled
             self.all_results_filename = (
-                f"all_{self.model_name}_k_{self.k}_total_steps_{self.total_steps}_clusters_auto_run_{run}.txt"
+                f"all_{self.model_name}_k_{self.k}_CLASS_{dataset.config['version']}_seed_{dataset.config['seed']}.txt"
             )
             self.final_results_filename = (
-                f"final_{self.model_name}_k_{self.k}_total_steps_{self.total_steps}_clusters_auto_run_{run}.json"
+                f"final_{self.model_name}_k_{self.k}_CLASS_{dataset.config['version']}_seed_{dataset.config['seed']}.json"
             )
         else:  # model without clustering
             self.all_results_filename = (
-                f"all_{self.model_name}_k_{self.k}_total_steps_{self.total_steps}_run_{run}.txt"
+                f"all_{self.model_name}_k_{self.k}_seed_{dataset.config['seed']}.txt"
             )
             self.final_results_filename = (
-                f"final_{self.model_name}_k_{self.k}_total_steps_{self.total_steps}_run_{run}.json"
+                f"final_{self.model_name}_k_{self.k}_seed_{dataset.config['seed']}.json"
             )
 
         '''self.eval_callback = MaskableEvalCallback(
@@ -143,7 +141,7 @@ class Reinforce:
                 self.model = DQN.load(pretrained_path, env=self.train_env)
                 print(f"Loaded pretrained DQN model from {pretrained_path}")
             else:
-                self.model = DQN(env=self.train_env, verbose=0, policy="MlpPolicy")
+                self.model = DQN(env=self.train_env, verbose=0, policy="MlpPolicy", device="auto", seed=self.dataset.config.get("seed", 42))
 
         elif self.model_name == "a2c":
             if use_pretrained:
@@ -157,17 +155,11 @@ class Reinforce:
                 self.model = PPO.load(pretrained_path, env=self.train_env)
                 print(f"Loaded pretrained PPO model from {pretrained_path}")
             else:
-                self.model = PPO(env=self.train_env, verbose=0, policy="MlpPolicy")
+                self.model = PPO(env=self.train_env, verbose=0, policy="MlpPolicy", device="auto", seed=self.dataset.config.get("seed", 42))
         elif self.model_name == "ppo_mask":
             if use_pretrained:
                 self.model = MaskablePPO.load(pretrained_path, env=self.train_env)
             else:
-                policy_kwargs = dict(
-                    net_arch=[256, 256],  # rete un filo più capace
-                    activation_fn=nn.ReLU,
-                    ortho_init=True,
-                )
-
                 self.model = MaskablePPO(
                     "MlpPolicy",
                     self.train_env,
@@ -183,8 +175,6 @@ class Reinforce:
                     ent_coef=0.02,
                     vf_coef=0.85,
                     max_grad_norm=0.5,
-                    # policy_kwargs=policy_kwargs,
-                    # verbose=1,
                 )
 
                 #self.model = MaskablePPO(env=self.train_env, verbose=0, policy="MlpPolicy")

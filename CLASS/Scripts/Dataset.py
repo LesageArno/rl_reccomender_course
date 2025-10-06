@@ -47,7 +47,7 @@ class Dataset:
 
     def load_data(self):
         """Load the data from the files specified in the config and store it in the class attributes"""
-        self.rng = random.Random(self.config["seed"])
+        self.rng = random.Random(42)
         self.load_skills() 
         self.load_mastery_levels()
         self.load_learners()
@@ -263,7 +263,7 @@ class Dataset:
 
     def get_subsample(self):
         """Get a subsample of the dataset based on the config parameters"""
-        random.seed(self.config["seed"])
+        random.seed(42)
         if self.config["nb_cvs"] != -1:
             # get a random sample of self.config["nb_cvs"] of ids from 0 to len(self.learners)
             learners_ids = random.sample(
