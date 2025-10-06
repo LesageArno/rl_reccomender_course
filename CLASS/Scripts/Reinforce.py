@@ -141,7 +141,7 @@ class Reinforce:
                 self.model = DQN.load(pretrained_path, env=self.train_env)
                 print(f"Loaded pretrained DQN model from {pretrained_path}")
             else:
-                self.model = DQN(env=self.train_env, verbose=0, policy="MlpPolicy", device="auto")
+                self.model = DQN(env=self.train_env, verbose=0, policy="MlpPolicy", device="auto", seed=self.dataset.config.get("seed", 42))
 
         elif self.model_name == "a2c":
             if use_pretrained:
@@ -155,17 +155,11 @@ class Reinforce:
                 self.model = PPO.load(pretrained_path, env=self.train_env)
                 print(f"Loaded pretrained PPO model from {pretrained_path}")
             else:
-                self.model = PPO(env=self.train_env, verbose=0, policy="MlpPolicy", device="auto")
+                self.model = PPO(env=self.train_env, verbose=0, policy="MlpPolicy", device="auto", seed=self.dataset.config.get("seed", 42))
         elif self.model_name == "ppo_mask":
             if use_pretrained:
                 self.model = MaskablePPO.load(pretrained_path, env=self.train_env)
             else:
-                policy_kwargs = dict(
-                    net_arch=[256, 256],  # rete un filo più capace
-                    activation_fn=nn.ReLU,
-                    ortho_init=True,
-                )
-
                 self.model = MaskablePPO(
                     "MlpPolicy",
                     self.train_env,
@@ -181,8 +175,6 @@ class Reinforce:
                     ent_coef=0.02,
                     vf_coef=0.85,
                     max_grad_norm=0.5,
-                    # policy_kwargs=policy_kwargs,
-                    # verbose=1,
                 )
 
                 #self.model = MaskablePPO(env=self.train_env, verbose=0, policy="MlpPolicy")

@@ -70,6 +70,8 @@ class CourseRecEnv(gym.Env):
         self.threshold = threshold
         self.k = k
         self.is_training = is_training
+
+        self.rng = np.random.default_rng(seed=self.cfg.get("seed", 42)) if hasattr(dataset, 'config') else np.random.default_rng()
         
         # Initialize basic attributes
         self.nb_skills = len(dataset.skills)  # 46 skills
@@ -177,7 +179,8 @@ class CourseRecEnv(gym.Env):
         """
         # We need the following line to seed self.np_random
         super().reset(seed=seed)
-
+        
+        self.rng = np.random.default_rng(seed=seed)
         self._episode_id = str(uuid.uuid4())  # nuovo episodio
         self._step_in_ep = 0
         if options is not None:

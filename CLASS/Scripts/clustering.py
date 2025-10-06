@@ -421,7 +421,7 @@ class CourseClusterer:
         - Low provided entropy
         """
         # Apply PCA to reduce to 2D
-        pca = PCA(n_components=2)
+        pca = PCA(n_components=2, svd_solver='full', random_state=self.random_state)
         features_2d = pca.fit_transform(features_scaled)
         
         # Create figure with larger size and higher DPI
