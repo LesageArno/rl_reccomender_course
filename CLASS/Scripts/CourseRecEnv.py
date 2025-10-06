@@ -72,12 +72,7 @@ class CourseRecEnv(gym.Env):
         self.is_training = is_training
         
         # Initialize basic attributes
-        self.band = self.dataset.config.get('band', 0.1)
-        self.alpha = self.dataset.config.get('alpha', 0.7)
-        self.beta = self.dataset.config.get('beta', 1)
-        self.gamma = self.dataset.config.get('gamma', 0.5)
-        self.potential_penalty = self.dataset.config.get("potential_penalty", 0.5)
-        self.obs_shape = self.dataset.config.get('obs_shape', 51)
+        self.obs_shape = self.nb_skills
         self.nb_skills = len(dataset.skills)  # 46 skills
         self.mastery_levels = [1, 2, 3]
         self.max_level = 3
@@ -129,25 +124,7 @@ class CourseRecEnv(gym.Env):
         Returns:
             np.ndarray: Current learner's skill vector representing the state
         """
-        skills = self._agent_skills # (self._agent_skills.astype(np.float32) / 3.0)
-        step_left = np.array([(self.k - self.nb_recommendations) / self.k])
-
-        # near_frac: quota di job in [T-band, T)
-        m = matchings.matches_array(self._agent_skills, self.dataset.jobs)
-        near_mask = (m >= self.threshold - self.band) & (m < self.threshold)
-        near_frac = np.array([near_mask.mean()])
-
-        applicable_now = np.array([np.mean(m >= self.threshold)])
-
-        gaps = np.clip(self.threshold - m, 0.0, 1.0)
-        min_gap = np.array([gaps.min() if gaps.size else 1.0], dtype=np.float32)
-
-        near_gaps = gaps[near_mask]
-        mean_gap_near = np.array([near_gaps.mean() if near_gaps.size else 1.0], dtype=np.float32)
-
-        obs = np.concatenate([skills, step_left, near_frac, applicable_now, min_gap, mean_gap_near], axis=0)
-
-        return obs
+        return self._agent_skills
 
     def get_info(self):
         """Get additional information about the current state.
@@ -289,26 +266,8 @@ class CourseRecEnv(gym.Env):
         observation = self.get_obs()
         info = self.get_info()
 
-        post_skills = self._agent_skills.copy()
-        actual_nb_applicable_jobs = info["nb_applicable_jobs"]
-
-        is_last = self.k == self.nb_recommendations + 1
-        reward, logs = matchings.action_reward(dataset=self.dataset,
-                                               prev_skills=prev_skills,
-                                               actual_skills=post_skills,
-                                               jobs=self.dataset.jobs,
-                                               threshold=self.threshold,
-                                               prev_nb_applicable_jobs=prev_nb_applicable_jobs,
-                                               actual_nb_applicable_jobs=actual_nb_applicable_jobs,
-                                               alpha=self.alpha,
-                                               beta=self.beta,
-                                               potential_penalty=self.potential_penalty,
-                                               band=self.band,
-                                               is_last=is_last)
-        # print("Reward: ", reward)
-
-        '''# Set reward as number of applicable jobs
-        reward = info["nb_applicable_jobs"]'''
+        # Set reward as number of applicable jobs
+        reward = info["nb_applicable_jobs"]
         original_reward = reward
         # print(f"This is the reward {reward}")
         # print(f"This is value matching after a course was selected {matchings.compute_coverage_percentage(self._agent_skills, self.dataset.jobs)}")
@@ -340,8 +299,6 @@ class CourseRecEnv(gym.Env):
         self.nb_recommendations += 1
         terminated = self.nb_recommendations == self.k
 
-        '''if reward >= 10:
-            print(f"This is the reward: {reward}")'''
         return observation, reward, terminated, False, info
 
 
