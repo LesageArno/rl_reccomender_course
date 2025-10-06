@@ -546,7 +546,10 @@ class CourseClusterer:
             
         # For subsequent recommendations in sequence (k>1)
         # Calculate reward change compared to the best adjusted reward so far
-        reward_change = original_reward - self.best_reward_so_far
+        if self.dataset.config['version'] == 'v3':
+            reward_change = original_reward - self.best_reward_so_far
+        elif self.dataset.config['version'] == 'v2':
+            reward_change = original_reward - prev_reward
         
         # Store current cluster for next comparison
         self.prev_cluster = current_cluster
