@@ -304,7 +304,10 @@ class Reinforce:
         os.makedirs(branch_dir, exist_ok=True)
         
         # Create data directory for this branch
-        data_dir = os.path.join(branch_dir, "data")
+        if self.dataset.config.get("use_clustering", False):
+            data_dir = os.path.join(branch_dir,f"CLASS_{self.dataset.config['version']}", "final")
+        else:
+            data_dir = os.path.join(branch_dir,"No_clustering", "final")
         os.makedirs(data_dir, exist_ok=True)
 
         json.dump(

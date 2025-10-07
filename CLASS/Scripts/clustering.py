@@ -562,7 +562,7 @@ class CourseClusterer:
                 adjusted_reward = original_reward * self.reward_multipliers['diff_cluster_increase']  # 1.3
             self.best_reward_so_far = adjusted_reward  # Update best reward
             return adjusted_reward
-        elif reward_change < 0 and self.dataset.config['version'] == 'v1':  # Worse than previous reward (only for CLASS-v1)
+        elif reward_change < 0 and self.dataset.config['version'] == 'v1':  # Worse than previous reward (only for CLASS-v1))
             if current_cluster == self.prev_cluster:  # Same cluster
                 adjusted_reward = original_reward * self.reward_multipliers['same_cluster_decrease']  # 0.9
             else:  # Different cluster
