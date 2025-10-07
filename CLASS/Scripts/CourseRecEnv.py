@@ -395,8 +395,8 @@ class EvaluateCallback(BaseCallback):
 
             # Write evaluation result to file
             branch_dir = os.path.join(self.eval_env.dataset.config["results_path"], self.eval_env.dataset.config["branch_name"])
-            if self.dataset.config.get("use_clustering", False):
-                data_dir = os.path.join(branch_dir,f"CLASS_{self.dataset.config['version']}", "logs")
+            if self.eval_env.dataset.config.get("use_clustering", False):
+                data_dir = os.path.join(branch_dir,f"CLASS_{self.eval_env.dataset.config['version']}", "logs")
             else:
                 data_dir = os.path.join(branch_dir,"No_clustering", "logs")
             os.makedirs(data_dir, exist_ok=True)
