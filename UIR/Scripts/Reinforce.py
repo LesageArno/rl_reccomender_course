@@ -5,6 +5,7 @@ import numpy as np
 from time import process_time
 
 import torch
+import math
 from stable_baselines3 import DQN, A2C, PPO
 from sb3_contrib.common.wrappers import ActionMasker
 from sb3_contrib import MaskablePPO
@@ -183,6 +184,18 @@ class Reinforce:
         - A2C: Advantage Actor-Critic
         - PPO: Proximal Policy Optimization
         """
+        def delayed_cosine_schedule(initial: float, final: float, start_at: float = 0.65, warmup_frac: float = 0.05):
+                    def sched(progress_remaining: float):
+                        elapsed = 1.0 - progress_remaining
+                        if elapsed <= warmup_frac:
+                            return initial * (elapsed / max(1e-12, warmup_frac))
+                        if elapsed <= start_at:
+                            return initial
+                        # mappa alla finestra [0, pi]
+                        frac = (elapsed - start_at) / (1.0 - start_at)  # 0..1
+                        cos_part = 0.5 * (1 + math.cos(math.pi * frac))  # 1 -> 0
+                        return final + (initial - final) * cos_part
+                    return sched
         pretrained_path = self.dataset.config.get("pretrained_model_path", None)
         use_pretrained = self.dataset.config.get("use_pretrained", False)
 
@@ -221,11 +234,21 @@ class Reinforce:
                 )
                 print(f"Loaded pretrained PPO model from {pretrained_path}")
             else:
-                self.model = PPO(env=self.train_env,
-                                 verbose=0,
-                                 seed=42,
-                                 policy="MlpPolicy"
-                                 )
+                self.model = PPO(
+                        "MlpPolicy",
+                        env=self.train_env,
+                        device="cuda",
+                        seed=42,
+                        gamma=0.95,          # più corto-orizzonte per episodi brevi
+                        gae_lambda=0.93,     # riduce varianza del vantaggio su ep. corti
+                        n_steps=256 if self.k < 3 else 512,         # rollout piccolo = update frequenti
+                        batch_size=128 if self.k < 3 else 256,      # = n_steps * n_envs
+                        n_epochs=10,         # ok
+                        learning_rate=delayed_cosine_schedule(1e-3, 5e-5,start_at=0.05, warmup_frac=0.05),  
+                        ent_coef=0.025,  
+                        clip_range=0.2,      
+                        verbose=0,
+                    )
 
         elif self.model_name == "ppo_mask":
             if use_pretrained:
@@ -234,18 +257,6 @@ class Reinforce:
                     env=self.train_env,
                     device="auto",
                     custom_objects={
-<<<<<<< Updated upstream
-                        "n_steps": 2048,  # ↑ più dati per update
-                        "batch_size": 1024,  # deve dividere n_envs*n_steps
-                        "clip_range": 0.25,  # un filo più ampio
-                        "ent_coef": 0.005,
-                        "learning_rate": 2e-3,  # fine-tuning più cauto
-                        "target_kl": 0.02,
-                        "gae_lambda": 0.95,
-                        "gamma": 0.90,
-                        "seed": 42,
-                        "verbose": 1
-=======
                         'device': 'cuda',
                         "n_steps": 512,  # ↑ più dati per update
                         "batch_size": 256,  # deve dividere n_envs*n_steps
@@ -258,7 +269,6 @@ class Reinforce:
                         'target_kl': 0.02,
                         "seed": 42,
                         'verbose': 1
->>>>>>> Stashed changes
                     },
                 )
             else:
@@ -268,13 +278,13 @@ class Reinforce:
                         device="cuda",
                         seed=42,
                         gamma=0.95,          # più corto-orizzonte per episodi brevi
-                        gae_lambda=0.97,     # riduce varianza del vantaggio su ep. corti
-                        n_steps=256,         # rollout piccolo = update frequenti
-                        batch_size=128,      # = n_steps * n_envs
+                        gae_lambda=0.93,     # riduce varianza del vantaggio su ep. corti
+                        n_steps=256 if self.k < 3 else 512,         # rollout piccolo = update frequenti
+                        batch_size=128 if self.k < 3 else 256,      # = n_steps * n_envs
                         n_epochs=10,         # ok
-                        learning_rate=5e-4,  # più alto (puoi provare anche 1e-3)
-                        ent_coef=0.025,        
-                        clip_range=0.2,      # default ok
+                        learning_rate=delayed_cosine_schedule(1e-3, 5e-5,start_at=0.05, warmup_frac=0.05),  
+                        ent_coef=0.025,  
+                        clip_range=0.2,      
                         verbose=0,
                     )
 
@@ -337,7 +347,9 @@ class Reinforce:
         save_dir = self.dataset.config.get("save_dir", "UIR")
         model_dir = os.path.join(save_dir, "models_weights")
         os.makedirs(model_dir, exist_ok=True)
-        self.model.save(os.path.join(model_dir, self.final_results_filename))
+        
+        if self.dataset.config.get("save_model", False):
+            self.model.save(os.path.join(model_dir, self.final_results_filename))
 
         # Evaluate the model using eval env
         time_start = process_time()
@@ -376,7 +388,7 @@ class Reinforce:
 
         avg_l_attrac_fin = self.dataset.get_avg_learner_attractiveness() #fin
         print(f"The new average attractiveness of the learners is {avg_l_attrac_fin:.2f}")
-    
+
 
         results["new_attractiveness"] = avg_l_attrac_fin
 

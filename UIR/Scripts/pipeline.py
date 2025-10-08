@@ -74,7 +74,7 @@ def create_and_print_dataset(config):
     return dataset
 
 
-def main(k, seed):
+def main(k=0, seed=42):
     """Main entry point for the recommendation system pipeline.
     
     This function:
@@ -125,8 +125,9 @@ def main(k, seed):
         beta2 = current_weights.get("beta2")
     else:
         config = initial_config
-    config['k'] = k
-    config['seed'] = seed
+    if k != 0:
+        config['k'] = int(k)
+        config['seed'] = int(seed)
     for run in range(config["nb_runs"]):
         
         
@@ -156,9 +157,9 @@ def main(k, seed):
             beta2=beta2
         )
         plot_filename = f"{config['name_exp']}_k{config['k']}"
-        log_path = f"results_k{config['k']}/{recommender.all_results_filename}"
+        log_path = f"results_k{config['k']}_seed{config['seed']}/{recommender.all_results_filename}"
 
-        signal.signal(signal.SIGINT, make_handler(recommender.all_results_filename, plot_filename))
+        signal.signal(signal.SIGINT, make_handler(log_path=log_path, path_name=plot_filename))
 
         recommender.reinforce_recommendation()
 
@@ -169,9 +170,13 @@ def main(k, seed):
 
 
 if __name__ == "__main__":
-    k_s = np.arange(1, 6)
+    main()
+    '''k_s = np.arange(1, 6)
     seeds = np.arange(42, 53)
-    for k in k_s:
-        for seed in seeds:
+    for seed in seeds:
+        for k in k_s:
+            if int(k) == 1:
+                if int(seed) == 42:
+                    continue  # skip the first run (k=1, seed=42) as it's already done
             print(f"Processing experiment with sequence {k} and seed {seed}")
-            main(k=k, seed=seed)
+            main(k=k, seed=seed)'''
