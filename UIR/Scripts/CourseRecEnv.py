@@ -1,6 +1,8 @@
 import os
 import random
 
+from typing import Callable, Optional
+
 from time import process_time
 import numpy as np
 import gymnasium as gym
@@ -9,6 +11,7 @@ from sb3_contrib import MaskablePPO
 from stable_baselines3.common.callbacks import BaseCallback
 
 import matchings
+
 
 
 class CourseRecEnv(gym.Env):
@@ -480,6 +483,12 @@ class EvaluateCallback(BaseCallback):
         self.all_results_filename = all_results_filename
         self.mode = "w"
 
+        # --- hook per Optuna/ASHA ---
+        self.report_fn: Optional[Callable[[int, float], bool]] = None
+        self.was_pruned: bool = False
+        self.last_avg_jobs: Optional[float] = None
+        self._eval_calls: int = 0
+
     def _on_step(self):
         """Evaluate the model at regular intervals during training.
         
@@ -524,10 +533,13 @@ class EvaluateCallback(BaseCallback):
 
             time_end = process_time()  # End timing the evaluation
 
+            avg = avg_jobs / len(self.eval_env.dataset.learners)
+
+
             # Log the result to the console
             print(
                 f"Iteration {self.n_calls}. "
-                f"Average jobs: {avg_jobs / len(self.eval_env.dataset.learners)} "
+                f"Average jobs: {avg} "
                 f"Time: {time_end - time_start}"
             )
 
@@ -551,5 +563,14 @@ class EvaluateCallback(BaseCallback):
             # After first write, switch mode to append for future evaluations
             if self.mode == "w":
                 self.mode = "a"
+
+            self.last_avg_jobs = float(avg)
+            self._eval_calls += 1
+
+            if callable(self.report_fn):
+                keep = bool(self.report_fn(self._eval_calls, self.last_avg_jobs))
+                if not keep:
+                    self.was_pruned = True
+                    return False  # interrompe il learn()
 
         return True  # Returning True continues training

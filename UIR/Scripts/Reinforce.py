@@ -39,7 +39,7 @@ class Reinforce:
     """
     
     def __init__(
-        self, dataset, model, k, threshold, run, save_name, total_steps=1000, eval_freq=100, feature="Usefulness-of-info-as-Rwd", baseline=False, method=1, beta1=None, beta2=None
+        self, dataset, model, k, threshold, run, save_name, total_steps=1000, eval_freq=100, feature="Usefulness-of-info-as-Rwd", baseline=False, method=1, beta1=None, beta2=None, params=None
     ):  
         """Initialize the reinforcement learning recommendation system.
         
@@ -56,6 +56,7 @@ class Reinforce:
             baseline (bool, optional): Whether to use baseline reward. Defaults to False.
             beta1 (float, optional): Weight for job applications in reward calculation. Defaults to None.
             beta2 (float, optional): Weight for utility in reward calculation. Defaults to None.
+            learning_params (dict, optional): Dictionary of learner parameters. Defaults to None.
         """
         self.baseline = baseline
         self.method = max(0, min(1, method))
@@ -70,6 +71,7 @@ class Reinforce:
         self.feature = feature
         self.beta1 = beta1
         self.beta2 = beta2
+        self.params = params
         # Create the training and evaluation environments
         self.train_env = CourseRecEnv(dataset, threshold=self.threshold, k=self.k, baseline = self.baseline, method=self.method, feature=self.feature, beta1=self.beta1, beta2=self.beta2)
         self.eval_env = CourseRecEnv(dataset, threshold=self.threshold, k=self.k, baseline = self.baseline, method=self.method, feature=self.feature, beta1=self.beta1, beta2=self.beta2)
@@ -99,58 +101,6 @@ class Reinforce:
             + str(self.dataset.config['seed'])
             + ".json"
         )
-        '''if self.baseline: #baseline model
-            self.all_results_filename = (
-                "all_"
-                + self.model_name
-                + "_skip-expertise"
-                + "_nbskills_"
-                + str(len(self.dataset.skills))
-                + "_k_"
-                + str(self.k)
-                + "_run_"
-                + str(run)
-                + ".txt"
-            )
-            self.final_results_filename = (
-                "final_"
-                + self.model_name
-                + "_skip-expertise"
-                + "_nbskills_"
-                + str(len(self.dataset.skills))
-                + "_k_"
-                + str(self.k)
-                + "_run_"
-                + str(self.run)
-                + ".json"
-            )
-                
-        else : ##### feature model
-            self.all_results_filename = (
-                "all_"
-                + self.model_name
-                +"_"
-                + self.feature
-                + "_nbskills_"
-                + str(len(self.dataset.skills))
-                + "_k_"
-                + str(self.k)
-                + "_run_"
-                + str(run)
-                + ".txt")
-            self.final_results_filename = (
-                "final_"
-                + self.model_name
-                + "_"
-                + self.feature
-                + "_nbskills_"
-                + str(len(self.dataset.skills))
-                + "_k_"
-                + str(self.k)
-                + "_run_"
-                + str(self.run)
-                + ".json")'''
-            
 
         self.eval_callback = EvaluateCallback(
             self.eval_env,
@@ -198,6 +148,20 @@ class Reinforce:
                     return sched
         pretrained_path = self.dataset.config.get("pretrained_model_path", None)
         use_pretrained = self.dataset.config.get("use_pretrained", False)
+        if self.params == None:
+            self.params = { "gamma": 0.95,
+                            "gae_lambda": 0.93,
+                            "n_steps": 256 if self.k < 3 else 512,
+                            "batch_size": 128 if self.k < 3 else 256,
+                            "n_epochs": 10,
+                            "lr_initial": 1e-3,
+                            "lr_final": 5e-5,
+                            "warmup_frac": 0.05,
+                            "start_at": 0.05,
+                            "ent_coef": 0.025,
+                            "clip_range": 0.2,
+                            "device": "auto",
+                            }
 
         if self.model_name == "dqn":
             if use_pretrained:
@@ -219,36 +183,34 @@ class Reinforce:
                     pretrained_path,
                     env=self.train_env,
                     device="auto",
-                    custom_objects={
-                        "n_steps": 2048,  # ↑ più dati per update
-                        "batch_size": 1024,  # deve dividere n_envs*n_steps
-                        "clip_range": 0.25,  # un filo più ampio
-                        "ent_coef": 0.005,
-                        "learning_rate": 2e-3,  # fine-tuning più cauto
-                        "target_kl": 0.02,
-                        "gae_lambda": 0.95,
-                        "gamma": 0.90,
-                        "seed": 42,
-                        "verbose": 1
-                    },
+                    custom_objects=self.params
                 )
                 print(f"Loaded pretrained PPO model from {pretrained_path}")
             else:
-                self.model = PPO(
+                if self.baseline:
+                    self.model = PPO(
                         "MlpPolicy",
                         env=self.train_env,
-                        device="cuda",
-                        seed=42,
-                        gamma=0.95,          # più corto-orizzonte per episodi brevi
-                        gae_lambda=0.93,     # riduce varianza del vantaggio su ep. corti
-                        n_steps=256 if self.k < 3 else 512,         # rollout piccolo = update frequenti
-                        batch_size=128 if self.k < 3 else 256,      # = n_steps * n_envs
-                        n_epochs=10,         # ok
-                        learning_rate=delayed_cosine_schedule(1e-3, 5e-5,start_at=0.05, warmup_frac=0.05),  
-                        ent_coef=0.025,  
-                        clip_range=0.2,      
+                        seed=self.dataset.config["seed"],
                         verbose=0,
                     )
+                else:
+                    self.model = PPO(
+                            "MlpPolicy",
+                            env=self.train_env,
+                            device="auto",
+                            seed=self.dataset.config['seed'],
+                            gamma=self.params['gamma'],
+                            gae_lambda=self.params['gae_lambda'],
+                            n_steps=self.params['n_steps'],
+                            batch_size=self.params['batch_size'],
+                            n_epochs=self.params['n_epochs'],
+                            learning_rate=delayed_cosine_schedule(self.params['lr_initial'], self.params['lr_final'], start_at=self.params['start_at'], warmup_frac=self.params['warmup_frac']),
+                            ent_coef=self.params['ent_coef'],
+                            clip_range=self.params['clip_range'],
+                            target_kl=self.params.get('target_kl', None),
+                            verbose=0,
+                        )
 
         elif self.model_name == "ppo_mask":
             if use_pretrained:
@@ -256,46 +218,25 @@ class Reinforce:
                     pretrained_path,
                     env=self.train_env,
                     device="auto",
-                    custom_objects={
-                        'device': 'cuda',
-                        "n_steps": 512,  # ↑ più dati per update
-                        "batch_size": 256,  # deve dividere n_envs*n_steps
-                        "clip_range": 0.2,  # un filo più ampio
-                        "learning_rate": 2e-3,  # fine-tuning più cauto
-                        'ent_coef': 0.005,
-                        'n_epochs': 15,
-                        'gae_lambda': 0.90,
-                        'gamma': 0.95,
-                        'target_kl': 0.02,
-                        "seed": 42,
-                        'verbose': 1
-                    },
+                    custom_objects=self.params
                 )
             else:
                 self.model = MaskablePPO(
                         "MlpPolicy",
                         env=self.train_env,
-                        device="cuda",
-                        seed=42,
-                        gamma=0.95,          # più corto-orizzonte per episodi brevi
-                        gae_lambda=0.93,     # riduce varianza del vantaggio su ep. corti
-                        n_steps=256 if self.k < 3 else 512,         # rollout piccolo = update frequenti
-                        batch_size=128 if self.k < 3 else 256,      # = n_steps * n_envs
-                        n_epochs=10,         # ok
-                        learning_rate=delayed_cosine_schedule(1e-3, 5e-5,start_at=0.05, warmup_frac=0.05),  
-                        ent_coef=0.025,  
-                        clip_range=0.2,      
+                        device="auto",
+                        seed=self.dataset.config['seed'],
+                        gamma=self.params['gamma'],
+                        gae_lambda=self.params['gae_lambda'],
+                        n_steps=self.params['n_steps'],
+                        batch_size=self.params['batch_size'],
+                        n_epochs=self.params['n_epochs'],
+                        learning_rate=delayed_cosine_schedule(self.params['lr_initial'], self.params['lr_final'], start_at=self.params['start_at'], warmup_frac=self.params['warmup_frac']),
+                        ent_coef=self.params['ent_coef'],
+                        clip_range=self.params['clip_range'],
+                        target_kl=self.params.get('target_kl', None),
                         verbose=0,
                     )
-
-                '''self.model = MaskablePPO(
-                    "MlpPolicy",
-                    env=self.train_env,
-                    device="auto",
-                    seed=42
-                )'''
-
-                #self.model = MaskablePPO(env=self.train_env, verbose=0, policy="MlpPolicy")
         else:
             raise ValueError(f"Unsupported model type: {self.model_name}")
 
