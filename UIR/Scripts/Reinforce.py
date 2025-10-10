@@ -108,20 +108,6 @@ class Reinforce:
             all_results_filename=self.all_results_filename,
         )
 
-    '''def get_model(self):
-        """Initialize the reinforcement learning model.
-        
-        Sets up the specified RL algorithm (DQN, A2C, or PPO) with default parameters.
-        The model is configured to use a Multi-Layer Perceptron (MLP) policy.
-        """
-        # on training env
-        if self.model_name == "dqn":
-            self.model = DQN(env=self.train_env, verbose=0, policy="MlpPolicy")
-        elif self.model_name == "a2c":
-            self.model = A2C(env=self.train_env, verbose=0, policy="MlpPolicy", device="cpu")
-        elif self.model_name == "ppo":
-            self.model = PPO(env=self.train_env, verbose=0, policy="MlpPolicy")'''
-
     def get_model(self):
         """Initialize or load the reinforcement learning model.
 
@@ -221,10 +207,11 @@ class Reinforce:
                     custom_objects=self.params
                 )
             else:
+                print("CUDA Available: ", torch.cuda.is_available())
                 self.model = MaskablePPO(
                         "MlpPolicy",
                         env=self.train_env,
-                        device="auto",
+                        device="cuda" if torch.cuda.is_available() else "cpu",
                         seed=self.dataset.config['seed'],
                         gamma=self.params['gamma'],
                         gae_lambda=self.params['gae_lambda'],
@@ -237,6 +224,8 @@ class Reinforce:
                         target_kl=self.params.get('target_kl', None),
                         verbose=0,
                     )
+                print(self.save_name)
+                print(self.model.policy.device)
         else:
             raise ValueError(f"Unsupported model type: {self.model_name}")
 

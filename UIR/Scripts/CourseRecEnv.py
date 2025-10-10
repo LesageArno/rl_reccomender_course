@@ -3,6 +3,8 @@ import random
 
 from typing import Callable, Optional
 
+from numba import njit
+
 from time import process_time
 import numpy as np
 import gymnasium as gym
@@ -236,6 +238,11 @@ class CourseRecEnv(gym.Env):
         Returns:
             tuple: (N1, N2, N3) metrics as integers (measured in mastery levels).
         """
+        #############################################################################################
+        if self.dataset.config.get("use_numba", True):
+            return _calc_metrics_deficit_numba(learner, course[1], self.dataset.jobs)
+        ##############################################################################################
+
         # Skills after taking the course (target-level model)
         cons_skills = np.maximum(learner, course[1])
 
@@ -345,12 +352,63 @@ class CourseRecEnv(gym.Env):
 
     def get_action_mask(self) -> np.ndarray:
         """
-        True = valid actions, False = invalid actions.
-        Invalid:
-          - required_matching < threshold
-          - provided_matching >= 1.0
+        Compute a boolean mask for valid course recommendations.
+
+        A course is considered **invalid** if:
+        - The learner does not meet the required skills (required_matching < threshold)
+        - The learner already has all provided skills (provided_matching >= 1.0)
+
+        Returns:
+            np.ndarray: Boolean array (True = valid, False = invalid)
         """
         learner = self._agent_skills
+
+        # === REQUIRED SKILLS MATCHING ===
+        required_skills = self.dataset.courses[:, 0, :].astype(float)  # [num_courses, num_skills]
+        has_requirement = required_skills > 0                          # mask of required skills
+        required_safe = np.where(has_requirement, required_skills, 1.0)  # avoid divide by 0
+
+        # Compute fractional match per skill: min(learner_level, required_level) / required_level
+        required_fraction = np.minimum(learner, required_skills) / required_safe
+        required_fraction[~has_requirement] = 0.0  # ignore non-required skills
+
+        # Aggregate to average matching per course
+        required_sum = required_fraction.sum(axis=1)
+        required_count = has_requirement.sum(axis=1)
+        required_matching = np.divide(
+            required_sum, required_count, out=np.ones_like(required_sum), where=(required_count > 0)
+        )
+        # If no prerequisites, matching = 1.0 (course always valid in that regard)
+        required_matching[required_count == 0] = 1.0
+
+
+        # === PROVIDED SKILLS MATCHING ===
+        provided_skills = self.dataset.courses[:, 1, :].astype(float)
+        has_provided = provided_skills > 0
+        provided_safe = np.where(has_provided, provided_skills, 1.0)
+
+        # Fractional overlap: min(learner_level, provided_level) / provided_level
+        provided_fraction = np.minimum(learner, provided_skills) / provided_safe
+        provided_fraction[~has_provided] = 0.0
+
+        provided_sum = provided_fraction.sum(axis=1)
+        provided_count = has_provided.sum(axis=1)
+        provided_matching = np.divide(
+            provided_sum, provided_count, out=np.zeros_like(provided_sum), where=(provided_count > 0)
+        )
+        # If no provided skills, treat as 0.0
+        provided_matching[provided_count == 0] = 0.0
+
+
+        # === VALIDITY RULE ===
+        valid_courses = (required_matching >= self.threshold) & (provided_matching < 1.0)
+
+        # Defensive fallback (if all invalid, allow first one)
+        if not valid_courses.any():
+            valid_courses[0] = True
+
+        return valid_courses
+        '''learner = self._agent_skills
         valid = np.ones(self.dataset.courses.shape[0], dtype=bool)
 
         for i, course in enumerate(self.dataset.courses):
@@ -361,7 +419,7 @@ class CourseRecEnv(gym.Env):
 
         if not valid.any():  # fallback difensivo
             valid[0] = True
-        return valid
+        return valid'''
 
     def _sample_mastery_outcome(self, base_levels):
         """
@@ -574,3 +632,70 @@ class EvaluateCallback(BaseCallback):
                     return False  # interrompe il learn()
 
         return True  # Returning True continues training
+    
+
+@njit(cache=True)
+def _calc_metrics_deficit_numba(learner: np.ndarray,
+                                course_provided: np.ndarray,
+                                jobs: np.ndarray) -> tuple:
+    """
+    Numba-compiled helper replicating calculate_course_metrics_deficit.
+    Returns (N1, N2, N3) as ints.
+    """
+
+    num_jobs, num_skills = jobs.shape
+
+    # After taking the course (max level per skill)
+    cons_skills = np.empty_like(learner)
+    for s in range(num_skills):
+        l = learner[s]
+        c = course_provided[s]
+        cons_skills[s] = l if l >= c else c
+
+    N1 = 0.0  # total deficit reduction
+    N2 = 0.0  # remaining deficits
+    needed = np.zeros(num_skills, dtype=np.bool_)
+
+    # --- iterate over all jobs ---
+    for j in range(num_jobs):
+        denom_before = 0.0
+        denom_after = 0.0
+        missing_before = np.zeros(num_skills)
+        missing_after = np.zeros(num_skills)
+        has_deficit = False
+
+        for s in range(num_skills):
+            job_req = jobs[j, s]
+            if job_req > 0.0:
+                lv = learner[s]
+                cs = cons_skills[s]
+                diff_before = job_req - lv
+                diff_after = job_req - cs
+
+                if diff_before > 0.0:
+                    has_deficit = True
+                    needed[s] = True
+
+                # clamp negative values to 0
+                if diff_before < 0.0:
+                    diff_before = 0.0
+                if diff_after < 0.0:
+                    diff_after = 0.0
+
+                missing_before[s] = diff_before
+                missing_after[s] = diff_after
+
+        if has_deficit:
+            # N1: total deficit reduction
+            for s in range(num_skills):
+                N1 += (missing_before[s] - missing_after[s])
+                N2 += missing_after[s]
+
+    # --- N3: total gains on irrelevant skills ---
+    N3 = 0.0
+    for s in range(num_skills):
+        gain = cons_skills[s] - learner[s]
+        if gain > 0.0 and not needed[s]:
+            N3 += gain
+
+    return N1, N2, N3

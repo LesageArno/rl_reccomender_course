@@ -13,8 +13,8 @@ class ASHAReinforceTuner:
     Tuning iperparametri per Reinforce con Optuna + ASHA (Successive Halving).
     """
 
-    def __init__(self, base_config, total_steps=150_000, eval_freq=5_000,
-                 n_trials=30, grace_period=10_000, reduction_factor=3):
+    def __init__(self, base_config, total_steps=200_000, eval_freq=5_000,
+                 n_trials=30, grace_period=50_000, reduction_factor=3, n_jobs=4):
         self.base_config = copy.deepcopy(base_config)
         self.total_steps = total_steps
         self.eval_freq = eval_freq
@@ -22,12 +22,14 @@ class ASHAReinforceTuner:
         self.seed = self.base_config.get('seed', 42)
         self.min_resource = grace_period // eval_freq
         self.reduction_factor = reduction_factor
+        self.n_jobs = n_jobs
 
     # ---------------- TUNING PRINCIPALE ---------------- #
     def tune(self):
         pruner = SuccessiveHalvingPruner(
             min_resource=self.min_resource,
             reduction_factor=self.reduction_factor
+            bootstrap_count=self.n_jobs
         )
 
         study = optuna.create_study(
@@ -36,7 +38,7 @@ class ASHAReinforceTuner:
             pruner=pruner,
         )
 
-        study.optimize(self._objective, n_trials=self.n_trials)
+        study.optimize(self._objective, n_trials=self.n_trials, n_jobs=self.n_jobs)
         return self._sample_hparams(study.best_trial)
 
     # ---------------- FUNZIONE OBIETTIVO ---------------- #
@@ -93,9 +95,10 @@ class ASHAReinforceTuner:
         n_steps = trial.suggest_categorical("n_steps", [512, 1024])
         num_minibatches = trial.suggest_categorical("num_minibatches", [1, 2])
         batch_size = n_steps // num_minibatches
-        n_epochs = trial.suggest_categorical("n_epochs", [4, 6] if num_minibatches == 1 else [2, 4])
+        n_epochs = trial.suggest_categorical("n_epochs", [2, 4, 6])
 
         return {
+            "device": "cuda",
             "n_steps": n_steps,
             "batch_size": batch_size,
             "n_epochs": n_epochs,
@@ -115,11 +118,12 @@ class ASHAReinforceTuner:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="ASHA tuning per Reinforce")
     parser.add_argument("--config", default="UIR/config/run.yaml", help="Path al file YAML")
-    parser.add_argument("--total-steps", type=int, default=150_000)
+    parser.add_argument("--total-steps", type=int, default=200_000)
     parser.add_argument("--eval-freq", type=int, default=5_000)
     parser.add_argument("--trials", type=int, default=30)
-    parser.add_argument("--grace-period", type=int, default=10_000)
-    parser.add_argument("--reduction-factor", type=int, default=3)
+    parser.add_argument("--grace-period", type=int, default=40_000)
+    parser.add_argument("--reduction-factor", type=int, default=2)
+    parser.add_argument("--n_jobs", type=int, default=4)
     args = parser.parse_args()
 
     with open(args.config, "r") as f:
@@ -132,6 +136,7 @@ if __name__ == "__main__":
         n_trials=args.trials,
         grace_period=args.grace_period,
         reduction_factor=args.reduction_factor,
+        n_jobs=args.n_jobs
     )
 
     best = tuner.tune()

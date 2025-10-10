@@ -7,6 +7,9 @@ import numpy as np
 from collections import defaultdict
 
 import matchings
+import torch
+
+from numba import njit
 
 
 class Dataset:
@@ -326,7 +329,44 @@ class Dataset:
         Returns:
             int: the number of applicable jobs
         """
-        nb_applicable_jobs = 0
+        if self.config.get("use_numba", True):
+            nb_applicable_jobs = _nb_applicable_jobs_numba(
+                            learner,
+                            self.jobs,
+                            threshold
+                            )
+            return int(nb_applicable_jobs)
+        # Early exit: no jobs or no required skills anywhere
+        job_required_counts = np.count_nonzero(self.jobs, axis=1)  # denominator per job
+        if job_required_counts.size == 0 or not np.any(job_required_counts):
+            return 0
+
+        # Element-wise fractions for ALL skills (not only learner's nonzeros):
+        # - where job requires a skill (job_s > 0): min(learner_s, job_s) / job_s
+        # - where job_s == 0: leave 0 (no contribution)
+        job_req = self.jobs                                  # shape: [J, S]
+        required_mask = job_req > 0                          # shape: [J, S]
+        per_skill_fraction = np.divide(
+            np.minimum(learner, job_req),                    # broadcasts learner [S] over [J,S]
+            job_req,
+            out=np.zeros_like(job_req, dtype=float),
+            where=required_mask
+        )                                                    # values in [0, 1], shape: [J, S]
+
+        # Average across required skills for each job
+        per_job_sum = per_skill_fraction.sum(axis=1)         # shape: [J]
+        per_job_match = np.divide(
+            per_job_sum,
+            job_required_counts,
+            out=np.zeros_like(per_job_sum, dtype=float),
+            where=(job_required_counts > 0)
+        )                                                    # shape: [J], each in [0, 1]
+
+        # Count jobs meeting the threshold
+        nb_applicable_jobs = int(np.sum(per_job_match >= threshold))
+        return nb_applicable_jobs
+
+        '''nb_applicable_jobs = 0
         jobs_subset = set()
 
         # get the index of the non zero elements in the learner array
@@ -339,7 +379,7 @@ class Dataset:
             matching = matchings.learner_job_matching(learner, self.jobs[job_id])
             if matching >= threshold:
                 nb_applicable_jobs += 1
-        return nb_applicable_jobs
+        return nb_applicable_jobs'''
 
     def get_avg_applicable_jobs(self, threshold):
         """Get the average number of applicable jobs for all the learners
@@ -401,3 +441,23 @@ class Dataset:
         missing_skills = set(np.nonzero((job_skills - learner) > 0)[0])
 
         return missing_skills
+    
+@njit(cache=True)
+def _nb_applicable_jobs_numba(learner: np.ndarray, jobs: np.ndarray, threshold: float) -> int:
+    J, S = jobs.shape
+    count = 0
+    for j in range(J):                # loop sui job
+        denom = 0
+        acc = 0.0
+        for s in range(S):            # loop sulle skill
+            req = jobs[j, s]
+            if req > 0:               # skill richiesta
+                denom += 1
+                lv = learner[s]
+                acc += (lv if lv < req else req) / req
+        if denom > 0:
+            score = acc / denom       # matching medio
+            if score >= threshold:
+                count += 1
+    return count
+
