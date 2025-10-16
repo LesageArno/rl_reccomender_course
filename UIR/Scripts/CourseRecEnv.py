@@ -549,7 +549,7 @@ class EvaluateCallback(BaseCallback):
         self.last_avg_jobs: Optional[float] = None
         self._eval_calls: int = 0
 
-    def cosine_anneal(self, value_start, value_end, step, total_steps, start_frac=0.6):
+    def cosine_anneal(self, value_start, value_end, step, total_steps, start_frac=0.7):
 
         start_step = total_steps * start_frac
         if step <= start_step:
