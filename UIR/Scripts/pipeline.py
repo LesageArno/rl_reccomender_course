@@ -154,7 +154,8 @@ def main(k=0, seed=42):
             baseline=config["baseline"],
             method=config['method'],
             beta1=beta1,
-            beta2=beta2
+            beta2=beta2,
+            params=config.get("hypers", None)
         )
         plot_filename = f"{config['name_exp']}_k{config['k']}"
         log_path = f"results_k{config['k']}_seed{config['seed']}/{recommender.all_results_filename}"

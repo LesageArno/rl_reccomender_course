@@ -79,7 +79,7 @@ class Reinforce:
         # Masking of unavailable actions
         if self.model_name == "ppo_mask":
             def mask_fn(env):  # ActionMasker function
-                return env.unwrapped.get_action_mask().astype(bool)  # env.get_action_mask()
+                return env.unwrapped.get_action_mask().astype(bool)  # env.unwrapped.get_action_mask()
 
             self.train_env = ActionMasker(self.train_env, mask_fn)
             self.eval_env = ActionMasker(self.eval_env, mask_fn)
@@ -121,17 +121,19 @@ class Reinforce:
         - PPO: Proximal Policy Optimization
         """
         def delayed_cosine_schedule(initial: float, final: float, start_at: float = 0.65, warmup_frac: float = 0.05):
-                    def sched(progress_remaining: float):
-                        elapsed = 1.0 - progress_remaining
-                        if elapsed <= warmup_frac:
-                            return initial * (elapsed / max(1e-12, warmup_frac))
-                        if elapsed <= start_at:
-                            return initial
-                        # mappa alla finestra [0, pi]
-                        frac = (elapsed - start_at) / (1.0 - start_at)  # 0..1
-                        cos_part = 0.5 * (1 + math.cos(math.pi * frac))  # 1 -> 0
-                        return final + (initial - final) * cos_part
-                    return sched
+            initial = float(initial)
+            final = float(final)
+            def sched(progress_remaining: float):
+                elapsed = 1.0 - progress_remaining
+                if elapsed <= warmup_frac:
+                    return initial * (elapsed / max(1e-12, warmup_frac))
+                if elapsed <= start_at:
+                    return initial
+                # mappa alla finestra [0, pi]
+                frac = (elapsed - start_at) / (1.0 - start_at)  # 0..1
+                cos_part = 0.5 * (1 + math.cos(math.pi * frac))  # 1 -> 0
+                return final + (initial - final) * cos_part
+            return sched
         pretrained_path = self.dataset.config.get("pretrained_model_path", None)
         use_pretrained = self.dataset.config.get("use_pretrained", False)
         if self.params == None:
@@ -335,7 +337,7 @@ class Reinforce:
             results,
             open(
                 os.path.join(
-                    f"{self.dataset.config['results_path']}_k{self.k}_seed{self.dataset.config['seed']}",
+                    f"{self.dataset.config['results_path']}{self.k}/seed{self.dataset.config['seed']}",
                     self.final_results_filename,
                 ),
                 "w",

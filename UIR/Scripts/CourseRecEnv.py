@@ -4,6 +4,7 @@ import random
 from typing import Callable, Optional
 
 from numba import njit
+import math
 
 from time import process_time
 import numpy as np
@@ -541,11 +542,22 @@ class EvaluateCallback(BaseCallback):
         self.all_results_filename = all_results_filename
         self.mode = "w"
 
+        self._anneal_done = False  # run-once switch
+
         # --- hook per Optuna/ASHA ---
         self.report_fn: Optional[Callable[[int, float], bool]] = None
         self.was_pruned: bool = False
         self.last_avg_jobs: Optional[float] = None
         self._eval_calls: int = 0
+
+    def cosine_anneal(self, value_start, value_end, step, total_steps, start_frac=0.6):
+        
+        start_step = total_steps * start_frac
+        if step <= start_step:
+            return value_start
+        progress = min((step - start_step) / (total_steps - start_step), 1.0)
+        weight = 0.5 * (1 + math.cos(math.pi * progress))
+        return value_end + (value_start - value_end) * weight
 
     def _on_step(self):
         """Evaluate the model at regular intervals during training.
@@ -561,14 +573,31 @@ class EvaluateCallback(BaseCallback):
         """
         # Only evaluate every 'eval_freq' training steps
         if self.n_calls % self.eval_freq == 0:
+            total_steps = getattr(self.model, "_total_timesteps", 500_000)
+            initial_ent = getattr(self.model, 'ent_coef', 0.025)
+            initial_clip = getattr(self.model, 'clip_range', 0.25)
+            if callable(initial_clip):
+                initial_clip = initial_clip(1.0)
+            ent = self.cosine_anneal(initial_ent, 0.007, self.n_calls, total_steps)
+            clip = self.cosine_anneal(initial_clip, 0.10, self.n_calls, total_steps)
+
+            if hasattr(self.model, "ent_coef"):
+                self.model.ent_coef = ent
+            if hasattr(self.model, "params"):
+                self.model.params["ent_coef"] = ent
+
+            if hasattr(self.model, "clip_range"):
+                self.model.clip_range = lambda _: clip
+            if hasattr(self.model, "params"):
+                self.model.params["clip_range"] = clip
             time_start = process_time()  # Start timing the evaluation
             avg_jobs = 0  # Accumulator for average jobs across learners
 
             # Loop through each learner in the evaluation dataset
-            for learner in self.eval_env.dataset.learners:
+            for learner in self.eval_env.unwrapped.dataset.learners:
                 self.eval_env.reset(options={"learner": learner}) #learner=learner)  # Reset environment with current learner
                 done = False  # Flag to control evaluation episode
-                tmp_avg_jobs = self.eval_env.get_info()["nb_applicable_jobs"]  # Initial jobs applicable without any recommendations
+                tmp_avg_jobs = self.eval_env.unwrapped.get_info()["nb_applicable_jobs"]  # Initial jobs applicable without any recommendations
 
                 # Run one full evaluation episode for the learner
                 while not done:
@@ -591,7 +620,7 @@ class EvaluateCallback(BaseCallback):
 
             time_end = process_time()  # End timing the evaluation
 
-            avg = avg_jobs / len(self.eval_env.dataset.learners)
+            avg = avg_jobs / len(self.eval_env.unwrapped.dataset.learners)
 
 
             # Log the result to the console
@@ -602,7 +631,7 @@ class EvaluateCallback(BaseCallback):
             )
 
             results_dir = os.path.join(
-                f"{self.eval_env.unwrapped.dataset.config['results_path']}_k{self.eval_env.unwrapped.dataset.config['k']}_seed{self.eval_env.unwrapped.dataset.config['seed']}"
+                f"{self.eval_env.unwrapped.dataset.config['results_path']}{self.eval_env.unwrapped.dataset.config['k']}/seed{self.eval_env.unwrapped.dataset.config['seed']}"
             )
 
             # Crea la directory se non esiste già
