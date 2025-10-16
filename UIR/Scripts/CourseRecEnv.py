@@ -16,29 +16,28 @@ from stable_baselines3.common.callbacks import BaseCallback
 import matchings
 
 
-
 class CourseRecEnv(gym.Env):
     """Course Recommendation Environment for Reinforcement Learning.
-    
+
     This class implements a Gymnasium environment for course recommendations using
     reinforcement learning. The environment simulates the process of recommending
     courses to learners to help them acquire skills needed for jobs.
-    
+
     The environment operates in two modes:
     1. Baseline: Uses number of applicable jobs as reward
     2. Skip-expertise: Uses a utility function that considers both skill acquisition
        and job applicability
-    
+
     Observation Space:
         - Vector of length nb_skills representing learner's current skill levels
         - Each element is an integer in [0, max_level]
         - Shape: (nb_skills,)
-    
+
     Action Space:
         - Discrete space of size nb_courses
         - Each action represents recommending a specific course
         - Range: [0, nb_courses-1]
-    
+
     Attributes:
         dataset: Dataset object containing learners, jobs, and courses data
         nb_skills (int): Number of unique skills in the system
@@ -51,10 +50,11 @@ class CourseRecEnv(gym.Env):
         k (int): Maximum number of course recommendations per learner
         baseline (bool): Whether to use baseline reward (True) or utility-based reward (False)
     """
-    
-    def __init__(self, dataset, threshold=0.8, k=3, baseline=False, method=1, feature="Usefulness-as-Rwd", beta1=0.5, beta2=0.5, seed=42):
+
+    def __init__(self, dataset, threshold=0.8, k=3, baseline=False, method=1, feature="Usefulness-as-Rwd", beta1=0.5,
+                 beta2=0.5, seed=42):
         """Initialize the course recommendation environment.
-        
+
         Args:
             dataset: Dataset object containing the recommendation system data
             threshold (float, optional): Minimum matching score for job applicability. Defaults to 0.8.
@@ -69,17 +69,17 @@ class CourseRecEnv(gym.Env):
         self.method = method
         self.beta1 = beta1
         self.beta2 = beta2
-        self.dataset = dataset 
-        self.nb_skills = len(dataset.skills) # 46 skills
+        self.dataset = dataset
+        self.nb_skills = len(dataset.skills)  # 46 skills
         self.mastery_levels = [
-            elem for elem in list(dataset.mastery_levels.values()) if elem > 0 # mastery level: [1,2,3,-1]
+            elem for elem in list(dataset.mastery_levels.values()) if elem > 0  # mastery level: [1,2,3,-1]
         ]
         self.max_level = max(self.mastery_levels)
-        self.nb_courses = len(dataset.courses) #100 courses
+        self.nb_courses = len(dataset.courses)  # 100 courses
         # get the minimum and maximum number of skills of the learners using np.nonzero
-        self.min_skills = min(np.count_nonzero(self.dataset.learners, axis=1)) # 1
-        self.max_skills = max(np.count_nonzero(self.dataset.learners, axis=1)) # 15
-        self.threshold = threshold 
+        self.min_skills = min(np.count_nonzero(self.dataset.learners, axis=1))  # 1
+        self.max_skills = max(np.count_nonzero(self.dataset.learners, axis=1))  # 15
+        self.threshold = threshold
         self.k = k
         self.seed = seed
         self.rng = np.random.default_rng(seed=self.seed)
@@ -87,7 +87,7 @@ class CourseRecEnv(gym.Env):
         # The vector contains skill levels, where the minimum level is 0 and the maximum level is max_level (e.g., 3).
         # We cannot set the lower bound to -1 because negative values are not allowed in this Box space.
         self.observation_space = gym.spaces.Box(
-            low=0, high=self.max_level, shape=(self.nb_skills+1,), dtype=np.int32)
+            low=0, high=self.max_level, shape=(self.nb_skills + 1,), dtype=np.int32)
 
         # Define the action space for the environment.
         # This is a discrete space where each action corresponds to recommending a specific course.
@@ -97,7 +97,7 @@ class CourseRecEnv(gym.Env):
 
     def get_obs(self):
         """Get the current observation of the environment.
-        
+
         Returns:
             np.ndarray: Current learner's skill vector representing the state
         """
@@ -108,7 +108,7 @@ class CourseRecEnv(gym.Env):
 
     def get_info(self):
         """Get additional information about the current state.
-        
+
         Returns:
             dict: Dictionary containing the number of applicable jobs for the current state
         """
@@ -120,11 +120,11 @@ class CourseRecEnv(gym.Env):
 
     def get_random_learner(self):
         """Generate a random learner profile for environment initialization.
-        
+
         Creates a learner with:
         - Random number of skills between min_skills and max_skills
         - Random mastery levels for each skill
-        
+
         Returns:
             np.array: the initial observation of the environment, that is the learner's initial skills
         """
@@ -149,7 +149,7 @@ class CourseRecEnv(gym.Env):
         Args:
             seed (int, optional): Random seed for reproducibility. Defaults to None.
             learner (np.ndarray, optional): Initial learner profile. If None, generates random profile. Defaults to None.
-            
+
         Returns:
             tuple: (observation, info) where:
                 - observation: Initial learner's skill vector
@@ -172,16 +172,16 @@ class CourseRecEnv(gym.Env):
 
     def calculate_course_metrics(self, learner, course):
         """Calculate N1, N2, N3 metrics for a course recommendation.
-        
+
         These metrics evaluate the effectiveness of a course recommendation:
         - N1: Sum over all unachievable goals of the intersection between skills acquired after taking the course and missing skills for each goal
         - N2: Sum over all unachievable goals of the remaining missing skills after taking the course
         - N3: Number of skills provided by the course that are not in missing skills
-        
+
         Args:
             learner (np.ndarray): Current learner's skill vector
             course (np.ndarray): Course's skills array [required, provided]
-            
+
         Returns:
             tuple: (N1, N2, N3) metrics
         """
@@ -191,7 +191,7 @@ class CourseRecEnv(gym.Env):
 
         # Get skills provided by the course
         course_provided_skills = set(np.nonzero((course[1] - learner) > 0)[0])
-        
+
         # Initialize N1 and N2
         N1 = 0
         N2 = 0
@@ -200,21 +200,21 @@ class CourseRecEnv(gym.Env):
         for job_id in range(len(self.dataset.jobs)):
             # Get missing skills for this job before learning
             missing_skills = self.dataset.get_learner_missing_skills(learner, job_id)
-            
+
             # Check if this job is in Ga (unachievable goals)
             if len(missing_skills) > 0:
                 # Calculate N1: intersection of acquired skills and missing skills
                 N1 += len(cons_skills_set.intersection(missing_skills))
-                
+
                 # Calculate N2: remaining missing skills after learning
                 N2 += len(missing_skills - cons_skills_set)
-        
+
         # Calculate N3: number of skills provided by the course that are not in any missing skills
         all_missing_skills = set()
         for job_id in range(len(self.dataset.jobs)):
             all_missing_skills.update(self.dataset.get_learner_missing_skills(learner, job_id))
         N3 = len(course_provided_skills - all_missing_skills)
-        
+
         return N1, N2, N3
 
     def calculate_course_metrics_deficit(self, learner, course):
@@ -281,11 +281,11 @@ class CourseRecEnv(gym.Env):
 
     def calculate_achievable_goals(self, learner, course):
         """Calculate the set of goals (jobs) that become achievable after taking a course.
-        
+
         Args:
             learner (np.ndarray): Current learner's skill vector
             course (np.ndarray): Course's skills array [required, provided]
-            
+
         Returns:
             tuple: (initial_goals, new_goals) where:
                 - initial_goals: Number of jobs applicable with current skills
@@ -293,33 +293,33 @@ class CourseRecEnv(gym.Env):
         """
         # Calculate initial goals (jobs applicable with current skills)
         initial_goals = self.dataset.get_nb_applicable_jobs(learner, threshold=self.threshold)
-        
+
         # Calculate skills after learning the course
         updated_skills = np.maximum(learner, course[1])
-        
+
         # Calculate new goals (jobs applicable after learning the course)
         new_goals = self.dataset.get_nb_applicable_jobs(updated_skills, threshold=self.threshold)
-        
+
         return initial_goals, new_goals
 
     def calculate_utility(self, learner, course, method=1):
         """Calculate the utility of a course recommendation.
-        
+
         The utility function is defined as:
         U(φ) = 1/(|G|+1) * [|E(φ)| + N1(φ)/(N1(φ)+N2(φ)+(N3(φ)/(N3(φ)+1)))]
-        
+
         where:
         - |G|: Number of jobs not applicable with initial skills
         - |E(φ)|: Number of new jobs that become applicable
         - N1: Number of missing skills resolved
         - N2: Number of remaining missing skills
         - N3: Number of additional skills provided
-        
+
         Args:
             learner (np.ndarray): Current learner's skill vector
             course (np.ndarray): Course's skills array [required, provided]
             method (int): Whether to use binary information or skills mastery deficit, default 1(mastery deficit)
-            
+
         Returns:
             float: Utility value of the course recommendation
         """
@@ -328,27 +328,27 @@ class CourseRecEnv(gym.Env):
             N1, N2, N3 = self.calculate_course_metrics(learner, course)
         else:
             N1, N2, N3 = self.calculate_course_metrics_deficit(learner, course)
-        
+
         # Calculate achievable goals
         initial_goals, new_goals = self.calculate_achievable_goals(learner, course)
-        
+
         # Calculate |G|: number of jobs not applicable with initial skills
         total_jobs = len(self.dataset.jobs)
         Ga = total_jobs - initial_goals
-        
+
         # Calculate |E(φ)|: number of new jobs that become applicable
         E_phi = new_goals - initial_goals
-        
+
         # Calculate denominator for N1 fraction
-        denominator = N1 + N2 + (N3/(N3+1))
+        denominator = N1 + N2 + (N3 / (N3 + 1))
         if denominator == 0:  # Avoid division by zero
             N1_fraction = 0
         else:
             N1_fraction = N1 / denominator
-        
+
         # Calculate U(φ)
         utility = (1 / (Ga + 1)) * (E_phi + N1_fraction)
-        
+
         return utility
 
     def get_action_mask(self) -> np.ndarray:
@@ -366,7 +366,7 @@ class CourseRecEnv(gym.Env):
 
         # === REQUIRED SKILLS MATCHING ===
         required_skills = self.dataset.courses[:, 0, :].astype(float)  # [num_courses, num_skills]
-        has_requirement = required_skills > 0                          # mask of required skills
+        has_requirement = required_skills > 0  # mask of required skills
         required_safe = np.where(has_requirement, required_skills, 1.0)  # avoid divide by 0
 
         # Compute fractional match per skill: min(learner_level, required_level) / required_level
@@ -381,7 +381,6 @@ class CourseRecEnv(gym.Env):
         )
         # If no prerequisites, matching = 1.0 (course always valid in that regard)
         required_matching[required_count == 0] = 1.0
-
 
         # === PROVIDED SKILLS MATCHING ===
         provided_skills = self.dataset.courses[:, 1, :].astype(float)
@@ -400,7 +399,6 @@ class CourseRecEnv(gym.Env):
         # If no provided skills, treat as 0.0
         provided_matching[provided_count == 0] = 0.0
 
-
         # === VALIDITY RULE ===
         valid_courses = (required_matching >= self.threshold) & (provided_matching < 1.0)
 
@@ -418,14 +416,14 @@ class CourseRecEnv(gym.Env):
             if prov >= 1.0 or req < self.threshold:
                 valid[i] = False
 
-        if not valid.any():  # fallback difensivo
+        if not valid.any():  # defensive fallback
             valid[0] = True
         return valid'''
 
     def _sample_mastery_outcome(self, base_levels):
         """
         base_levels: course level target {1,2,3}
-        :returns updated levels coming from overlearning.
+        :returns updated levels resulting from potential overlearning.
         """
         base_levels = np.asarray(base_levels, dtype=int)
         p_double = 0.008
@@ -437,20 +435,20 @@ class CourseRecEnv(gym.Env):
         p_double /= k
         p_over /= k
 
-        # Indipendent Bernoulli +2 and +1
-        # Note: if +2, we don't apply +1 (higher jump priority)
+        # Independent Bernoulli for +2 and +1
+        # Note: if +2 triggers, +1 is not applied (higher jump has priority)
         jump2 = self.rng.random(base_levels.shape) < p_double
         jump1 = (self.rng.random(base_levels.shape) < p_over) & (~jump2)
 
         outcome = base_levels + jump1.astype(int) + (2 * jump2.astype(int))
-        outcome = np.clip(outcome, 0, 3)  # livelli cap a 3
+        outcome = np.clip(outcome, 0, 3)  # cap levels at 3
         outcome[~mask] = 0
 
         return outcome
 
     def step(self, action):
         """Execute one step in the environment.
-        
+
         This method:
         1. Recommends a course based on the action
         2. Updates the learner's skills if the course is valid
@@ -459,10 +457,10 @@ class CourseRecEnv(gym.Env):
            - Usefulness-of-info-as-Rwd: Utility function value
            - Weighted-Usefulness-of-info-as-Rwd: Number of applicable jobs + Utility
         4. Checks if the episode should terminate
-        
+
         Args:
             action (int): Index of the course to recommend
-            
+
         Returns:
             tuple: (observation, reward, terminated, truncated, info) where:
                 - observation: Updated learner's skill vector
@@ -483,27 +481,28 @@ class CourseRecEnv(gym.Env):
             terminated = True
             info = self.get_info()
             return observation, reward, terminated, False, info
-        
-        if self.baseline: #baseline model
+
+        if self.baseline:  # baseline model
             self._agent_skills = np.maximum(self._agent_skills, course[1])
             observation = self.get_obs()
             info = self.get_info()
             reward = info["nb_applicable_jobs"]
-        else: # No-Mastery-Levels Models
+        else:  # No-Mastery-Levels Models
             # Calculate Usefulness-of-info-as-Rwd
             utility = self.calculate_utility(learner, course, self.method)
 
             # learned_course = self._sample_mastery_outcome(course[1])
-            
-            self._agent_skills = np.maximum(self._agent_skills, course[1]) #learned_course)
+
+            self._agent_skills = np.maximum(self._agent_skills, course[1])  # learned_course)
             observation = self.get_obs()
             info = self.get_info()
             info["utility"] = utility
-            
+
             if self.feature == "Usefulness-as-Rwd":
                 reward = info["utility"]  # Use utility as reward
             elif self.feature == "Weighted-Usefulness-as-Rwd":
-                reward = self.beta1 * info["nb_applicable_jobs"] + self.beta2 * info["utility"]  # Combine both metrics with weights
+                reward = self.beta1 * info["nb_applicable_jobs"] + self.beta2 * info[
+                    "utility"]  # Combine both metrics with weights
             else:
                 raise ValueError(f"Unknown feature type: {self.feature}")
 
@@ -515,21 +514,21 @@ class CourseRecEnv(gym.Env):
 
 class EvaluateCallback(BaseCallback):
     """Callback for evaluating the RL model during training.
-    
+
     This callback evaluates the model's performance at regular intervals during training.
     It calculates the average number of applicable jobs across all learners and logs
     the results_k2 to a file.
-    
+
     Attributes:
         eval_env: Environment used for evaluation
         eval_freq (int): Frequency of evaluation in training steps
         all_results_filename (str): Path to save evaluation results_k2
         mode (str): File opening mode ('w' for first write, 'a' for append)
     """
-    
+
     def __init__(self, eval_env, eval_freq, all_results_filename, verbose=1):
         """Initialize the evaluation callback.
-        
+
         Args:
             eval_env: Environment to use for evaluation
             eval_freq (int): Frequency of evaluation in training steps
@@ -544,14 +543,14 @@ class EvaluateCallback(BaseCallback):
 
         self._anneal_done = False  # run-once switch
 
-        # --- hook per Optuna/ASHA ---
+        # --- hook for Optuna/ASHA ---
         self.report_fn: Optional[Callable[[int, float], bool]] = None
         self.was_pruned: bool = False
         self.last_avg_jobs: Optional[float] = None
         self._eval_calls: int = 0
 
     def cosine_anneal(self, value_start, value_end, step, total_steps, start_frac=0.6):
-        
+
         start_step = total_steps * start_frac
         if step <= start_step:
             return value_start
@@ -561,13 +560,13 @@ class EvaluateCallback(BaseCallback):
 
     def _on_step(self):
         """Evaluate the model at regular intervals during training.
-        
+
         This method:
         1. Evaluates the model every eval_freq steps
         2. Calculates average number of applicable jobs
         3. Logs results_k2 to file
         4. Prints progress information
-        
+
         Returns:
             bool: True to continue training
         """
@@ -578,8 +577,8 @@ class EvaluateCallback(BaseCallback):
             initial_clip = getattr(self.model, 'clip_range', 0.25)
             if callable(initial_clip):
                 initial_clip = initial_clip(1.0)
-            ent = self.cosine_anneal(initial_ent, 0.007, self.n_calls, total_steps)
-            clip = self.cosine_anneal(initial_clip, 0.10, self.n_calls, total_steps)
+            ent = self.cosine_anneal(initial_ent, 0.015, self.n_calls, total_steps)
+            clip = self.cosine_anneal(initial_clip, 0.15, self.n_calls, total_steps)
 
             if hasattr(self.model, "ent_coef"):
                 self.model.ent_coef = ent
@@ -595,9 +594,10 @@ class EvaluateCallback(BaseCallback):
 
             # Loop through each learner in the evaluation dataset
             for learner in self.eval_env.unwrapped.dataset.learners:
-                self.eval_env.reset(options={"learner": learner}) #learner=learner)  # Reset environment with current learner
+                self.eval_env.reset(options={"learner": learner})  # Reset environment with current learner
                 done = False  # Flag to control evaluation episode
-                tmp_avg_jobs = self.eval_env.unwrapped.get_info()["nb_applicable_jobs"]  # Initial jobs applicable without any recommendations
+                tmp_avg_jobs = self.eval_env.unwrapped.get_info()[
+                    "nb_applicable_jobs"]  # Initial jobs applicable without any recommendations
 
                 # Run one full evaluation episode for the learner
                 while not done:
@@ -606,8 +606,9 @@ class EvaluateCallback(BaseCallback):
                         mask = self.eval_env.unwrapped.get_action_mask()
                         action, _state = self.model.predict(obs, action_masks=mask, deterministic=True)
                     else:
-                        action, _state = self.model.predict(obs, deterministic=True)  # Predict action using current policy
-                    #obs = self.eval_env.get_obs()  # Get current observation (learner's skills)
+                        action, _state = self.model.predict(obs,
+                                                            deterministic=True)  # Predict action using current policy
+                    # obs = self.eval_env.get_obs()  # Get current observation (learner's skills)
 
                     obs, reward, terminated, truncated, info = self.eval_env.step(action)  # Step in environment
                     done = terminated or truncated  # Properly compute done flag
@@ -622,7 +623,6 @@ class EvaluateCallback(BaseCallback):
 
             avg = avg_jobs / len(self.eval_env.unwrapped.dataset.learners)
 
-
             # Log the result to the console
             print(
                 f"Iteration {self.n_calls}. "
@@ -634,7 +634,7 @@ class EvaluateCallback(BaseCallback):
                 f"{self.eval_env.unwrapped.dataset.config['results_path']}{self.eval_env.unwrapped.dataset.config['k']}/seed{self.eval_env.unwrapped.dataset.config['seed']}"
             )
 
-            # Crea la directory se non esiste già
+            # Create directory if it does not already exist
             os.makedirs(results_dir, exist_ok=True)
 
             file_path = os.path.join(results_dir, self.all_results_filename)
@@ -658,10 +658,10 @@ class EvaluateCallback(BaseCallback):
                 keep = bool(self.report_fn(self._eval_calls, self.last_avg_jobs))
                 if not keep:
                     self.was_pruned = True
-                    return False  # interrompe il learn()
+                    return False  # interrupts learn()
 
         return True  # Returning True continues training
-    
+
 
 @njit(cache=True)
 def _calc_metrics_deficit_numba(learner: np.ndarray,

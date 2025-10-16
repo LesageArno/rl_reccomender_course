@@ -14,7 +14,7 @@ from numba import njit
 
 class Dataset:
     """Dataset class for the course recommendation system.
-    
+
     This class handles data loading, processing, and analysis for the recommendation system.
     It manages three main types of data with mastery levels:
     - Learner profiles and their skill mastery levels (1-3)
@@ -22,13 +22,14 @@ class Dataset:
     - Course information including:
         * Required skill levels (prerequisites)
         * Provided skill levels (learning outcomes)
-    
+
     The class implements the Mastery-Levels approach, where skills are represented
     with different levels of proficiency (1-3) instead of binary values.
     """
+
     def __init__(self, config):
         """Initialize the Dataset with configuration parameters.
-        
+
         Args:
             config (dict): Configuration dictionary containing:
                 - Data paths (taxonomy, courses, resumes, jobs)
@@ -41,6 +42,7 @@ class Dataset:
         self.get_jobs_inverted_index()
 
     def __str__(self):
+        """Return a concise human-readable summary of dataset sizes."""
         return (
             f"Dataset with {len(self.learners)} learners, "
             f"{len(self.jobs)} jobs, "
@@ -51,15 +53,13 @@ class Dataset:
     def load_data(self):
         """Load the data from the files specified in the config and store it in the class attributes"""
         self.rng = random.Random(42)
-        self.load_skills() 
+        self.load_skills()
         self.load_mastery_levels()
         self.load_learners()
         self.load_jobs()
         self.load_courses()
         self.get_subsample()
         self.make_course_consistent()
-        
-
 
     def load_skills(self):
         """
@@ -113,6 +113,7 @@ class Dataset:
         self.mastery_levels = json.load(open(self.config["mastery_levels_path"]))
 
     def get_avg_skills(self, skill_list, replace_unk):
+        """Compute averaged (rounded) mastery per skill, mapping unknown (-1) to replace_unk."""
         avg_skills = defaultdict(list)
         for skill, mastery_level in skill_list:
             # If the mastery level is a string and is in the mastery levels, we replace it with the corresponding value
@@ -120,7 +121,7 @@ class Dataset:
                 mastery_level = self.mastery_levels[mastery_level]
                 if mastery_level == -1:
                     mastery_level = replace_unk
-                skill = self.skills2int[skill]  
+                skill = self.skills2int[skill]
                 avg_skills[skill].append(mastery_level)
         # We take the average of the mastery levels for each skill because on our dataset we can have multiple mastery levels for the same skill
         for skill in avg_skills.keys():
@@ -129,7 +130,7 @@ class Dataset:
 
         return avg_skills
 
-    def get_base_skills(self,skill_list):
+    def get_base_skills(self, skill_list):
         """
         Convert a learner's list of type-4 skills to a unique set of type-3 base skills.
 
@@ -151,27 +152,11 @@ class Dataset:
                     base_skills.add(self.skills2int[skill])
                 except KeyError:
                     continue
-    
 
         return base_skills
-    
 
     def load_learners(self, replace_unk=1):
-        """Load and process learner profiles from the CV data.
-        
-        This method:
-        1. Loads learner profiles from JSON file
-        2. Converts type-4 skills to type-3 base skills with their mastery levels
-        3. Creates a skill matrix where:
-           - Rows represent learners
-           - Columns represent skills
-           - Values represent mastery levels (1-3)
-        4. Filters out learners with too many skills
-        5. Creates bidirectional mapping between learner IDs and matrix indices
-
-        Args:
-            replace_unk (int, optional): The value to replace unknown mastery levels. Defaults to 1.
-        """
+        """Load and process learner profiles from the CV data."""
         learners = json.load(open(self.config["cv_path"]))
         self.max_learner_skills = self.config["max_cv_skills"]
         self.learners_index = dict()
@@ -201,7 +186,6 @@ class Dataset:
         # Trim matrix to actual number of learners
         self.learners = self.learners[:index]
 
-
     def load_jobs(self, replace_unk=3):
         """Load the jobs from the file specified in the config and store it in the class attribute.
         Only jobs with at least one required skill are kept.
@@ -226,7 +210,6 @@ class Dataset:
         # print(f"THESE ARE JOBS: {self.jobs}")
         # print(f"THESE ARE jobs_index: {self.jobs_index}")
 
-
     def load_courses(self, replace_unk=2):
         """Load the courses from the file specified in the config and store it in the class attribute.
         Only courses with at least one provided skill are kept.
@@ -242,7 +225,7 @@ class Dataset:
             # Skip courses with no provided skills
             if "to_acquire" not in course:
                 continue
-            
+
             self.courses_index[course_id] = index
             self.courses_index[index] = course_id
 
@@ -257,10 +240,9 @@ class Dataset:
                 for skill, level in required_skills.items():
                     self.courses[index][0][skill] = level
 
-            index += 1  
-        # update the courses numpy array with the correct number of rows
+            index += 1
+            # update the courses numpy array with the correct number of rows
         self.courses = self.courses[:index]
-
 
     def get_subsample(self):
         """Get a subsample of the dataset based on the config parameters"""
@@ -309,8 +291,6 @@ class Dataset:
                     else:
                         course[0][skill_id] = provided_level - 1
 
-                
-
     def get_jobs_inverted_index(self):
         """Get the inverted index for the jobs. The inverted index is a dictionary that maps the skill to the jobs that require it"""
         self.jobs_inverted_index = defaultdict(set)
@@ -331,10 +311,10 @@ class Dataset:
         """
         if self.config.get("use_numba", True):
             nb_applicable_jobs = _nb_applicable_jobs_numba(
-                            learner,
-                            self.jobs,
-                            threshold
-                            )
+                learner,
+                self.jobs,
+                threshold
+            )
             return int(nb_applicable_jobs)
         # Early exit: no jobs or no required skills anywhere
         job_required_counts = np.count_nonzero(self.jobs, axis=1)  # denominator per job
@@ -344,23 +324,23 @@ class Dataset:
         # Element-wise fractions for ALL skills (not only learner's nonzeros):
         # - where job requires a skill (job_s > 0): min(learner_s, job_s) / job_s
         # - where job_s == 0: leave 0 (no contribution)
-        job_req = self.jobs                                  # shape: [J, S]
-        required_mask = job_req > 0                          # shape: [J, S]
+        job_req = self.jobs  # shape: [J, S]
+        required_mask = job_req > 0  # shape: [J, S]
         per_skill_fraction = np.divide(
-            np.minimum(learner, job_req),                    # broadcasts learner [S] over [J,S]
+            np.minimum(learner, job_req),  # broadcasts learner [S] over [J,S]
             job_req,
             out=np.zeros_like(job_req, dtype=float),
             where=required_mask
-        )                                                    # values in [0, 1], shape: [J, S]
+        )  # values in [0, 1], shape: [J, S]
 
         # Average across required skills for each job
-        per_job_sum = per_skill_fraction.sum(axis=1)         # shape: [J]
+        per_job_sum = per_skill_fraction.sum(axis=1)  # shape: [J]
         per_job_match = np.divide(
             per_job_sum,
             job_required_counts,
             out=np.zeros_like(per_job_sum, dtype=float),
             where=(job_required_counts > 0)
-        )                                                    # shape: [J], each in [0, 1]
+        )  # shape: [J], each in [0, 1]
 
         # Count jobs meeting the threshold
         nb_applicable_jobs = int(np.sum(per_job_match >= threshold))
@@ -398,21 +378,21 @@ class Dataset:
 
     def get_learner_attractiveness(self, learner):
         """Calculate a learner's attractiveness in the job market.
-        
+
         This function measures how many jobs require at least one of the
         learner's current skills. It provides a basic measure of the learner's
         marketability based on their current skill set.
-        
+
         Args:
             learner (np.ndarray): Learner's skill vector where 1 indicates
                                 possession of a skill and 0 indicates absence.
-            
+
         Returns:
             int: Number of jobs that require at least one of the learner's skills.
         """
         attractiveness = 0
         skills = np.nonzero(learner)[0]
-        
+
         for skill in skills:
             if skill in self.jobs_inverted_index:
                 attractiveness += len(self.jobs_inverted_index[skill])
@@ -420,10 +400,10 @@ class Dataset:
 
     def get_avg_learner_attractiveness(self):
         """Calculate the average attractiveness across all learners.
-        
+
         This function provides a measure of the overall marketability of
         the learner population based on their current skill sets.
-        
+
         Returns:
             float: The average number of jobs that require at least one
                   of each learner's skills.
@@ -435,29 +415,34 @@ class Dataset:
         return attractiveness
 
     def get_learner_missing_skills(self, learner, job_id):
-
+        """Return the set of skill indices where learner level is below the job requirement."""
         job_skills = self.jobs[job_id]
 
         missing_skills = set(np.nonzero((job_skills - learner) > 0)[0])
 
         return missing_skills
-    
+
+
 @njit(cache=True)
 def _nb_applicable_jobs_numba(learner: np.ndarray, jobs: np.ndarray, threshold: float) -> int:
+    """Compute the number of applicable jobs using Numba (speed-optimized).
+
+    A job counts as applicable if the average per-required-skill match
+    min(learner_s, job_s)/job_s across its required skills is ≥ threshold.
+    """
     J, S = jobs.shape
     count = 0
-    for j in range(J):                # loop sui job
+    for j in range(J):  # loop over jobs
         denom = 0
         acc = 0.0
-        for s in range(S):            # loop sulle skill
+        for s in range(S):  # loop over skills
             req = jobs[j, s]
-            if req > 0:               # skill richiesta
+            if req > 0:  # required skill
                 denom += 1
                 lv = learner[s]
                 acc += (lv if lv < req else req) / req
         if denom > 0:
-            score = acc / denom       # matching medio
+            score = acc / denom  # average matching
             if score >= threshold:
                 count += 1
     return count
-
