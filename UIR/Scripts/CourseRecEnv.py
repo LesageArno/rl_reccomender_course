@@ -577,8 +577,8 @@ class EvaluateCallback(BaseCallback):
             initial_clip = getattr(self.model, 'clip_range', 0.25)
             if callable(initial_clip):
                 initial_clip = initial_clip(1.0)
-            ent = self.cosine_anneal(initial_ent, 0.015, self.n_calls, total_steps)
-            clip = self.cosine_anneal(initial_clip, 0.15, self.n_calls, total_steps)
+            ent = self.cosine_anneal(initial_ent, 0.006, self.n_calls, total_steps)
+            clip = self.cosine_anneal(initial_clip, 0.12, self.n_calls, total_steps)
 
             if hasattr(self.model, "ent_coef"):
                 self.model.ent_coef = ent
