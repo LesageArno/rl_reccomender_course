@@ -70,6 +70,7 @@ class Reinforce:
         self.beta1 = beta1
         self.beta2 = beta2
         self.params = params
+        self.use_standard = self.dataset.config.get('use_standard', False)
 
         # Create training and evaluation environments
         self.train_env = CourseRecEnv(
@@ -200,7 +201,7 @@ class Reinforce:
                 )
                 print(f"Loaded pretrained PPO model from {pretrained_path}")
             else:
-                if self.baseline:
+                if self.use_standard:
                     self.model = PPO(
                         "MlpPolicy",
                         env=self.train_env,
@@ -240,27 +241,36 @@ class Reinforce:
                 )
             else:
                 print("CUDA Available: ", torch.cuda.is_available())
-                self.model = MaskablePPO(
-                    "MlpPolicy",
-                    env=self.train_env,
-                    device="cuda" if torch.cuda.is_available() else "cpu",
-                    seed=self.dataset.config["seed"],
-                    gamma=self.params["gamma"],
-                    gae_lambda=self.params["gae_lambda"],
-                    n_steps=self.params["n_steps"],
-                    batch_size=self.params["batch_size"],
-                    n_epochs=self.params["n_epochs"],
-                    learning_rate=delayed_cosine_schedule(
-                        self.params["lr_initial"],
-                        self.params["lr_final"],
-                        start_at=self.params["start_at"],
-                        warmup_frac=self.params["warmup_frac"],
-                    ),
-                    ent_coef=self.params["ent_coef"],
-                    clip_range=self.params["clip_range"],
-                    target_kl=self.params.get("target_kl", None),
-                    verbose=0,
-                )
+                if self.use_standard:
+                    self.model = MaskablePPO(
+                        'MlpPolicy',
+                        env=self.train_env,
+                        device='cuda' if torch.cuda.is_available() else 'cpu',
+                        seed=self.dataset.config["seed"],
+                        verbose=0
+                    )
+                else:
+                    self.model = MaskablePPO(
+                        "MlpPolicy",
+                        env=self.train_env,
+                        device="cuda" if torch.cuda.is_available() else "cpu",
+                        seed=self.dataset.config["seed"],
+                        gamma=self.params["gamma"],
+                        gae_lambda=self.params["gae_lambda"],
+                        n_steps=self.params["n_steps"],
+                        batch_size=self.params["batch_size"],
+                        n_epochs=self.params["n_epochs"],
+                        learning_rate=delayed_cosine_schedule(
+                            self.params["lr_initial"],
+                            self.params["lr_final"],
+                            start_at=self.params["start_at"],
+                            warmup_frac=self.params["warmup_frac"],
+                        ),
+                        ent_coef=self.params["ent_coef"],
+                        clip_range=self.params["clip_range"],
+                        target_kl=self.params.get("target_kl", None),
+                        verbose=0,
+                    )
                 print(self.save_name)
                 print(self.model.policy.device)
         else:

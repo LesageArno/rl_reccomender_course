@@ -572,25 +572,28 @@ class EvaluateCallback(BaseCallback):
         """
         # Only evaluate every 'eval_freq' training steps
         if self.n_calls % self.eval_freq == 0:
-            total_steps = getattr(self.model, "_total_timesteps", 500_000)
-            initial_ent = getattr(self.model, 'ent_coef', 0.025)
-            initial_clip = getattr(self.model, 'clip_range', 0.25)
-            if callable(initial_clip):
-                initial_clip = initial_clip(1.0)
-            ent = self.cosine_anneal(initial_ent, 0.006, self.n_calls, total_steps)
-            clip = self.cosine_anneal(initial_clip, 0.12, self.n_calls, total_steps)
+            use_standard = self.eval_env.unwrapped.dataset.config.get("use_standard", False)
+            if not use_standard:
+                total_steps = getattr(self.model, "_total_timesteps", 500_000)
+                initial_ent = getattr(self.model, 'ent_coef', 0.025)
+                initial_clip = getattr(self.model, 'clip_range', 0.25)
+                if callable(initial_clip):
+                    initial_clip = initial_clip(1.0)
+                ent = self.cosine_anneal(initial_ent, 0.006, self.n_calls, total_steps)
+                clip = self.cosine_anneal(initial_clip, 0.12, self.n_calls, total_steps)
 
-            if hasattr(self.model, "ent_coef"):
-                self.model.ent_coef = ent
-            if hasattr(self.model, "params"):
-                self.model.params["ent_coef"] = ent
+                if hasattr(self.model, "ent_coef"):
+                    self.model.ent_coef = ent
+                if hasattr(self.model, "params"):
+                    self.model.params["ent_coef"] = ent
 
-            if hasattr(self.model, "clip_range"):
-                self.model.clip_range = lambda _: clip
-            if hasattr(self.model, "params"):
-                self.model.params["clip_range"] = clip
+                if hasattr(self.model, "clip_range"):
+                    self.model.clip_range = lambda _: clip
+                if hasattr(self.model, "params"):
+                    self.model.params["clip_range"] = clip
             time_start = process_time()  # Start timing the evaluation
             avg_jobs = 0  # Accumulator for average jobs across learners
+            avg_reward = 0
 
             # Loop through each learner in the evaluation dataset
             for learner in self.eval_env.unwrapped.dataset.learners:
@@ -598,6 +601,7 @@ class EvaluateCallback(BaseCallback):
                 done = False  # Flag to control evaluation episode
                 tmp_avg_jobs = self.eval_env.unwrapped.get_info()[
                     "nb_applicable_jobs"]  # Initial jobs applicable without any recommendations
+                tmp_avg_reward = 0
 
                 # Run one full evaluation episode for the learner
                 while not done:
@@ -617,16 +621,21 @@ class EvaluateCallback(BaseCallback):
                     if reward != -1:
                         tmp_avg_jobs = info["nb_applicable_jobs"]
 
+                    tmp_avg_reward = reward
+
                 avg_jobs += tmp_avg_jobs  # Add learner's result to total
+                avg_reward += tmp_avg_reward
 
             time_end = process_time()  # End timing the evaluation
 
             avg = avg_jobs / len(self.eval_env.unwrapped.dataset.learners)
+            avg_reward = avg_reward / len(self.eval_env.unwrapped.dataset.learners)
 
             # Log the result to the console
             print(
                 f"Iteration {self.n_calls}. "
                 f"Average jobs: {avg} "
+                f"Average reward: {avg_reward} "
                 f"Time: {time_end - time_start}"
             )
 

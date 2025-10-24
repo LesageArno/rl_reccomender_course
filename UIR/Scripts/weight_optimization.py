@@ -179,15 +179,19 @@ class WeightOptimizer:
             beta2=beta2
         )
         total_app_jobs = 0
-        n_learners = len(env_eval.dataset.learners)
-        for i, learner in enumerate(env_eval.dataset.learners):
+        n_learners = len(env_eval.unwrapped.dataset.learners)
+        for i, learner in enumerate(env_eval.unwrapped.dataset.learners):
             env_eval.reset(learner=learner)
             done = False
             while not done:
-                obs = env_eval.get_obs()
-                action, _ = model.predict(obs, deterministic=True)
+                obs = env_eval.unwrapped.get_obs()
+                if isinstance(model, MaskablePPO):
+                    mask = self.eval_env.unwrapped.get_action_mask()
+                    action, _state = model.predict(obs, action_masks=mask, deterministic=True)
+                else:
+                    action, _ = model.predict(obs, deterministic=True)
                 obs, reward, done, _, info = env_eval.step(action)
-            total_app_jobs += env_eval.dataset.get_nb_applicable_jobs(env_eval._agent_skills, self.threshold)
+            total_app_jobs += env_eval.dataset.get_nb_applicable_jobs(env_eval.unwrapped._agent_skills, self.threshold)
         avg_app_jobs = total_app_jobs / n_learners
         print(f"    [RESULT] k={k}: avg_applicable_jobs={avg_app_jobs:.4f}")
         return avg_app_jobs
