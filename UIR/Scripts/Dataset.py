@@ -38,6 +38,9 @@ class Dataset:
                 - Random seed for reproducibility
         """
         self.config = config
+        if self.config.get("set_dataset_seed", False):
+            self.seed = self.config.get("dataset_seed", 42)
+
         self.load_data()
         self.get_jobs_inverted_index()
 
@@ -52,7 +55,7 @@ class Dataset:
 
     def load_data(self):
         """Load the data from the files specified in the config and store it in the class attributes"""
-        self.rng = random.Random(42)
+        self.rng = random.Random(self.seed)
         self.load_skills()
         self.load_mastery_levels()
         self.load_learners()
@@ -246,7 +249,7 @@ class Dataset:
 
     def get_subsample(self):
         """Get a subsample of the dataset based on the config parameters"""
-        random.seed(42)
+        random.seed(self.seed)
         if self.config["nb_cvs"] != -1:
             # get a random sample of self.config["nb_cvs"] of ids from 0 to len(self.learners)
             learners_ids = random.sample(
