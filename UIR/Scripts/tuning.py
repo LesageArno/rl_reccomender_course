@@ -2,6 +2,7 @@ import copy
 import optuna
 from optuna.pruners import SuccessiveHalvingPruner
 from collections import deque
+import optuna.visualization as ov
 
 from Dataset import Dataset
 from Reinforce import Reinforce
@@ -27,11 +28,13 @@ class ASHAReinforceTuner:
 
     # ---------------- TUNING PRINCIPALE ---------------- #
     def tune(self):
-        pruner = SuccessiveHalvingPruner(
+        '''pruner = SuccessiveHalvingPruner(
             min_resource=self.min_resource,
             reduction_factor=self.reduction_factor,
             bootstrap_count=0 #2 * self.n_jobs,  # Per stabilizzare il pruning iniziale
-        )
+        )'''
+
+        pruner = optuna.pruners.NopPruner()
 
         study = optuna.create_study(
             direction="maximize",
@@ -44,20 +47,25 @@ class ASHAReinforceTuner:
         )
 
         study.optimize(self._objective, n_trials=self.n_trials, n_jobs=self.n_jobs)
-        return self._sample_hparams(study.best_trial)
+        fig = ov.plot_optimization_history(study)
+        fig.write_html("optimization_history.html")
+        fig.show()
+        return self._sample_weights(study.best_trial)#self._sample_hparams(study.best_trial)
 
     # ---------------- FUNZIONE OBIETTIVO ---------------- #
     def _objective(self, trial):
         # 1) campionamento iperparametri
-        hparams = self._sample_hparams(trial)
+        # hparams = self._sample_hparams(trial)
+        weights = self._sample_weights(trial)
 
         # 2) prepara config e dataset
         cfg = copy.deepcopy(self.base_config)
         cfg["total_steps"] = self.total_steps
         cfg["eval_freq"] = self.eval_freq
-        cfg["seed"] = cfg.get("seed", self.seed) + trial.number
+        cfg["seed"] = cfg.get("seed", self.seed) # + trial.number
 
         dataset = Dataset(cfg)
+        print(dataset)
 
         # 3) istanzia Reinforce con override_hparams
         model = Reinforce(
@@ -72,9 +80,9 @@ class ASHAReinforceTuner:
             feature=cfg["feature"],
             baseline=cfg["baseline"],
             method=cfg["method"],
-            beta1=0.1,
-            beta2=0.9,
-            params=hparams
+            beta1=weights["beta1"],
+            beta2=weights["beta2"],
+            params=self.base_config["hypers"] #hparams
         )
 
         # 4) collega Optuna al callback (solo se patcheremo EvaluateCallback)
@@ -111,10 +119,12 @@ class ASHAReinforceTuner:
                 trial.study.set_user_attr("best_value", float(value))
                 trial.study.set_user_attr("best_step", int(step))
                 trial.study.set_user_attr("best_trial", int(trial.number))
-                trial.study.set_user_attr("best_params", hparams)
+                trial.study.set_user_attr("best_params", weights)
+
                 # overwrite final file only when GLOBAL best improves
                 with open("best_params_.json", "w") as f:
-                    json.dump(hparams, f, indent=2)
+                    json.dump(weights, f, indent=2)
+                    json.dump(self.base_config["hypers"], f, indent=2)
 
         def report_fn(step, avg):
             """Report raw metric and drive local ES in an exploration-safe way."""
@@ -157,7 +167,7 @@ class ASHAReinforceTuner:
             # report raw metric to Optuna/ASHA (resource = eval index)
             trial.report(current, step=reports)
             reports += 1
-
+            return True
             # grace/warmup: block pruning before enough evaluations/steps
             if reports <= WARMUP_EVALS or step < min_reports:
                 return True
@@ -219,16 +229,26 @@ class ASHAReinforceTuner:
             #"target_kl": 0.02
         }
 
+    def _sample_weights(self, trial):
+        beta1 = trial.suggest_float("beta1", 0.0001, 1.0, log=True)
+        beta2 = trial.suggest_float("beta2", 0.01, 1.0, log=True)
+        print(f"beta1: {beta1}")
+        print(f"beta2: {beta2}")
+
+        return {
+            "beta1": beta1,
+            "beta2": beta2
+        }
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="ASHA tuning per Reinforce")
     parser.add_argument("--config", default="UIR/config/run.yaml", help="Path al file YAML")
-    parser.add_argument("--total-steps", type=int, default=300_000)
+    parser.add_argument("--total-steps", type=int, default=500_000)
     parser.add_argument("--eval-freq", type=int, default=5_000)
-    parser.add_argument("--trials", type=int, default=30)
+    parser.add_argument("--trials", type=int, default=10, help="Number of trials")
     parser.add_argument("--grace-period", type=int, default=60_000)
     parser.add_argument("--reduction-factor", type=int, default=2)
-    parser.add_argument("--n_jobs", type=int, default=2)
+    parser.add_argument("--n_jobs", type=int, default=1)
     args = parser.parse_args()
 
     with open(args.config, "r") as f:

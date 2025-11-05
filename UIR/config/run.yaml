@@ -9,7 +9,7 @@ cv_path: Data - Collection/Final/resumes.json           # Path to learner profil
 job_path: Data - Collection/Final/jobs.json             # Path to job listings
 mastery_levels_path: Data - Collection/Final/mastery_levels.json  # Path to skill mastery levels
 results_path: UIR/results/results_k                              # Directory for storing results_k2
-name_exp: UIR-deficit-based                          # Branch name for organizing results
+name_exp: Weight_optimization                    # Branch name for organizing results
 pretrained_model_path: UIR/models_weights/WUIR-deficit-based_k4  # Path to pretrained model (if any)
 use_pretrained: false                                 # Whether to use a pretrained model
 save_model: false                                     # Whether to save the trained model
@@ -24,21 +24,23 @@ nb_courses: 100                                        # Number of courses to in
 nb_cvs: -1                                             # Number of learner profiles to use (-1 for all)
 max_cv_skills: 15                                      # Maximum number of skills per learner profile
 nb_jobs: 100                                           # Number of jobs to include in the dataset
+set_dataset_seed: true
+dataset_seed: 42
 
 # Model Parameters
 threshold: 0.8                                         # Minimum matching threshold for job eligibility
 k: 2                                                 # Number of course recommendations to generate
 model: ppo_mask # dqn                                          # Reinforcement learning algorithm (DQN, PPO, A2C)
 total_steps: 500000 #500000                                   # Total training steps
-eval_freq: 2000 # 1000                                       # Evaluation frequency during training
+eval_freq: 5000 # 1000                                       # Evaluation frequency during training
 nb_runs: 1                                            # Number of independent runs
-seed: 43                                              # Random seed for reproducibility
+seed: 41                                              # Random seed for reproducibility
 
 # Model Configuration
 baseline: false                                         # Model type:
-                                                       # true: Baseline model (skip-expertise only)
+use_standard: false                                     # true: Baseline model (skip-expertise only)
                                                        # false: Enhanced model with mastery levels and clustering
-feature: "Usefulness-as-Rwd"                         # Feature type for non-baseline model
+feature: "Weighted-Usefulness-as-Rwd"                         # Feature type for non-baseline model
 #options: "Usefulness-as-Rwd" or "Weighted-Usefulness-as-Rwd"
 
 method: 1                                              # When baseline=False whether to use strict-mastery or deficit based (0,1 respectively)
@@ -58,10 +60,18 @@ model_weights:
     beta1: 0.1                                        # Weight for job applications in reward calculation
     beta2: 0.9                                        # Weight for utility in reward calculation
   ppo_mask:
-    beta1: 0.1
-    beta2: 0.9
+    beta1: 0.00990871857366968
+    beta2: 0.17627844676980498
 
 
+
+
+    #beta1: 0.0001629014990981443
+    #beta2: 0.08897979042700524
+
+#  ppo_mask:
+#    beta1: 0.1
+#    beta2: 0.9
 
 hypers: {
   "device": "cuda",
@@ -74,7 +84,8 @@ hypers: {
   "gamma": 0.95,
   "gae_lambda": 0.93,
   "lr_initial": 1e-3,
-  "lr_final": 5e-5,
+  "lr_final": 1e-4,
   "warmup_frac": 0,
-  "start_at": 0.50
+  "start_at": 0.70,
+  "target_kl": 0.02
 }
