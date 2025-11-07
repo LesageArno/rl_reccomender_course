@@ -9,6 +9,7 @@ from Reinforce import Reinforce
 import json
 import argparse
 import yaml
+import numpy as np
 
 class ASHAReinforceTuner:
     """
@@ -44,11 +45,14 @@ class ASHAReinforceTuner:
                                                group=True
                                                ),
             pruner=pruner,
+            storage="sqlite:///asha_reinforce.db",  
+            study_name="asha_reinforce",
+            load_if_exists=True
         )
 
         study.optimize(self._objective, n_trials=self.n_trials, n_jobs=self.n_jobs)
         fig = ov.plot_optimization_history(study)
-        fig.write_html("optimization_history.html")
+        fig.write_html("optimization_history1000.html")
         fig.show()
         return self._sample_weights(study.best_trial)#self._sample_hparams(study.best_trial)
 
@@ -57,62 +61,107 @@ class ASHAReinforceTuner:
         # 1) campionamento iperparametri
         # hparams = self._sample_hparams(trial)
         weights = self._sample_weights(trial)
+        n_repeats = 3
+        global_step = [0] 
 
-        # 2) prepara config e dataset
-        cfg = copy.deepcopy(self.base_config)
-        cfg["total_steps"] = self.total_steps
-        cfg["eval_freq"] = self.eval_freq
-        cfg["seed"] = cfg.get("seed", self.seed) # + trial.number
+        run_scores = []
+        for r in range(n_repeats):
+            
+            # 2) prepara config e dataset
+            cfg = copy.deepcopy(self.base_config)
+            cfg["total_steps"] = self.total_steps
+            cfg["eval_freq"] = self.eval_freq
+            cfg["seed"] = cfg.get("seed", self.seed) + r # + trial.number
+            
 
-        dataset = Dataset(cfg)
-        print(dataset)
+            dataset = Dataset(cfg)
+            print(dataset)
 
-        # 3) istanzia Reinforce con override_hparams
-        model = Reinforce(
-            dataset=dataset,
-            model=cfg["model"],
-            k=cfg["k"],
-            threshold=cfg["threshold"],
-            run=0,
-            save_name=f"{cfg['name_exp']}_trial{trial.number}",
-            total_steps=self.total_steps,
-            eval_freq=self.eval_freq,
-            feature=cfg["feature"],
-            baseline=cfg["baseline"],
-            method=cfg["method"],
-            beta1=weights["beta1"],
-            beta2=weights["beta2"],
-            params=self.base_config["hypers"] #hparams
-        )
+            # 3) istanzia Reinforce con override_hparams
+            model = Reinforce(
+                dataset=dataset,
+                model=cfg["model"],
+                k=cfg["k"],
+                threshold=cfg["threshold"],
+                run=0,
+                save_name=f"{cfg['name_exp']}_trial{trial.number}",
+                total_steps=self.total_steps,
+                eval_freq=self.eval_freq,
+                feature=cfg["feature"],
+                baseline=cfg["baseline"],
+                method=cfg["method"],
+                beta1=weights["beta1"],
+                beta2=1.0,  # weights["beta2"],
+                params=self.base_config["hypers"] #hparams
+            )
 
-        # 4) collega Optuna al callback (solo se patcheremo EvaluateCallback)
-        '''def report_fn(step, avg):
-            trial.report(avg, step=step)
-            return not trial.should_prune()'''
-        # --- ES knobs (exploration-safe) ---
-        WARMUP_EVALS        = max(3, self.min_resource)  # disable ES for first N evals
-        ES_DELTA            = 0.03                      # minimal significant improvement
-        CONFIRM_K           = 2                         # confirmations to accept new best
-        BASE_PATIENCE       = 8                         # patience when variance is low
-        HIGH_VAR_PATIENCE   = 12                        # patience when variance is high
-        VAR_WINDOW          = 6                         # window for short-term std
-        VAR_THRESHOLD       = 0.05                      # high-variance threshold
-        COOLDOWN_AFTER_BEST = 2                         # no-stop window after a new best
-        # ------------------------------------
+            ctx = {
+                    "history": [],
+                    "best": float("-inf"),
+                    "reports": global_step[0],
+                    "to_prune": False,
+                    "hist_raw": deque(maxlen=6),
+                    "confirm_streak": 0,
+                    "since_best_reports": 0,
+                    "cooldown": 0,
+                    "WARMUP_EVALS": max(3, self.min_resource),
+                    "ES_DELTA": 0.03,
+                    "CONFIRM_K": 2,
+                    "BASE_PATIENCE": 8,
+                    "HIGH_VAR_PATIENCE": 12,
+                    "VAR_THRESHOLD": 0.05,
+                    "COOLDOWN_AFTER_BEST": 2,
+                }
 
-        best = float("-inf")
-        reports = 0
-        min_reports = self.min_resource                # evaluations before any pruning
-        min_steps   = self.min_resource * self.eval_freq
-        stale = 0                                      # consecutive non-improvements
-        to_prune = False
+            if hasattr(model, "eval_callback"):
+                model.eval_callback.report_fn = lambda step, avg: (
+                    ctx["history"].append(float(avg)),
+                    self.report_fn(step, avg, trial, weights, ctx, global_step)
+                    )[-1]
 
-        hist_raw = deque(maxlen=VAR_WINDOW)            # keep last raw evals
-        confirm_streak = 0                             # confirmations over (best+delta)
-        since_best_reports = 0
-        cooldown = 0
+            # 5) avvia training
+            model.reinforce_recommendation()
 
-        def _update_study_best(step, value):
+            # 6) leggi la metrica finale dal callback
+            history = ctx["history"]
+            avg = np.mean(history[-10:])
+            #avg = getattr(model.eval_callback, "last_avg_jobs", None)
+            if avg is None:
+                raise optuna.TrialPruned()
+            
+            run_scores.append(avg)
+            
+            '''if getattr(model.eval_callback, "was_pruned", False):
+                to_prune = True
+
+            if to_prune:
+                raise optuna.TrialPruned()'''
+            
+        robust_score = float(np.quantile(run_scores, 0.25))
+
+        return robust_score
+    
+
+    def report_fn(self, step, avg, trial, weights, ctx, global_step):
+        current = float(avg)
+        ctx["hist_raw"].append(current)
+
+        # std breve
+        if len(ctx["hist_raw"]) >= 2:
+            m = sum(ctx["hist_raw"]) / len(ctx["hist_raw"])
+            std = (sum((x - m) ** 2 for x in ctx["hist_raw"]) / len(ctx["hist_raw"])) ** 0.5
+        else:
+            std = 0.0
+        patience = ctx["HIGH_VAR_PATIENCE"] if std > ctx["VAR_THRESHOLD"] else ctx["BASE_PATIENCE"]
+
+        # report Optuna
+        trial.report(current, step=global_step[0])
+        global_step[0] += 1
+        return True
+    
+# ---------------- UPDATE GLOBAL BEST ---------------- #
+
+    def update_study_best(self, step, value, trial, weights):
             # global best across trials (even if this one gets pruned)
             prev = trial.study.user_attrs.get("best_value", float("-inf"))
             if float(value) > float(prev):
@@ -122,90 +171,15 @@ class ASHAReinforceTuner:
                 trial.study.set_user_attr("best_params", weights)
 
                 # overwrite final file only when GLOBAL best improves
-                with open("best_params_.json", "w") as f:
-                    json.dump(weights, f, indent=2)
-                    json.dump(self.base_config["hypers"], f, indent=2)
+                with open(f"best_params_{self.base_config["nb_jobs"]}_k{self.base_config["k"]}.json", "w") as f:
+                    best_dict = {}
+                    best_dict.update(weights)
+                    best_dict.update({"trial": trial.number})
+                    best_dict.update({"best_value": float(value)})
+                    best_dict.update(self.base_config["hypers"])
+                    json.dump(best_dict, f, indent=2)
 
-        def report_fn(step, avg):
-            """Report raw metric and drive local ES in an exploration-safe way."""
-            nonlocal best, reports, stale, to_prune, confirm_streak, since_best_reports, cooldown
-
-            current = float(avg)            # raw metric: average job applicability
-            hist_raw.append(current)
-
-            # short-term variance (std) to adapt patience
-            if len(hist_raw) >= 2:
-                m = sum(hist_raw) / len(hist_raw)
-                std = (sum((x - m) ** 2 for x in hist_raw) / len(hist_raw)) ** 0.5
-            else:
-                std = 0.0
-            patience = HIGH_VAR_PATIENCE if std > VAR_THRESHOLD else BASE_PATIENCE
-
-            # improvement proposal with confirmation to ignore single positive spikes
-            improved = current > (best + ES_DELTA)
-            if improved:
-                confirm_streak += 1
-                if confirm_streak >= CONFIRM_K:
-                    best = current
-                    confirm_streak = 0
-                    stale = 0
-                    since_best_reports = 0
-                    cooldown = COOLDOWN_AFTER_BEST     # give space to explore around new best
-                    _update_study_best(step, current)
-                else:
-                    # not yet accepted: treat as non-improvement for ES accounting
-                    stale += 1
-                    since_best_reports += 1
-            else:
-                if current == best:
-                    confirm_streak += 1
-                else:
-                    confirm_streak = 0
-                stale += 1
-                since_best_reports += 1
-
-            # report raw metric to Optuna/ASHA (resource = eval index)
-            trial.report(current, step=reports)
-            reports += 1
-            return True
-            # grace/warmup: block pruning before enough evaluations/steps
-            if reports <= WARMUP_EVALS or step < min_reports:
-                return True
-
-            # cooldown right after a new best: avoid premature stop while exploring
-            if cooldown > 0:
-                cooldown -= 1
-                return True
-
-            # local ES (plateau) after warmup + cooldown
-            if stale >= patience:
-                to_prune = True
-                return False
-
-            # also allow ASHA to decide pruning
-            return not trial.should_prune()
-
-
-        if hasattr(model, "eval_callback"):
-            model.eval_callback.report_fn = report_fn
-
-        # 5) avvia training
-        model.reinforce_recommendation()
-
-        # 6) leggi la metrica finale dal callback
-        avg = getattr(model.eval_callback, "last_avg_jobs", None)
-        if avg is None:
-            raise optuna.TrialPruned()
-        
-        if getattr(model.eval_callback, "was_pruned", False):
-            to_prune = True
-
-        if to_prune:
-            raise optuna.TrialPruned()
-
-        return avg
-
-    # ---------------- SPAZIO DI RICERCA ---------------- #
+    # ---------------- RESEARCH SPACE ---------------- #
     def _sample_hparams(self, trial):
         n_steps = trial.suggest_categorical("n_steps", [256, 512])
         num_minibatches = trial.suggest_categorical("num_minibatches", [1, 2])
@@ -231,21 +205,21 @@ class ASHAReinforceTuner:
 
     def _sample_weights(self, trial):
         beta1 = trial.suggest_float("beta1", 0.0001, 1.0, log=True)
-        beta2 = trial.suggest_float("beta2", 0.01, 1.0, log=True)
+        #beta2 = trial.suggest_float("beta2", 0.01, 1.0, log=True)
         print(f"beta1: {beta1}")
-        print(f"beta2: {beta2}")
+        #print(f"beta2: {beta2}")
 
         return {
             "beta1": beta1,
-            "beta2": beta2
+            #"beta2": beta2
         }
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="ASHA tuning per Reinforce")
     parser.add_argument("--config", default="UIR/config/run.yaml", help="Path al file YAML")
-    parser.add_argument("--total-steps", type=int, default=500_000)
+    parser.add_argument("--total-steps", type=int, default=400_000)
     parser.add_argument("--eval-freq", type=int, default=5_000)
-    parser.add_argument("--trials", type=int, default=10, help="Number of trials")
+    parser.add_argument("--trials", type=int, default=30, help="Number of trials")
     parser.add_argument("--grace-period", type=int, default=60_000)
     parser.add_argument("--reduction-factor", type=int, default=2)
     parser.add_argument("--n_jobs", type=int, default=1)
@@ -265,6 +239,6 @@ if __name__ == "__main__":
     )
 
     best = tuner.tune()
-    with open("best_params_.json", "w") as f:
+    with open(f"best_params_{cfg["nb_jobs"]}_k{cfg["k"]}.json", "w") as f:
         json.dump(best, f, indent=2)
-    print("\nBest hyperparameters salvati in best_params_k2.json:\n", best)
+    #print("\nBest hyperparameters salvati in best_params_k2.json:\n", best)
