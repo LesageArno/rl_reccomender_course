@@ -1,6 +1,7 @@
 import copy
 import optuna
 from optuna.pruners import SuccessiveHalvingPruner
+from optuna.trial import TrialState
 from collections import deque
 import optuna.visualization as ov
 
@@ -10,6 +11,9 @@ import json
 import argparse
 import yaml
 import numpy as np
+
+import torch
+torch.distributions.Distribution.set_default_validate_args(False)
 
 class ASHAReinforceTuner:
     """
@@ -39,22 +43,36 @@ class ASHAReinforceTuner:
 
         study = optuna.create_study(
             direction="maximize",
-            sampler=optuna.samplers.TPESampler(seed=self.seed,
-                                               n_startup_trials=9,
-                                               multivariate=True,
-                                               group=True
-                                               ),
             pruner=pruner,
             storage="sqlite:///asha_reinforce.db",  
-            study_name="asha_reinforce",
+            study_name="1000courses_k2_1000jobs_50skillscurricuum",
             load_if_exists=True
         )
 
-        study.optimize(self._objective, n_trials=self.n_trials, n_jobs=self.n_jobs)
+        n_complete = sum(t.state == TrialState.COMPLETE for t in study.trials)
+        n_restart = max(0, self.n_trials - n_complete)
+
+        print("%=================================================================%")
+        print(n_restart, "trials da eseguire.")
+        print("%=================================================================%")
+
+        study.sampler=optuna.samplers.TPESampler(seed=None, #self.seed,
+                                                n_startup_trials=5,
+                                                multivariate=True,
+                                                group=True
+                                                )
+        
+        print(n_restart, "trials da eseguire.")
+
+        if n_restart > 0:
+            study.optimize(self._objective, n_trials=n_restart, n_jobs=self.n_jobs)
+        else:
+            print("target trial reached.")
+            return study.best_trial.params
         fig = ov.plot_optimization_history(study)
         fig.write_html("optimization_history1000.html")
         fig.show()
-        return self._sample_weights(study.best_trial)#self._sample_hparams(study.best_trial)
+        return study.best_trial.params # self._sample_weights(study.best_trial)#self._sample_hparams(study.best_trial)
 
     # ---------------- FUNZIONE OBIETTIVO ---------------- #
     def _objective(self, trial):
@@ -217,9 +235,9 @@ class ASHAReinforceTuner:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="ASHA tuning per Reinforce")
     parser.add_argument("--config", default="UIR/config/run.yaml", help="Path al file YAML")
-    parser.add_argument("--total-steps", type=int, default=400_000)
+    parser.add_argument("--total-steps", type=int, default=300_000)
     parser.add_argument("--eval-freq", type=int, default=5_000)
-    parser.add_argument("--trials", type=int, default=30, help="Number of trials")
+    parser.add_argument("--trials", type=int, default=20, help="Number of trials")
     parser.add_argument("--grace-period", type=int, default=60_000)
     parser.add_argument("--reduction-factor", type=int, default=2)
     parser.add_argument("--n_jobs", type=int, default=1)

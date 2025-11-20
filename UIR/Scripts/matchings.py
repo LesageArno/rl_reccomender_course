@@ -71,7 +71,12 @@ def matching(level1: np.ndarray, level2: np.ndarray) -> float:
     matching = minimum_skill[nonzero_indices] / level2[nonzero_indices]
 
     # sum the result and divide by the number of non zero job skill levels
-    matching = np.sum(matching) / np.count_nonzero(level2)
+    den = np.count_nonzero(level2)
+    if den == 0:
+        matching = 0.0
+    else:
+        matching = np.sum(matching) / den
+
 
     num = np.sum(np.maximum(0, level2 - level1))
     denom = np.sum(level2)

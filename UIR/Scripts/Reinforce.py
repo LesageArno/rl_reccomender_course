@@ -253,7 +253,7 @@ class Reinforce:
                     self.model = MaskablePPO(
                         "MlpPolicy",
                         env=self.train_env,
-                        device="cuda" if torch.cuda.is_available() else "cpu",
+                        device=self.params["device"], #"cuda" if torch.cuda.is_available() else "cpu",
                         seed=self.dataset.config["seed"],
                         gamma=self.params["gamma"],
                         gae_lambda=self.params["gae_lambda"],
