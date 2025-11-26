@@ -6,7 +6,7 @@ import numpy as np
 
 from collections import defaultdict
 
-import matchings
+from . import matchings
 import torch
 
 from numba import njit
@@ -302,20 +302,23 @@ class Dataset:
                 if level > 0:
                     self.jobs_inverted_index[skill].add(i)
 
-    def get_nb_applicable_jobs(self, learner, threshold):
+    def get_nb_applicable_jobs(self, learner, threshold, jobs = None):
         """Get the number of applicable jobs for a learner
 
         Args:
-            learner (list): list of skills and mastery level of the learner
+            learner (ndarray): list of skills and mastery level of the learner
             threshold (float): the threshold for the matching
+            jobs (ndarray): list of jobs required by the learner
 
         Returns:
             int: the number of applicable jobs
         """
+        if jobs is None:
+            jobs = self.jobs
         if self.config.get("use_numba", True):
             nb_applicable_jobs = _nb_applicable_jobs_numba(
                 learner,
-                self.jobs,
+                jobs, #self.jobs,
                 threshold
             )
             return int(nb_applicable_jobs)
@@ -364,7 +367,7 @@ class Dataset:
                 nb_applicable_jobs += 1
         return nb_applicable_jobs'''
 
-    def get_avg_applicable_jobs(self, threshold):
+    def get_avg_applicable_jobs(self, threshold, jobs):
         """Get the average number of applicable jobs for all the learners
 
         Args:
@@ -375,7 +378,7 @@ class Dataset:
         """
         avg_applicable_jobs = 0
         for learner in self.learners:
-            avg_applicable_jobs += self.get_nb_applicable_jobs(learner, threshold)
+            avg_applicable_jobs += self.get_nb_applicable_jobs(learner, threshold, self.jobs)
         avg_applicable_jobs /= len(self.learners)
         return avg_applicable_jobs
 

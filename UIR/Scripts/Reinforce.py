@@ -9,7 +9,7 @@ from stable_baselines3 import DQN, A2C, PPO
 from sb3_contrib.common.wrappers import ActionMasker
 from sb3_contrib import MaskablePPO
 
-from CourseRecEnv import CourseRecEnv, EvaluateCallback
+from .CourseRecEnv import CourseRecEnv, EvaluateCallback
 
 
 class Reinforce:
@@ -54,6 +54,8 @@ class Reinforce:
         beta1=None,
         beta2=None,
         params=None,
+        use_pretrained=False,
+        pretrained_path=None
     ):
         """Initialize the RL recommendation system (no changes in behavior)."""
         self.baseline = baseline
@@ -71,6 +73,8 @@ class Reinforce:
         self.beta2 = beta2
         self.params = params
         self.use_standard = self.dataset.config.get('use_standard', False)
+        self.use_pretrained = use_pretrained
+        self.pretrained_path = pretrained_path
 
         # Create training and evaluation environments
         self.train_env = CourseRecEnv(
@@ -158,8 +162,10 @@ class Reinforce:
 
             return sched
 
-        pretrained_path = self.dataset.config.get("pretrained_model_path", None)
-        use_pretrained = self.dataset.config.get("use_pretrained", False)
+        if not self.use_pretrained:
+            self.use_pretrained = self.dataset.config.get("use_pretrained", False)
+        if self.pretrained_path is None:
+            self.pretrained_path = self.dataset.config.get("pretrained_model_path", None)
 
         if self.params is None:
             self.params = {
@@ -178,28 +184,28 @@ class Reinforce:
             }
 
         if self.model_name == "dqn":
-            if use_pretrained:
-                self.model = DQN.load(pretrained_path, env=self.train_env)
-                print(f"Loaded pretrained DQN model from {pretrained_path}")
+            if self.use_pretrained:
+                self.model = DQN.load(self.pretrained_path, env=self.train_env)
+                print(f"Loaded pretrained DQN model from {self.pretrained_path}")
             else:
                 self.model = DQN(env=self.train_env, verbose=0, policy="MlpPolicy")
 
         elif self.model_name == "a2c":
-            if use_pretrained:
-                self.model = A2C.load(pretrained_path, env=self.train_env, device="cpu")
-                print(f"Loaded pretrained A2C model from {pretrained_path}")
+            if self.use_pretrained:
+                self.model = A2C.load(self.pretrained_path, env=self.train_env, device="cpu")
+                print(f"Loaded pretrained A2C model from {self.pretrained_path}")
             else:
                 self.model = A2C(env=self.train_env, verbose=0, policy="MlpPolicy", device="cpu")
 
         elif self.model_name == "ppo":
-            if use_pretrained:
+            if self.use_pretrained:
                 self.model = PPO.load(
-                    pretrained_path,
+                    self.pretrained_path,
                     env=self.train_env,
                     device="auto",
                     custom_objects=self.params,
                 )
-                print(f"Loaded pretrained PPO model from {pretrained_path}")
+                print(f"Loaded pretrained PPO model from {self.pretrained_path}")
             else:
                 if self.use_standard:
                     self.model = PPO(
@@ -232,9 +238,9 @@ class Reinforce:
                     )
 
         elif self.model_name == "ppo_mask":
-            if use_pretrained:
+            if self.use_pretrained:
                 self.model = MaskablePPO.load(
-                    pretrained_path,
+                    self.pretrained_path,
                     env=self.train_env,
                     device="auto",
                     custom_objects=self.params,
@@ -390,3 +396,31 @@ class Reinforce:
             ),
             indent=4,
         )
+
+    def recommend(self, learner_vec, forbidden=None):
+        env = self.eval_env.unwrapped
+
+        env.set_extra_invalid_actions(forbidden)
+        obs, _ = env.reset(options={"learner": learner_vec})
+
+        seq = []
+        seq_readable = []
+        done = False
+        nb_jobs = 0
+
+        while not done:
+            mask = env.get_action_mask()
+            action, _ = self.model.predict(obs, action_masks=mask, deterministic=True)
+            obs, reward, done, _, info = env.step(action)
+            if reward != -1:
+                seq.append(int(action))
+                course_id = self.dataset.courses_index[int(action)]
+                seq_readable.append(course_id)
+                nb_jobs = info["nb_applicable_jobs"]
+                print(nb_jobs)
+
+        return {
+            "seq_ids": seq,
+            "seq_course_codes": seq_readable,
+            "nb_applicable_jobs": nb_jobs
+        }

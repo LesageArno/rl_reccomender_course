@@ -13,7 +13,7 @@ from gymnasium import spaces
 from sb3_contrib import MaskablePPO
 from stable_baselines3.common.callbacks import BaseCallback
 
-import matchings
+from UIR.Scripts import matchings
 
 
 class CourseRecEnv(gym.Env):
@@ -70,6 +70,8 @@ class CourseRecEnv(gym.Env):
         self.beta1 = beta1
         self.beta2 = beta2
         self.dataset = dataset
+        self.jobs = self.dataset.jobs  # None = usa tutti i job, altrimenti solo un sottoinsieme
+        self.extra_invalid_actions = None
         self.nb_skills = len(dataset.skills)  # 46 skills
         self.mastery_levels = [
             elem for elem in list(dataset.mastery_levels.values()) if elem > 0  # mastery level: [1,2,3,-1]
@@ -95,6 +97,20 @@ class CourseRecEnv(gym.Env):
         # The agent will select an integer in [0, nb_courses - 1], representing the index of the recommended course.
         self.action_space = gym.spaces.Discrete(self.nb_courses)
 
+    def set_extra_invalid_actions(self, invalid_actions_ids):
+        """
+        invalid_actions_ids: iterabile di indici di corsi da vietare (es. [0, 3, 5, ...])
+        """
+        if invalid_actions_ids is None:
+            self.extra_invalid_actions = None
+            return
+
+        mask = np.zeros(self.nb_courses, dtype=bool)
+        for idx in invalid_actions_ids:
+            if 0 <= idx < self.nb_courses:
+                mask[idx] = True  # True = azione da escludere
+
+        self.extra_invalid_actions = mask
     def get_obs(self):
         """Get the current observation of the environment.
 
@@ -114,7 +130,7 @@ class CourseRecEnv(gym.Env):
         """
         return {
             "nb_applicable_jobs": self.dataset.get_nb_applicable_jobs(
-                self._agent_skills, threshold=self.threshold
+                self._agent_skills, threshold=self.threshold, jobs=self.jobs
             )
         }
 
@@ -197,7 +213,7 @@ class CourseRecEnv(gym.Env):
         N2 = 0
 
         # Calculate for each job
-        for job_id in range(len(self.dataset.jobs)):
+        for job_id in range(len(self.jobs)):
             # Get missing skills for this job before learning
             missing_skills = self.dataset.get_learner_missing_skills(learner, job_id)
 
@@ -211,7 +227,7 @@ class CourseRecEnv(gym.Env):
 
         # Calculate N3: number of skills provided by the course that are not in any missing skills
         all_missing_skills = set()
-        for job_id in range(len(self.dataset.jobs)):
+        for job_id in range(len(self.jobs)):
             all_missing_skills.update(self.dataset.get_learner_missing_skills(learner, job_id))
         N3 = len(course_provided_skills - all_missing_skills)
 
@@ -241,7 +257,7 @@ class CourseRecEnv(gym.Env):
         """
         #############################################################################################
         if self.dataset.config.get("use_numba", True):
-            return _calc_metrics_deficit_numba(learner, course[1], self.dataset.jobs)
+            return _calc_metrics_deficit_numba(learner, course[1], self.jobs)
         ##############################################################################################
 
         # Skills after taking the course (target-level model)
@@ -255,10 +271,10 @@ class CourseRecEnv(gym.Env):
         needed = np.zeros(shape=(self.nb_skills,), dtype=bool)
 
         # Iterate over all jobs
-        for job_id in range(len(self.dataset.jobs)):
+        for job_id in range(len(self.jobs)):
             # Deficits before and after the course (per skill)
-            n_missing_skills_before = np.clip(self.dataset.jobs[job_id] - learner, 0, None)
-            n_missing_skills_after = np.clip(self.dataset.jobs[job_id] - cons_skills, 0, None)
+            n_missing_skills_before = np.clip(self.jobs[job_id] - learner, 0, None)
+            n_missing_skills_after = np.clip(self.jobs[job_id] - cons_skills, 0, None)
 
             # Check if this job is in Ga (unachievable goals)
             if np.sum(n_missing_skills_before) > 0:
@@ -333,7 +349,7 @@ class CourseRecEnv(gym.Env):
         initial_goals, new_goals = self.calculate_achievable_goals(learner, course)
 
         # Calculate |G|: number of jobs not applicable with initial skills
-        total_jobs = len(self.dataset.jobs)
+        total_jobs = len(self.jobs)
         Ga = total_jobs - initial_goals
 
         # Calculate |E(φ)|: number of new jobs that become applicable
@@ -401,6 +417,9 @@ class CourseRecEnv(gym.Env):
 
         # === VALIDITY RULE ===
         valid_courses = (required_matching >= self.threshold) & (provided_matching < 1.0)
+
+        if self.extra_invalid_actions is not None:
+            valid_courses = valid_courses & (~self.extra_invalid_actions)
 
         # Defensive fallback (if all invalid, allow first one)
         if not valid_courses.any():
