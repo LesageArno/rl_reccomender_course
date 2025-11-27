@@ -45,7 +45,7 @@ class ASHAReinforceTuner:
             direction="maximize",
             pruner=pruner,
             storage="sqlite:///asha_reinforce.db",  
-            study_name="1000courses_k2_1000jobs_50skillscurricuum",
+            study_name="1000courses_k5_1000jobs_35skillscurricuum",
             load_if_exists=True
         )
 
