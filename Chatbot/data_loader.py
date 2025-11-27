@@ -9,6 +9,7 @@ from .taxonomy_index import build_alias_index
 TAXONOMY_CSV = "Data - Collection/Final/taxonomy.csv"
 JOBS_JSON = "Data - Collection/Final/jobs.json"
 LEVELS_JSON = "Data - Collection/Final/mastery_levels.json"
+COURSES_JSON = "Data - Collection/Final/courses.json"
 
 
 def load_json(path: str) -> Dict[str, Any]:
@@ -59,9 +60,20 @@ def initialize_all_data(canonical_col: str = "Type Level 4") -> Dict[str, Any]:
     uid2canon = {uid: canon for canon, uid in canon2uid.items()}
 
 
-    # Runtime job and level data
+    # Runtime job, level data, courses
     jobs = load_json(JOBS_JSON)
     levels = load_json(LEVELS_JSON)
+    courses = load_json(COURSES_JSON)
+
+    courses_requirements = {}
+    courses_acquisitions = {}
+
+    for course in courses:
+        requirements = courses[course].get("required", [])
+        acquisitions = courses[course].get("to_acquire", [])
+        courses_requirements[course] = requirements
+        courses_acquisitions[course] = acquisitions
+
 
     # Flat list of all TL4 unique_ids as strings
     skills_pool = [str(uid) for uid in canon2uid.values()]
@@ -73,5 +85,7 @@ def initialize_all_data(canonical_col: str = "Type Level 4") -> Dict[str, Any]:
         "uid2canon": uid2canon,
         "jobs": jobs,
         "levels": levels,
+        "courses_requirements": courses_requirements,
+        "courses_acquisitions": courses_acquisitions,
         "skills_pool": skills_pool,
     }

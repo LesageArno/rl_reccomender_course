@@ -12,6 +12,7 @@ from transformers import (
 from UIR.Scripts.Reinforce import Reinforce
 from .state import PrefState
 from .utils import create_random_profile, filter_jobs_by_skills
+from .LLMDialogManager import LLMDialogManager
 
 
 class ChatHandler:
@@ -25,6 +26,8 @@ class ChatHandler:
         levels: Dict[str, Any],
         skills_pool: List[str],
         jobs: Dict[str, Any],
+        courses_requirements: Dict[str, List],
+        courses_acquisitions: Dict[str, List],
         searcher: Any,
         dataset: Any,
         device: str = "cpu",
@@ -36,6 +39,8 @@ class ChatHandler:
         self.levels = levels
         self.skills_pool = skills_pool
         self.jobs = jobs
+        self.courses_requirements = courses_requirements
+        self.courses_acquisitions = courses_acquisitions
         self.mastery_levels: List[int] = sorted(
             {int(v) for v in levels.values() if int(v) > 0}
         )
@@ -50,7 +55,7 @@ class ChatHandler:
             "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
         )
         self.ner_model = AutoModelForTokenClassification.from_pretrained(
-            "./Chatbot/NER/esco_skill_ner_multi_model/checkpoint-290"
+            "./Chatbot/NER/esco_skill_ner_multi_model/checkpoint-135"
         )
         self.ner_pipeline = pipeline(
             task="token-classification",
@@ -59,6 +64,12 @@ class ChatHandler:
             aggregation_strategy="first", # "max",
             device=device
         )
+        self.llm = LLMDialogManager(
+            model_card="microsoft/Phi-3-mini-4k-instruct",
+            max_new_tokens=120,
+            temperature=0.2,
+        )
+
 
     # ------------------------------------------------------------------ #
     # Public API                                                         #
@@ -111,8 +122,16 @@ class ChatHandler:
             self.state.set_include(include_pairs)
             self.state.set_avoid(avoid_pairs)
             self.state.set_acquired(acquired_pairs)
+            
+            reply = self.llm.explain_updated_preferences(
+                original_text=query,
+                include_pairs=include_pairs,
+                avoid_pairs=avoid_pairs,
+                acquired_pairs=acquired_pairs,
+            )
 
-            return f"Semantic include: {len(include_ids)} skills for '{query}'"
+            return reply 
+            #return f"Semantic include: {len(include_ids)} skills for '{query}'"
 
         if msg == ":rec":
             learner_vec = self.state.profile.to_skill_vector(self.dataset)
@@ -121,7 +140,23 @@ class ChatHandler:
                 self.state.get_avoid(),
             )
             recommendation = self.perform_recommendation(learner_vec, forbidden)
-            return f"Here you are: {recommendation}"
+            skills_learned = {}
+            for course_id in recommendation["seq_course_codes"]:
+                for skill in self.courses_acquisitions.get(course_id, []):
+                    skill_name = self.uid2canon.get(skill[0], "Unknown Skill")
+                    skills_learned[skill_name] = skill[1]
+
+            print(skills_learned)
+
+            reply = self.llm.build_recommendation_context(
+                course_ids=recommendation["seq_course_codes"],
+                skills_learned=skills_learned,
+                include_pairs=self.state.get_include(),
+                avoid_pairs=self.state.get_avoid(),
+                acquired_pairs=self.state.get_acquired(),
+            )
+
+            return reply #f"Here you are: {recommendation}"
 
         if msg == ":myskills":
             return self._show_skills()
@@ -131,9 +166,18 @@ class ChatHandler:
 
         if msg == ":filter":
             _, msg_out = self._filter_jobs()
-            return msg_out
+            return msg_out    
 
-        return "Preferences updated."
+        reply = self.llm.chat(
+            user_input=message,       
+            history=None,             
+            system_prompt=None,
+            extra_context=None,      
+            max_new_tokens=120,
+            temperature=0.2,
+        )    
+
+        return reply
 
     # ------------------------------------------------------------------ #
     # Helpers: inspection                                                 #

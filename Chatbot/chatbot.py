@@ -15,6 +15,8 @@ def main() -> None:
     uid2canon = data_maps["uid2canon"]
     jobs = data_maps["jobs"]
     levels = data_maps["levels"]
+    courses_requirements = data_maps["courses_requirements"]
+    courses_acquisitions = data_maps["courses_acquisitions"]
     skills_pool = data_maps["skills_pool"]
     df_taxonomy = data_maps["df_taxonomy"]  # kept in case it is needed elsewhere
 
@@ -37,6 +39,8 @@ def main() -> None:
         levels=levels,
         skills_pool=skills_pool,
         jobs=jobs,
+        courses_requirements=courses_requirements,
+        courses_acquisitions=courses_acquisitions,
         searcher=searcher,
         dataset=dataset,
     )

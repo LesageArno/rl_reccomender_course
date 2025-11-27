@@ -417,7 +417,7 @@ class Reinforce:
                 course_id = self.dataset.courses_index[int(action)]
                 seq_readable.append(course_id)
                 nb_jobs = info["nb_applicable_jobs"]
-                print(nb_jobs)
+                #print(nb_jobs)
 
         return {
             "seq_ids": seq,
