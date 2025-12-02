@@ -520,7 +520,7 @@ class CourseRecEnv(gym.Env):
             if self.feature == "Usefulness-as-Rwd":
                 reward = info["utility"]  # Use utility as reward
             elif self.feature == "Weighted-Usefulness-as-Rwd":
-                reward = self.beta1 * info["nb_applicable_jobs"] + self.beta2 * info[
+                reward = (self.beta1 * info["nb_applicable_jobs"]) / len(self.jobs) + self.beta2 * info[
                     "utility"]  # Combine both metrics with weights
             else:
                 raise ValueError(f"Unknown feature type: {self.feature}")

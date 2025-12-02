@@ -5,8 +5,8 @@ import sys
 from matplotlib import pyplot as plt
 import yaml
 
-from Dataset import Dataset
-from Reinforce import Reinforce
+from .Dataset import Dataset
+from .Reinforce import Reinforce
 
 
 def make_handler(log_path, path_name):
