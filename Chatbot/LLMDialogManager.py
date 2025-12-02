@@ -1,6 +1,5 @@
-from typing import Optional, List, Dict, Set
-
-ChatMessage = Dict[str, str]  # {"role": "user" | "assistant" | "system", "content": "..."}
+from typing import Optional, List, Dict, Set, Any
+import json
 
 import torch
 from transformers import (
@@ -8,6 +7,8 @@ from transformers import (
     AutoModelForCausalLM,
     BitsAndBytesConfig,
 )
+
+ChatMessage = Dict[str, str]  # {"role": "user" | "assistant" | "system", "content": "..."}
 
 DEFAULT_SYSTEM_PROMPT = """
 You are an AI assistant specialized in job and skill counselling and course recommendation.
@@ -115,7 +116,7 @@ class LLMDialogManager:
         extra_context: Optional[str] = None,
     ) -> List[ChatMessage]:
         """
-        Build a list of chat messages to feed into the tokenizer's chat template.
+        Build a list of chat messages to feed into the tokenizer chat template.
 
         Args:
             user_input: Latest user utterance (natural language).
@@ -388,3 +389,53 @@ class LLMDialogManager:
             max_new_tokens=max_new_tokens,
             temperature=temperature,
         )
+
+
+def extract_skills_from_cv_text(self, cv_text: str, max_new_tokens: int = 512) -> List[Dict[str, Any]]:
+    """
+    Extract technical skills from raw CV text and return them as a JSON-like list of dicts.
+    Each entry contains:
+      - snippet: exact substring copied from the CV
+      - skill_name: short normalized name of the skill
+      - level: 1 (beginner), 2 (intermediate), 3 (advanced)
+    """
+    system_prompt = """
+You extract technical skills from raw CV text.
+Return ONLY a valid JSON array with objects of this exact form:
+{
+  "snippet": "...text copied from the CV...",
+  "skill_name": "Python",
+  "level": 3
+}
+Rules:
+- Copy the snippet exactly from the CV, without rewriting it.
+- Do not invent skills that do not appear in the text.
+- Use only integers 1, 2, or 3 for 'level'.
+- Output only the JSON array. No explanations.
+""".strip()
+
+    user_input = (
+        "Extract skills from the following CV text. Output only JSON.\n\n"
+        "```text\n"
+        f"{cv_text}\n"
+        "```"
+    )
+
+    raw_reply = self.chat(
+        user_input=user_input,
+        history=None,
+        system_prompt=system_prompt,
+        extra_context=None,
+        max_new_tokens=max_new_tokens,
+        temperature=0.0,
+    )
+
+    try:
+        data = json.loads(raw_reply)
+    except json.JSONDecodeError:
+        data = []
+
+    if not isinstance(data, list):
+        data = []
+
+    return data
