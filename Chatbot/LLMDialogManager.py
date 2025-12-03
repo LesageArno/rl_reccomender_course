@@ -400,22 +400,30 @@ def extract_skills_from_cv_text(self, cv_text: str, max_new_tokens: int = 512) -
       - level: 1 (beginner), 2 (intermediate), 3 (advanced)
     """
     system_prompt = """
-You extract technical skills from raw CV text.
-Return ONLY a valid JSON array with objects of this exact form:
-{
-  "snippet": "...text copied from the CV...",
-  "skill_name": "Python",
-  "level": 3
-}
-Rules:
-- Copy the snippet exactly from the CV, without rewriting it.
-- Do not invent skills that do not appear in the text.
-- Use only integers 1, 2, or 3 for 'level'.
-- Output only the JSON array. No explanations.
-""".strip()
+    You read raw CV text and extract technical skills.
+    Your output MUST be ONLY a valid JSON array, nothing else.
+
+    Each JSON object MUST have exactly these keys:
+    - "snippet": short text copied exactly from the CV
+    - "skill_name": short normalized skill name (English)
+    - "level": integer 1, 2, or 3
+
+    Level mapping rules:
+    - If the CV mentions levels like "Foundation", "Basic", "Elementary" → level 1
+    - If the CV mentions "Intermediate" → level 2
+    - If the CV mentions "Advanced", "Highly Specialised", "Expert" → level 3
+    - If the level is not explicit, make a best guess and still choose 1, 2, or 3
+    - Never output text like "Intermediate" or "Advanced" in the 'level' field. Use only 1, 2, or 3.
+
+    General rules:
+    - Copy snippets exactly from the CV text, without rewriting them.
+    - Do not invent skills that do not appear in the text.
+    - Do not add comments, explanations, or any text outside the JSON array.
+    - Do not talk about errors or about the JSON schema. Just follow it.
+    """.strip()
 
     user_input = (
-        "Extract skills from the following CV text. Output only JSON.\n\n"
+        "Extract technical skills from the following CV text and return ONLY a JSON array as specified.\n\n"
         "```text\n"
         f"{cv_text}\n"
         "```"
