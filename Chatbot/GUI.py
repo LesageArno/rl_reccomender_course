@@ -1,11 +1,22 @@
 import yaml
 import streamlit as st
+import pdfplumber
+
+import os
+import sys
+
+# Ensure project root is on sys.path so that `UIR` and `Chatbot` can be imported
+THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = os.path.dirname(THIS_DIR)  # parent of Chatbot/, i.e. rl_reccomender_course
+
+if ROOT_DIR not in sys.path:
+    sys.path.append(ROOT_DIR)
 
 from UIR.Scripts.Dataset import Dataset
-from .chat_handler import ChatHandler
-from .state import PrefState
-from .Embeddings.skill_search import SkillSearcher
-from .data_loader import initialize_all_data
+from Chatbot.chat_handler import ChatHandler
+from Chatbot.state import PrefState
+from Chatbot.Embeddings.skill_search import SkillSearcher
+from Chatbot.data_loader import initialize_all_data
 
 
 def create_chat_handler() -> ChatHandler:
@@ -50,10 +61,10 @@ def create_chat_handler() -> ChatHandler:
 
 
 def main() -> None:
-    st.title("Course Recommendation Chatbot")
+    st.title("Job Oriented Course Recommendation Chatbot")
+    st.caption("Interact with the system to update your preferences and get course recommendation")
     st.write(
         "Type your message below or use the buttons to trigger specific commands. "
-        "Commands supported include `:rec`, `:myskills`, `:filter`, `load resume`, `:sem ...`, etc."
     )
 
     # Initialize ChatHandler once per session
@@ -77,14 +88,23 @@ def main() -> None:
     with cols[1]:
         myskills_clicked = st.button("Show my skills (:myskills)")
     with cols[2]:
-        load_resume_clicked = st.button("Load resume (placeholder)")
+        load_resume_clicked = st.button("Load resume")
     with cols[3]:
         filter_clicked = st.button("Filter jobs (:filter)")
 
+    st.markdown("### Resume / CV")
+    uploaded_file = st.file_uploader(
+        "Upload your resume (PDF only)",
+        type=["pdf"],
+    )
+    load_resume_clicked = st.button("Load resume from file")
+
+    cv_text = None
     message_to_send = None
 
     if send_clicked and user_message.strip():
-        message_to_send = user_message.strip()
+        raw = user_message.strip()
+        message_to_send = f":sem {raw}"
 
     if rec_clicked:
         message_to_send = ":rec"
@@ -93,13 +113,21 @@ def main() -> None:
         message_to_send = ":myskills"
 
     if load_resume_clicked:
-        message_to_send = "load resume"
+        if uploaded_file is None:
+            st.warning("Please upload a resume file first.")
+        else:
+            with pdfplumber.open(uploaded_file) as pdf:
+                cv_text = ""
+                for page in pdf.pages:
+                    cv_text += page.extract_text() + "\n"
+            message_to_send = "load resume"
+
 
     if filter_clicked:
         message_to_send = ":filter"
 
     if message_to_send is not None:
-        reply = handler.handle(message_to_send)
+        reply = handler.handle(message=message_to_send, cv_text=cv_text)
         st.session_state.last_user = message_to_send
         st.session_state.last_bot = reply
 

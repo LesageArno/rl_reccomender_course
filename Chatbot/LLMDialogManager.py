@@ -391,59 +391,61 @@ class LLMDialogManager:
         )
 
 
-def extract_skills_from_cv_text(self, cv_text: str, max_new_tokens: int = 512) -> List[Dict[str, Any]]:
-    """
-    Extract technical skills from raw CV text and return them as a JSON-like list of dicts.
-    Each entry contains:
-      - snippet: exact substring copied from the CV
-      - skill_name: short normalized name of the skill
-      - level: 1 (beginner), 2 (intermediate), 3 (advanced)
-    """
-    system_prompt = """
-    You read raw CV text and extract technical skills.
-    Your output MUST be ONLY a valid JSON array, nothing else.
+    def extract_skills_from_cv_text(self, cv_text: str, max_new_tokens: int = 512) -> List[Dict[str, Any]]:
+        """
+        Extract technical skills from raw CV text and return them as a JSON-like list of dicts.
+        Each entry contains:
+        - snippet: exact substring copied from the CV
+        - skill_name: short normalized name of the skill
+        - level: 1 (beginner), 2 (intermediate), 3 (advanced)
+        """
+        system_prompt = """
+        You read raw CV text and extract skill mentioned in it.
+        Your output MUST be ONLY a valid JSON array, nothing else.
 
-    Each JSON object MUST have exactly these keys:
-    - "snippet": short text copied exactly from the CV
-    - "skill_name": short normalized skill name (English)
-    - "level": integer 1, 2, or 3
+        Each JSON object MUST have exactly these keys:
+        - "snippet": short text copied exactly from the CV
+        - "skill_name": skill name (English)
+        - "level": integer 1, 2, or 3
 
-    Level mapping rules:
-    - If the CV mentions levels like "Foundation", "Basic", "Elementary" → level 1
-    - If the CV mentions "Intermediate" → level 2
-    - If the CV mentions "Advanced", "Highly Specialised", "Expert" → level 3
-    - If the level is not explicit, make a best guess and still choose 1, 2, or 3
-    - Never output text like "Intermediate" or "Advanced" in the 'level' field. Use only 1, 2, or 3.
+        Level mapping rules:
+        - If the CV mentions levels like "Foundation", "Basic", "Elementary" → level 1
+        - If the CV mentions "Intermediate" → level 2
+        - If the CV mentions "Advanced", "Highly Specialised", "Expert" → level 3
+        - If the level is not explicit, make a best guess and still choose 1, 2, or 3
+        - Never output text like "Intermediate" or "Advanced" in the 'level' field. Use only 1, 2, or 3.
 
-    General rules:
-    - Copy snippets exactly from the CV text, without rewriting them.
-    - Do not invent skills that do not appear in the text.
-    - Do not add comments, explanations, or any text outside the JSON array.
-    - Do not talk about errors or about the JSON schema. Just follow it.
-    """.strip()
+        General rules:
+        - Copy snippets exactly from the CV text, without rewriting them.
+        - Do not invent skills that do not appear in the text and be confident on the one you extract.
+        - Do not add comments, explanations, or any text outside the JSON array.
+        - Do not talk about errors or about the JSON schema. Just follow it.
+        """.strip()
 
-    user_input = (
-        "Extract technical skills from the following CV text and return ONLY a JSON array as specified.\n\n"
-        "```text\n"
-        f"{cv_text}\n"
-        "```"
-    )
+        user_input = (
+            "Extract skills from the following CV text and return ONLY a JSON array as specified.\n\n"
+            "```text\n"
+            f"{cv_text}\n"
+            "```"
+        )
 
-    raw_reply = self.chat(
-        user_input=user_input,
-        history=None,
-        system_prompt=system_prompt,
-        extra_context=None,
-        max_new_tokens=max_new_tokens,
-        temperature=0.0,
-    )
+        raw_reply = self.chat(
+            user_input=user_input,
+            history=None,
+            system_prompt=system_prompt,
+            extra_context=None,
+            max_new_tokens=max_new_tokens,
+            temperature=0.0,
+        )
 
-    try:
-        data = json.loads(raw_reply)
-    except json.JSONDecodeError:
-        data = []
+        print(f"Raw skill extraction reply: {raw_reply}")
 
-    if not isinstance(data, list):
-        data = []
+        try:
+            data = json.loads(raw_reply)
+        except json.JSONDecodeError:
+            data = []
 
-    return data
+        if not isinstance(data, list):
+            data = []
+
+        return data

@@ -3,6 +3,8 @@
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 import numpy as np
+import pdfplumber
+
 from transformers import (
     AutoTokenizer,
     AutoModelForTokenClassification,
@@ -74,7 +76,7 @@ class ChatHandler:
     # Public API                                                         #
     # ------------------------------------------------------------------ #
 
-    def handle(self, message: str) -> str:
+    def handle(self, message: str, cv_text:str = None) -> str:
         """Process a single user message and return a reply string."""
         msg = message.strip().lower()
 
@@ -94,6 +96,13 @@ class ChatHandler:
             )
 
         if "load resume" in msg:
+            print("Extracted Resume Text:")
+            # print(cv_text)
+            reply = self.llm.extract_skills_from_cv_text(
+                cv_text=cv_text,
+                max_new_tokens=2000
+            )
+            print(reply)
             create_random_profile(
                 self.state,
                 self.skills_pool,
@@ -112,7 +121,7 @@ class ChatHandler:
 
         if msg.startswith(":sem "):
             query = msg[5:].strip()
-            include_ids, avoid_ids, acquired_ids = self._semantic_ids(query)
+            include_ids, avoid_ids, acquired_ids, _ = self._semantic_ids(query)
 
             include_pairs = {(self.uid2canon[int(i)], i) for i in include_ids}
             avoid_pairs = {(self.uid2canon[int(i)], i) for i in avoid_ids}
@@ -337,7 +346,7 @@ class ChatHandler:
         print(f"Final ESCO AVOIDs: {avoid_ids}")
         print(f"Final ESCO AQUIRED UIDs: {acquired_ids}")
 
-        return include_ids, avoid_ids, acquired_ids
+        return include_ids, avoid_ids, acquired_ids, neutral_ids
 
     # ------------------------------------------------------------------ #
     # Legacy / experimental semantic method                              #
