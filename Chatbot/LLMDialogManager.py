@@ -1,5 +1,6 @@
 from typing import Optional, List, Dict, Set, Any
-import json
+import json, re
+
 
 import torch
 from transformers import (
@@ -22,10 +23,10 @@ Your main responsibilities are:
 Interaction rules:
 - Always answer in English, unless the user explicitly asks for another language.
 - Use a professional but friendly tone.
-- Be concise but clear: avoid long essays, focus on key points and actionable suggestions.
-- For simple explanatory questions, answer in at most 4 short sentences, unless the user explicitly asks for more detail.
+- Be very concise but clear: avoid long essays,do not repeat yourself and focus only on key points and actionable suggestions.
+- For simple explanatory questions, answer in at most 3 short sentences, unless the user explicitly asks for more detail.
 - You may engage in light chitchat when the user speaks casually, but always bring the conversation back to skills, career exploration, learning paths, or course recommendations
-- Whenever you answer, end with one short, friendly sentence inviting the user to continue or ask for more help.
+- You may end with one short, friendly sentence inviting the user to continue or ask for more help, but keep the overall answer short.
 - When you explain recommendations, refer explicitly to:
   - the user's goals and preferences
   - the skills covered by the courses
@@ -53,7 +54,7 @@ class LLMDialogManager:
 
     def __init__(
         self,
-        model_card: str = "microsoft/Phi-3-mini-4k-instruct",
+        model_card: str = "microsoft/Phi-3-mini-128k-instruct",
         max_new_tokens: int = 40,
         temperature: Optional[float] = None,
         num_return_sequences: int = 1,
@@ -203,6 +204,7 @@ class LLMDialogManager:
         output_ids = self.model.generate(
             inputs,
             generation_config=gen_config,
+            attention_mask=torch.ones_like(inputs),
             eos_token_id=self.terminators,
             pad_token_id=self.tokenizer.eos_token_id,
         )
@@ -241,10 +243,10 @@ class LLMDialogManager:
             else "Avoid skills:\n- None"
         )
         acquired_block = (
-            "Acquired skills:\n"
+            "Already possessed skills:\n"
             + "\n".join(f"- {name} (uid={uid})" for name, uid in acquired_pairs)
             if acquired_pairs
-            else "Acquired skills:\n- None"
+            else "Already possessed skills:\n- None"
         )
 
         extra_context = (
@@ -255,8 +257,10 @@ class LLMDialogManager:
 
         user_input_for_llm = (
             "Explain to the user, in a concise and clear way, which skill "
-            "preferences have just been added or updated in their profile, "
-            "and what this means for future course recommendations."
+            "preferences have just been added or updated in their profile," \
+            "based on the original text they provided, " \
+            "and what this means for future course recommendations." \
+            "Do not explain how the system has updated the skill preferences."
         )
 
         return self.chat(
@@ -264,7 +268,7 @@ class LLMDialogManager:
             history=None,
             system_prompt=None,
             extra_context=extra_context,
-            max_new_tokens=160,
+            max_new_tokens=200,
             temperature=0.2,
         )
     
@@ -391,7 +395,7 @@ class LLMDialogManager:
         )
 
 
-    def extract_skills_from_cv_text(self, cv_text: str, max_new_tokens: int = 512) -> List[Dict[str, Any]]:
+    def extract_skills_from_cv_text(self, cv_text: str, max_new_tokens: int = 1000) -> List[Dict[str, Any]]:
         """
         Extract technical skills from raw CV text and return them as a JSON-like list of dicts.
         Each entry contains:
@@ -400,27 +404,54 @@ class LLMDialogManager:
         - level: 1 (beginner), 2 (intermediate), 3 (advanced)
         """
         system_prompt = """
-        You read raw CV text and extract skill mentioned in it.
-        Your output MUST be ONLY a valid JSON array, nothing else.
+        You read raw CV text and extract skills mentioned in it.
 
-        Each JSON object MUST have exactly these keys:
-        - "snippet": short text copied exactly from the CV
-        - "skill_name": skill name (English)
+        Your task is to output ONLY one valid JSON array and nothing else.
+        Do not include any explanations, comments, markdown code fences, or extra text before or after the JSON.
+        The response must start with '[' and end with ']' and contain a single JSON array.
+
+        Each JSON object MUST have exactly these keys (no more, no less):
+        - "snippet": short text copied exactly from the CV that contains a skill mention according to your understanding
+        - "skill_name": a short skill name extracted from the snippet
         - "level": integer 1, 2, or 3
 
-        Level mapping rules:
-        - If the CV mentions levels like "Foundation", "Basic", "Elementary" → level 1
+        Definition of "skill":
+        - A skill is a concrete ability, competence, or technique that a person can apply in practice.
+        - It can be technical, professional, or domain-specific.
+        - It should describe something the person can do, use, or apply, not just a label or a title.
+
+        What NOT to extract as skills:
+        - Names of people, organizations, places, addresses, dates, IDs, or contact details.
+        - Degree titles, majors, study programs, or fields of study (for example: any kind of “degree”, “master”, “bachelor”, or “engineering” as a program).
+        - Generic document labels or structural elements (such as titles, headings, or section names).
+        - Purely descriptive text that does not correspond to a concrete ability.
+        - CURRICULUM VITAE, RESUME, PERSONAL INFORMATION, WORK EXPERIENCE, EDUCATION, SKILLS, LANGUAGES, CERTIFICATIONS, PROJECTS, or similar section headings.
+
+        Rules for "skill_name":
+        - "skill_name" MUST correspond to a concrete skill and MUST be taken from the snippet text
+        (you may normalize case or spacing, but do not invent new names).
+        - Do NOT treat degree titles or study programs as skills. If a snippet only describes a degree or program, ignore it.
+        - Do NOT include extra words like “proficiency”, “knowledge”, “skills”, “ability”, “degree”, “master”, or “bachelor” in the skill_name.
+        The skill_name must be the core skill term only, as short as possible.
+        - One JSON object corresponds to one specific skill, not a broad category.
+
+        Level mapping rules (use your best judgement, but stay consistent):
+        - If the CV mentions levels like "Foundation", "Basic", or "Elementary" → level 1
         - If the CV mentions "Intermediate" → level 2
-        - If the CV mentions "Advanced", "Highly Specialised", "Expert" → level 3
-        - If the level is not explicit, make a best guess and still choose 1, 2, or 3
-        - Never output text like "Intermediate" or "Advanced" in the 'level' field. Use only 1, 2, or 3.
+        - If the CV mentions "Advanced", "Highly Specialised", or "Expert" → level 3
+        - If the level is not explicit, make a reasonable guess and still choose 1, 2, or 3
+        - Never output text like "Intermediate" or "Advanced" in the "level" field. Use only 1, 2, or 3.
 
         General rules:
         - Copy snippets exactly from the CV text, without rewriting them.
-        - Do not invent skills that do not appear in the text and be confident on the one you extract.
-        - Do not add comments, explanations, or any text outside the JSON array.
-        - Do not talk about errors or about the JSON schema. Just follow it.
+        - Be conservative: if you are not sure that something is a real skill, do NOT include it.
+        - Do not invent skills that do not appear in the text.
+        - Do not add comments, explanations, critiques, or any text outside the JSON array.
+        - Do not generate multiple JSON arrays. Return exactly one JSON array as the whole response.
+
         """.strip()
+
+        print(f"CV text for skill extraction: {cv_text}")
 
         user_input = (
             "Extract skills from the following CV text and return ONLY a JSON array as specified.\n\n"
@@ -440,12 +471,14 @@ class LLMDialogManager:
 
         print(f"Raw skill extraction reply: {raw_reply}")
 
-        try:
-            data = json.loads(raw_reply)
-        except json.JSONDecodeError:
-            data = []
+        match = re.search(r"```json([\s\S]*?)```", raw_reply)
 
-        if not isinstance(data, list):
+        if match:
+            try:
+                data = json.loads(match.group(1))
+            except json.JSONDecodeError:
+                data = []
+        else:
             data = []
 
         return data

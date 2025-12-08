@@ -81,16 +81,19 @@ def main() -> None:
     # User input
     user_message = st.text_input("You", value="", key="user_input")
 
-    cols = st.columns(4)
+    cols = st.columns(5)
     send_clicked = st.button("Send")
     with cols[0]:
         rec_clicked = st.button("Recommend courses (:rec)")
     with cols[1]:
         myskills_clicked = st.button("Show my skills (:myskills)")
-    with cols[2]:
-        load_resume_clicked = st.button("Load resume")
     with cols[3]:
         filter_clicked = st.button("Filter jobs (:filter)")
+    with cols[4]:
+        show_skills_clicked = st.button("Show skills preferences (:show)")
+
+    st.markdown("##### Clear profile state and preferences")
+    clear_clicked = st.button("Clear (clear)")
 
     st.markdown("### Resume / CV")
     uploaded_file = st.file_uploader(
@@ -125,6 +128,16 @@ def main() -> None:
 
     if filter_clicked:
         message_to_send = ":filter"
+
+    if show_skills_clicked:
+        message_to_send = ":show"
+
+    if clear_clicked:
+        message_to_send = "clear"
+
+        # Reset PDF uploader state (streamlit stores uploaded files under a predictable key)
+        if "uploaded_file" in st.session_state:
+            st.session_state.uploaded_file = None
 
     if message_to_send is not None:
         reply = handler.handle(message=message_to_send, cv_text=cv_text)

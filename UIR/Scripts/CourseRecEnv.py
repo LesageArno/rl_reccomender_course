@@ -99,7 +99,7 @@ class CourseRecEnv(gym.Env):
 
     def set_extra_invalid_actions(self, invalid_actions_ids):
         """
-        invalid_actions_ids: iterabile di indici di corsi da vietare (es. [0, 3, 5, ...])
+        invalid_actions_ids: ids of avoided courses (es. [0, 3, 5, ...])
         """
         if invalid_actions_ids is None:
             self.extra_invalid_actions = None
@@ -108,9 +108,10 @@ class CourseRecEnv(gym.Env):
         mask = np.zeros(self.nb_courses, dtype=bool)
         for idx in invalid_actions_ids:
             if 0 <= idx < self.nb_courses:
-                mask[idx] = True  # True = azione da escludere
+                mask[idx] = True  
 
         self.extra_invalid_actions = mask
+
     def get_obs(self):
         """Get the current observation of the environment.
 

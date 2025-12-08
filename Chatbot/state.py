@@ -7,6 +7,7 @@ from .learnerProfile import UserProfile
 
 SkillPolarity = Literal["include", "avoid", "acquired"]
 SkillUID = str                         # skill unique id as string
+SkillLevel = int                       # skill proficiency level
 SkillEntry = Tuple[str, SkillPolarity] # (canonical_name, polarity)
 
 
@@ -57,16 +58,21 @@ class PrefState:
         for name, uid in entries:
             self.skills[uid] = (name, "avoid")
 
-    def set_acquired(self, entries: Set[Tuple[str, SkillUID]], default_level: int = 1) -> None:
+    def set_acquired(self, entries: Set[Tuple[str, SkillUID, SkillLevel]], default_level: int = 1) -> None:
         """Mark the given skills as 'acquired'."""
-        for name, uid in entries:
+        for name, uid, skill_level in entries:
             self.skills[uid] = (name, "acquired")
 
             # learner profile: add explicit skill if missing
             if self.profile is not None:
                 uid_str = str(uid)
                 if uid_str not in self.profile.skills_explicit:
-                    self.profile.skills_explicit[uid_str] = default_level
+                    self.profile.skills_explicit[uid_str] = skill_level
+                else:
+                    # update level if higher
+                    current_level = self.profile.skills_explicit[uid_str]
+                    if skill_level > current_level:
+                        self.profile.skills_explicit[uid_str] = skill_level
 
     def clear_preferences(self) -> None:
         """Remove all preference labels (include/avoid/acquired) and target roles."""

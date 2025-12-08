@@ -67,7 +67,7 @@ class ChatHandler:
             device=device
         )
         self.llm = LLMDialogManager(
-            model_card="microsoft/Phi-3-mini-4k-instruct",
+            model_card="microsoft/Phi-3-mini-128k-instruct",
             max_new_tokens=120,
             temperature=0.2,
         )
@@ -103,15 +103,19 @@ class ChatHandler:
                 max_new_tokens=2000
             )
             print(reply)
-            create_random_profile(
+
+            self._create_profile_from_CV(reply)
+
+            '''create_random_profile(
                 self.state,
                 self.skills_pool,
                 self.mastery_levels,
                 min_skills=30,
                 max_skills=45,
-            )
+            )'''
             return (
-                "A random user profile has been created. "
+                #"A random user profile has been created. "
+                "Your resume has been processed and your profile updated. "
                 "You can type ':myskills' to view your skills."
             )
 
@@ -125,7 +129,7 @@ class ChatHandler:
 
             include_pairs = {(self.uid2canon[int(i)], i) for i in include_ids}
             avoid_pairs = {(self.uid2canon[int(i)], i) for i in avoid_ids}
-            acquired_pairs = {(self.uid2canon[int(i)], i) for i in acquired_ids}
+            acquired_pairs = {(self.uid2canon[int(i)], i, 1) for i in acquired_ids}
 
             self.state.set_include(include_pairs)
             self.state.set_avoid(avoid_pairs)
@@ -196,7 +200,7 @@ class ChatHandler:
             return "No skills in profile yet. Use 'load resume' first."
 
         lines = [
-            f"- Skill {uid}: level {level}"
+            f"- Skill {uid}: level {level}, name '{self.uid2canon[int(uid)]}'"
             for uid, level in self.state.profile.skills_explicit.items()
         ]
         return "Your current skills:\n" + "\n".join(lines)
@@ -314,7 +318,7 @@ class ChatHandler:
     def _semantic_ids(
             self,
             message: str,
-    ) -> Tuple[Set[str], Set[str], Set[str]]:
+    ) -> Tuple[Set[str], Set[str], Set[str], Set[str]]:
         """
         Extract ESCO skill IDs from a user message via NER + semantic search.
         """
@@ -347,6 +351,27 @@ class ChatHandler:
         print(f"Final ESCO AQUIRED UIDs: {acquired_ids}")
 
         return include_ids, avoid_ids, acquired_ids, neutral_ids
+    
+
+    def _create_profile_from_CV(self, cv_json: List[Dict[str, Any]]) -> None:
+        """
+        Create or update the user profile based on extracted CV skills.
+        """
+        possessed_ids: Set[Tuple[str, int]] = set()
+        for skill_entry in cv_json:
+            skill_name = skill_entry.get("skill_name", "")
+            skill_level = skill_entry.get("level", 1)
+
+            matches = self.searcher.search_reranked(skill_name, min_ce=0.6)
+            for uid_int, _ in matches:
+                uid = str(uid_int)
+                possessed_ids.add((uid, skill_level))
+        
+        possessed = {(self.uid2canon[int(id)], id, skill_level) for id, skill_level in possessed_ids}
+
+        self.state.set_acquired(possessed)
+        print(f"Profile updated with {len(possessed)} acquired skills from CV.")
+
 
     # ------------------------------------------------------------------ #
     # Legacy / experimental semantic method                              #
