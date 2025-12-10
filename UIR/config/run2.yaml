@@ -19,11 +19,13 @@ level_3: true                                          # Use third level of taxo
 nb_courses: 100                                        # Number of courses to include in the dataset
 nb_cvs: -1                                             # Number of learner profiles to use (-1 for all)
 max_cv_skills: 15                                      # Maximum number of skills per learner profile
-nb_jobs: 100                                           # Number of jobs to include in the dataset
+nb_jobs: 1000                                           # Number of jobs to include in the dataset
+set_dataset_seed: true
+dataset_seed: 42
 
 # Model Parameters
 threshold: 0.8                                         # Minimum matching threshold for job eligibility
-k: 2                                                 # Number of course recommendations to generate
+k: 4                                                 # Number of course recommendations to generate
 model: ppo_mask # dqn                                          # Reinforcement learning algorithm (DQN, PPO, A2C)
 total_steps: 500000 #500000                                   # Total training steps
 eval_freq: 2000 # 1000                                       # Evaluation frequency during training
