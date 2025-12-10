@@ -5,8 +5,8 @@ from optuna.trial import TrialState
 from collections import deque
 import optuna.visualization as ov
 
-from Dataset import Dataset
-from Reinforce import Reinforce
+from .Dataset import Dataset
+from .Reinforce import Reinforce
 import json
 import argparse
 import yaml
@@ -45,7 +45,7 @@ class ASHAReinforceTuner:
             direction="maximize",
             pruner=pruner,
             storage="sqlite:///asha_reinforce.db",  
-            study_name="1000courses_k5_1000jobs_35skillscurricuum",
+            study_name="2000courses_k4_3000jobs_35skillscurricuum",
             load_if_exists=True
         )
 
