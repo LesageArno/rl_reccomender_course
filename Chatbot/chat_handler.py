@@ -32,7 +32,7 @@ class ChatHandler:
         courses_acquisitions: Dict[str, List],
         searcher: Any,
         dataset: Any,
-        device: str = "cpu",
+        device: str = "cuda",
         debug: bool = False,
     ) -> None:
         self.state = state
@@ -51,7 +51,8 @@ class ChatHandler:
         self.debug = debug
 
         self.reinforce: Optional[Reinforce] = None
-        self.default_k: int = 2
+        # self.default_k: int = 2
+        self.k_changed: bool = False
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
@@ -67,7 +68,7 @@ class ChatHandler:
             device=device
         )
         self.llm = LLMDialogManager(
-            model_card="microsoft/Phi-3-mini-128k-instruct",
+            model_card= "mistralai/Mistral-7B-Instruct-v0.2", # "microsoft/Phi-3-mini-128k-instruct",
             max_new_tokens=120,
             temperature=0.2,
         )
@@ -154,6 +155,7 @@ class ChatHandler:
             recommendation = self.perform_recommendation(learner_vec, forbidden)
             skills_learned = {}
             for course_id in recommendation["seq_course_codes"]:
+                print(course_id)
                 for skill in self.courses_acquisitions.get(course_id, []):
                     skill_name = self.uid2canon.get(skill[0], "Unknown Skill")
                     skills_learned[skill_name] = skill[1]
@@ -166,9 +168,15 @@ class ChatHandler:
                 include_pairs=self.state.get_include(),
                 avoid_pairs=self.state.get_avoid(),
                 acquired_pairs=self.state.get_acquired(),
+                max_new_tokens=500
             )
 
-            return reply #f"Here you are: {recommendation}"
+            rep = f" \
+            Here are your recommended courses: {recommendation['seq_course_codes']} \n \
+            Skills you will learn: {skills_learned} \
+            "
+
+            return rep + "\n" + reply #f"Here you are: {recommendation}"
 
         if msg == ":myskills":
             return self._show_skills()
@@ -196,6 +204,9 @@ class ChatHandler:
     # ------------------------------------------------------------------ #
 
     def _show_skills(self) -> str:
+        '''
+        Show current possessed skills in the profile.
+        '''
         if not self.state.profile or not self.state.profile.skills_explicit:
             return "No skills in profile yet. Use 'load resume' first."
 
@@ -206,6 +217,9 @@ class ChatHandler:
         return "Your current skills:\n" + "\n".join(lines)
 
     def _show_prefs(self) -> str:
+        '''
+        Show current skill preferences.
+        '''
         inc = self.state.get_include()
         avo = self.state.get_avoid()
         return f"[INCLUDE] {inc}\n[AVOID ] {avo}"
@@ -219,16 +233,23 @@ class ChatHandler:
         learner_vec: np.ndarray,
         forbidden_courses: Optional[List[int]] = None,
     ) -> List[int]:
-        if self.reinforce is None:
+        '''
+        Perform course recommendation using RL.
+        
+        :param learner_vec: Vector representing the learner's skills
+        :param forbidden_courses: List of course indices to avoid
+    
+        :return: list of recommended course indices
+        '''
+        if self.k_changed:
             self._ensure_reinforce()
         return self.reinforce.recommend(learner_vec, forbidden_courses)
 
-    def _ensure_reinforce(self, k: Optional[int] = None) -> None:
-        if self.reinforce is not None:
-            return
-
-        if k is None:
-            k = self.default_k
+    def _ensure_reinforce(self) -> None:
+        '''
+        Ensure that the Reinforce instance is created and up-to-date.
+        '''
+        k = self.state.get_k()
 
         self.reinforce = Reinforce(
             dataset=self.dataset,
@@ -246,12 +267,21 @@ class ChatHandler:
             beta2=0.9,
             params=None,
         )
+        self.k_changed = False  # reset change flag
 
     def forbidden_courses(
         self,
         include_ids: Set[tuple[str, str]],
         avoid_ids: Set[tuple[str, str]],
     ) -> List[int]:
+        '''
+        Determine forbidden courses based on include and avoid skill IDs.
+
+        :param include_ids: set of (name, uid) pairs to include
+        :param avoid_ids: set of (name, uid) pairs to avoid
+
+        :return: list of forbidden course indices
+        '''
         inc = {
             self.dataset.skills2int[int(s)]
             for _, s in include_ids
@@ -279,6 +309,11 @@ class ChatHandler:
     # ------------------------------------------------------------------ #
 
     def _filter_jobs(self) -> Tuple[Dict[str, Any], str]:
+        '''
+        Filter jobs based on current skill preferences.
+        
+        :return: (filtered_jobs, message)
+        '''
         include_ids = {uid for (_canon, uid) in self.state.get_include()}
         avoid_ids = {uid for (_canon, uid) in self.state.get_avoid()}
 

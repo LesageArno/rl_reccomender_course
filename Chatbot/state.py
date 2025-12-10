@@ -24,6 +24,16 @@ class PrefState:
     target_roles: Set[str] = field(default_factory=set)
     profile: UserProfile = field(default_factory=UserProfile)
 
+    def set_k(self, k: int) -> None:
+        """Set the number of courses to recommend in the study budget."""
+        self.profile.study_budget.k_courses = k
+
+    def get_k(self) -> int:
+        """Return the number of courses to recommend, if set in the study budget."""
+        if self.profile and self.profile.study_budget.k_courses is not None:
+            return self.profile.study_budget.k_courses
+        return 2  # default value
+
     def get_include(self) -> Set[Tuple[str, SkillUID]]:
         """Return skills marked as 'include' as (name, uid)."""
         return {
@@ -40,14 +50,17 @@ class PrefState:
             if pol == "avoid"
         }
 
-    def get_acquired(self) -> Set[Tuple[str, SkillUID]]:
+    def get_acquired(self) -> Set[Tuple[str, SkillUID, SkillLevel]]:
         """Return skills marked as 'acquired' as (name, uid)."""
-        return {
-            (name, uid)
-            for uid, (name, pol) in self.skills.items()
-            if pol == "acquired"
-        }
-
+        acquired = set()
+        for uid, (name, pol) in self.skills.items():
+            if pol == "acquired":
+                skill_level = 1
+                if self.profile and uid in self.profile.skills_explicit:
+                    skill_level = self.profile.skills_explicit[uid]
+                acquired.add((name, uid, skill_level))
+        return acquired
+    
     def set_include(self, entries: Set[Tuple[str, SkillUID]]) -> None:
         """Mark the given skills as 'include'."""
         for name, uid in entries:
@@ -65,14 +78,13 @@ class PrefState:
 
             # learner profile: add explicit skill if missing
             if self.profile is not None:
-                uid_str = str(uid)
-                if uid_str not in self.profile.skills_explicit:
-                    self.profile.skills_explicit[uid_str] = skill_level
+                if uid not in self.profile.skills_explicit:
+                    self.profile.skills_explicit[uid] = skill_level
                 else:
                     # update level if higher
-                    current_level = self.profile.skills_explicit[uid_str]
+                    current_level = self.profile.skills_explicit[uid]
                     if skill_level > current_level:
-                        self.profile.skills_explicit[uid_str] = skill_level
+                        self.profile.skills_explicit[uid] = skill_level
 
     def clear_preferences(self) -> None:
         """Remove all preference labels (include/avoid/acquired) and target roles."""

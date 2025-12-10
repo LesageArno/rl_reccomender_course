@@ -73,17 +73,6 @@ class LLMDialogManager:
 
         self.model_card = model_card
 
-        # Load tokenizer
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_card)
-        # Align with the notebook: use EOS as pad token
-        self.tokenizer.pad_token = self.tokenizer.eos_token
-
-        # Define terminators as in the notebook
-        self.terminators = [
-            self.tokenizer.eos_token_id,
-            self.tokenizer.convert_tokens_to_ids("<|eot_id|>"),
-        ]
-
         # BitsAndBytes 4-bit quantization configuration
         self.bnb_config = BitsAndBytesConfig(
             load_in_4bit=True,
@@ -97,9 +86,23 @@ class LLMDialogManager:
             self.model_card,
             return_dict=True,
             quantization_config=self.bnb_config,
-            device_map=self.device,
+            device_map="auto",
         )
 
+        # Load tokenizer
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_card)
+        # Align with the notebook: use EOS as pad token
+        self.tokenizer.pad_token = self.tokenizer.eos_token
+
+        # Define terminators as in the notebook
+        self.terminators = [
+            self.tokenizer.eos_token_id,
+            self.tokenizer.convert_tokens_to_ids("<|eot_id|>"),
+        ]
+
+
+
+        
         # Use the model's default generation_config as base
         self.generation_config = self.model.generation_config
         self.generation_config.max_new_tokens = max_new_tokens
@@ -133,7 +136,7 @@ class LLMDialogManager:
         messages: List[ChatMessage] = []
 
         # 1) System prompt: role + global behavior of the assistant
-        sys_content = system_prompt if system_prompt is not None else DEFAULT_SYSTEM_PROMPT
+        '''sys_content = system_prompt if system_prompt is not None else DEFAULT_SYSTEM_PROMPT
         messages.append(
             {
                 "role": "system",
@@ -159,6 +162,33 @@ class LLMDialogManager:
             messages.extend(history)
 
         # 4) Current user message
+        messages.append(
+            {
+                "role": "user",
+                "content": user_input
+            }
+        )'''
+        sys_content = system_prompt if system_prompt is not None else DEFAULT_SYSTEM_PROMPT
+
+        if extra_context:
+            sys_content += (
+                "\n\nContext information about the user and recommended courses:\n"
+                f"{extra_context}\n"
+                "Use this information to answer, but do not repeat it verbatim."
+            )
+
+        messages.append(
+            {
+                "role": "system",
+                "content": sys_content,
+            }
+        )
+
+        # 2) History (user/assistant alternati)
+        if history:
+            messages.extend(history)
+
+        # 3) Messaggio utente corrente
         messages.append(
             {
                 "role": "user",
@@ -244,7 +274,7 @@ class LLMDialogManager:
         )
         acquired_block = (
             "Already possessed skills:\n"
-            + "\n".join(f"- {name} (uid={uid})" for name, uid in acquired_pairs)
+            + "\n".join(f"- {name} (uid={uid}), level: {level}" for name, uid, level in acquired_pairs)
             if acquired_pairs
             else "Already possessed skills:\n- None"
         )
@@ -278,9 +308,10 @@ class LLMDialogManager:
         skills_learned: Dict[str, str],
         include_pairs: Set[tuple[str, str]],
         avoid_pairs: Set[tuple[str, str]],
-        acquired_pairs: Optional[Set[tuple[str, str]]] = None,
+        acquired_pairs: Optional[Set[tuple[str, str, str]]] = None,
+        max_new_tokens: int = 300,
     ) -> str:
-        """
+        """ 
         Build a textual context summarizing:
         - user preferences (include/avoid/acquired skills, if any)
         - RL recommendation (course IDs + union of skills covered)
@@ -288,7 +319,7 @@ class LLMDialogManager:
         """
         include_names = [name for (name, _uid) in include_pairs]
         avoid_names = [name for (name, _uid) in avoid_pairs]
-        acquired_names = [name for (name, _uid) in acquired_pairs]
+        acquired_names = [name for (name, _uid, _level) in acquired_pairs]
 
         include_block = (
             "Include skills: " + ", ".join(include_names)
@@ -299,7 +330,7 @@ class LLMDialogManager:
             if avoid_names else "Avoid skills: None"
         )
         acquired_block = (
-            "Acquired skills: " + ", ".join(acquired_names)
+            "Possessed skills: " + ", ".join(acquired_names)
             if acquired_names else "Acquired skills: None or unknown"
         )
 
@@ -342,7 +373,7 @@ class LLMDialogManager:
             "User preferences:\n"
             f"- {include_block}\n"
             f"- {avoid_block}\n"
-            #f"- {acquired_block}\n\n"
+            f"- {acquired_block}\n\n"
             "RL recommendation:\n"
             f"- Sequence of course IDs: {course_seq_str}\n"
             f"- {skills_learned_block}\n\n"
@@ -352,7 +383,8 @@ class LLMDialogManager:
         user_input_for_llm = (
                 "Explain to the user why this sequence of courses is appropriate for them, "
                 "based on their preferences and the skills covered by the courses. "
-                "Be concise and concrete."
+                "When the level is Unknown, assume a beginner level. "
+                "Answer in at most 3 short sentences."
             )
         
         reply = self.chat(
@@ -360,7 +392,7 @@ class LLMDialogManager:
             history=None,
             system_prompt=None,
             extra_context=context,
-            max_new_tokens=200,
+            max_new_tokens=max_new_tokens,
             temperature=0.2,
         )
 
@@ -471,11 +503,11 @@ class LLMDialogManager:
 
         print(f"Raw skill extraction reply: {raw_reply}")
 
-        match = re.search(r"```json([\s\S]*?)```", raw_reply)
+        match = re.search(r"\[[\s\S]*?\]", raw_reply)
 
         if match:
             try:
-                data = json.loads(match.group(1))
+                data = json.loads(match.group(0))
             except json.JSONDecodeError:
                 data = []
         else:

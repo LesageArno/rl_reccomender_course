@@ -71,12 +71,147 @@ def main() -> None:
     if "handler" not in st.session_state:
         st.session_state.handler = create_chat_handler()
 
+    if "show_skill_catalog" not in st.session_state:
+        st.session_state.show_skill_catalog = False
+
     if "last_user" not in st.session_state:
         st.session_state.last_user = ""
     if "last_bot" not in st.session_state:
         st.session_state.last_bot = ""
 
     handler: ChatHandler = st.session_state.handler
+
+    with st.sidebar:
+        k_courses = st.slider(
+            "Recommendation sequence length",
+            min_value=2,
+            max_value=5,
+            value=2,
+            key="k_courses",
+            help="How long do you want the recommendation sequence will be?"
+        )
+
+        handler.state.set_k(k_courses)
+        handler.k_changed = True  # inform the handler that k has changed
+
+        st.markdown("### Resume / CV")
+        uploaded_file = st.file_uploader(
+            "Upload your resume (PDF only)",
+            type=["pdf"],
+        )
+        load_resume_clicked = st.button("Load resume from file")
+        
+        st.markdown("---")
+        st.markdown("### 🧠 Manage skills")
+
+        profile_skills = handler.state.profile.skills_explicit
+
+        if profile_skills:
+            # Costruisco etichette leggibili e una mappa label -> uid
+            label2uid = {}
+            labels = []
+            for uid, level in profile_skills.items():
+                try:
+                    name = handler.uid2canon.get(int(uid), "Unknown")
+                except ValueError:
+                    name = "Unknown"
+                label = f"{name} (level {level}) [id: {uid}]"
+                labels.append(label)
+                label2uid[label] = uid
+
+            skills_to_remove = st.multiselect(
+                "Select skills to remove",
+                options=labels,
+                key="skills_to_remove",
+                help="Uncheck skills you no longer want in your profile."
+            )
+
+            if st.button("🗑️ Remove selected skills"):
+                removed = 0
+                for label in skills_to_remove:
+                    uid = label2uid[label]
+
+                    # 1) togli dallo user profile esplicito
+                    if uid in handler.state.profile.skills_explicit:
+                        del handler.state.profile.skills_explicit[uid]
+                        removed += 1
+
+                    # 2) togli anche dalle preferenze (include/avoid/acquired) se presente
+                    if uid in handler.state.skills:
+                        del handler.state.skills[uid]
+
+                if removed > 0:
+                    st.success(f"Removed {removed} skill(s) from profile.")
+                    st.rerun()
+                else:
+                    st.info("No skills removed.")
+                    st.rerun()
+        else:
+            st.caption("No explicit skills in profile yet. Load a CV or add skills during the chat.")
+
+        if st.button("Show skill catalog"):
+            st.session_state.show_skill_catalog = True
+
+
+
+    if st.session_state.show_skill_catalog:
+        st.markdown("## 🧩 Skill catalog")
+        st.info("Select the skills you already have and set your mastery level. These will be added to your profile.")
+
+        st.markdown(
+        """
+        **Skill levels**
+
+        - **1 – Beginner**: You have basic notion about this skill.
+        - **2 – Intermediate**: You can work in autonomy with task regarding this skill.
+        - **3 – Advanced**: You mastered this skill and you are able to teach it to others.
+                """
+            )
+
+        # let's get all skill names from canon2uid
+        skill_options = sorted(handler.canon2uid.keys())
+
+        with st.form("skill_catalog_form"):
+            selected_skills = st.multiselect(
+                "Search and select your skills",
+                options=skill_options,
+                help="Start typing to search in the catalog.",
+                key="catalog_multiselect",
+            )
+
+            level = st.slider(
+                "Mastery level for selected skills",
+                min_value=1,
+                max_value=3,
+                value=1,
+                help="You can adjust level later if needed.",
+            )
+
+            col1, col2 = st.columns(2)
+            confirm = col1.form_submit_button("✅ Confirm")
+            cancel = col2.form_submit_button("❌ Cancel")
+
+            if confirm:
+                entries = set()
+                for skill_name in selected_skills:
+                    uid_int = handler.canon2uid.get(skill_name)
+                    if uid_int is None:
+                        continue
+                    uid_str = str(uid_int)
+                    entries.add((skill_name, uid_str, level))
+
+                # aggiorna il profilo con set_acquired
+                handler.state.set_acquired(entries)
+                st.success(f"Profile updated with {len(entries)} skills.")
+                st.session_state.show_skill_catalog = False  # Close the "window"
+                st.rerun()
+
+            if cancel:
+                st.session_state.show_skill_catalog = False  # Close the "window"
+                st.rerun()
+
+            return
+
 
     # User input
     user_message = st.text_input("You", value="", key="user_input")
@@ -94,13 +229,6 @@ def main() -> None:
 
     st.markdown("##### Clear profile state and preferences")
     clear_clicked = st.button("Clear (clear)")
-
-    st.markdown("### Resume / CV")
-    uploaded_file = st.file_uploader(
-        "Upload your resume (PDF only)",
-        type=["pdf"],
-    )
-    load_resume_clicked = st.button("Load resume from file")
 
     cv_text = None
     message_to_send = None
