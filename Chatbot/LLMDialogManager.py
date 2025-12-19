@@ -255,6 +255,7 @@ class LLMDialogManager:
         include_pairs: List[tuple[str, str]],
         avoid_pairs: List[tuple[str, str]],
         acquired_pairs: List[tuple[str, str]],
+        history: Optional[List[ChatMessage]] = None
     ) -> str:
         """
         High-level helper: given the original user text and the extracted
@@ -295,7 +296,7 @@ class LLMDialogManager:
 
         return self.chat(
             user_input=user_input_for_llm,
-            history=None,
+            history=history if history is not None else None,
             system_prompt=None,
             extra_context=extra_context,
             max_new_tokens=200,
@@ -304,6 +305,7 @@ class LLMDialogManager:
     
     def build_recommendation_context(
         self,
+        history: Optional[List[ChatMessage]],
         course_ids: List[str],
         skills_learned: Dict[str, str],
         include_pairs: Set[tuple[str, str]],
@@ -389,7 +391,7 @@ class LLMDialogManager:
         
         reply = self.chat(
             user_input=user_input_for_llm,
-            history=None,
+            history=history,
             system_prompt=None,
             extra_context=context,
             max_new_tokens=max_new_tokens,

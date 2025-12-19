@@ -15,6 +15,7 @@ from UIR.Scripts.Reinforce import Reinforce
 from .state import PrefState
 from .utils import create_random_profile, filter_jobs_by_skills
 from .LLMDialogManager import LLMDialogManager
+ChatMessage = Dict[str, str]  # {"role": "user" | "assistant" | "system", "content": "..."}
 
 
 class ChatHandler:
@@ -58,7 +59,7 @@ class ChatHandler:
             "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
         )
         self.ner_model = AutoModelForTokenClassification.from_pretrained(
-            "./Chatbot/NER/esco_skill_ner_multi_model/checkpoint-135"
+            "./Chatbot/NER/esco_skill_ner_multi_model/checkpoint-812"
         )
         self.ner_pipeline = pipeline(
             task="token-classification",
@@ -72,6 +73,8 @@ class ChatHandler:
             max_new_tokens=120,
             temperature=0.2,
         )
+        self.history: List[ChatMessage] = []
+        self.max_history_messages = 14
 
     # ------------------------------------------------------------------ #
     # Public API                                                         #
@@ -114,6 +117,7 @@ class ChatHandler:
                 min_skills=30,
                 max_skills=45,
             )'''
+            self.k_changed = True
             return (
                 #"A random user profile has been created. "
                 "Your resume has been processed and your profile updated. "
@@ -141,10 +145,16 @@ class ChatHandler:
                 include_pairs=include_pairs,
                 avoid_pairs=avoid_pairs,
                 acquired_pairs=acquired_pairs,
+                history=self.history
             )
 
+            self.history.append({"role": "user", "content": message})
+            self.history.append({"role": "assistant", "content": reply})
+
+            # Only last N messages
+            self.history[:] = self.history[-self.max_history_messages:]
+
             return reply 
-            #return f"Semantic include: {len(include_ids)} skills for '{query}'"
 
         if msg == ":rec":
             learner_vec = self.state.profile.to_skill_vector(self.dataset)
@@ -163,6 +173,7 @@ class ChatHandler:
             print(skills_learned)
 
             reply = self.llm.build_recommendation_context(
+                history=self.history,
                 course_ids=recommendation["seq_course_codes"],
                 skills_learned=skills_learned,
                 include_pairs=self.state.get_include(),
@@ -250,7 +261,7 @@ class ChatHandler:
         Ensure that the Reinforce instance is created and up-to-date.
         '''
         k = self.state.get_k()
-
+        print(k)
         self.reinforce = Reinforce(
             dataset=self.dataset,
             model="ppo_mask",
