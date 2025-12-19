@@ -7,19 +7,23 @@ We recommend using a Python virtual environment.
 python -m venv .venv
 .\.venv\Scripts\activate
 python -m pip install --upgrade pip
+```
 
 ### 2. Install PyTorch
 
 CUDA (recommended for LLM inference):
+```
 pip install torch --index-url https://download.pytorch.org/whl/cu121
-
+```
 CPU-only (Not Recommended for LLM Inference)
+```
 pip install torch --index-url https://download.pytorch.org/whl/cpu
-
+```
 
 ### 3. Install Project Dependencies
+```
 pip install -r requirements.txt
-
+```
 
 
 ## Running the Demo (Streamlit GUI)
@@ -32,7 +36,7 @@ From the project root directory (`rl_recommender_course`):
 
 ```bash
 streamlit run Chatbot/GUI.py
-
+```
 
 Demo Capabilities
 
@@ -124,7 +128,8 @@ This feature is experimental and not required for standard usage
 
 ---
 
-```md
+```
+
 ## Models
 
 ### Named Entity Recognition (NER)
