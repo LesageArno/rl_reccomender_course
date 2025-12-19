@@ -6,60 +6,62 @@ The repository is organized into three main components:
 - supporting datasets and experimental components
 
 
+```text
 rl_recommender_course/
-├── Chatbot/ # Conversational interface and GUI
-│ ├── GUI.py # Streamlit GUI (main demo entry point)
-│ ├── chat_handler.py # Conversation handling and state updates
-│ ├── LLMDialogManager.py # LLM wrapper (Mistral v2)
-│ ├── chatbot.py # Terminal-based chatbot (legacy)
-│ ├── state.py # User preference state
-│ ├── learnerProfile.py # Learner skill profile representation
-│ ├── taxonomy_index.py # ESCO taxonomy indexing
-│ ├── data_loader.py # Dataset loading utilities
-│ ├── utils.py # Helper functions
-│ │
-│ ├── CV_pdf/ # Example resumes (PDF)
-│ │
-│ ├── Embeddings/ # Skill embedding and semantic search
-│ │ ├── build_skill_embeddings.py
-│ │ ├── skill_search.py
-│ │ ├── E_skills.npy
-│ │ └── uids.npy
-│ │
-│ └── NER/ # Named Entity Recognition (skills)
-│ ├── BIO.ipynb # NER experimentation notebook
-│ ├── training_data_.json
-│ ├── dataset.json
-│ └── pretrained checkpoints
+├── Chatbot/                     # Conversational interface and GUI
+│   ├── GUI.py                   # Streamlit GUI (main demo entry point)
+│   ├── chat_handler.py          # Conversation handling and state updates
+│   ├── LLMDialogManager.py      # LLM wrapper (Mistral v2)
+│   ├── chatbot.py               # Terminal-based chatbot (legacy)
+│   ├── state.py                 # User preference state
+│   ├── learnerProfile.py        # Learner skill profile representation
+│   ├── taxonomy_index.py        # ESCO taxonomy indexing
+│   ├── data_loader.py           # Dataset loading utilities
+│   ├── utils.py                 # Helper functions
+│   │
+│   ├── CV_pdf/                  # Example resumes (PDF)
+│   │
+│   ├── Embeddings/              # Skill embedding and semantic search
+│   │   ├── build_skill_embeddings.py
+│   │   ├── skill_search.py
+│   │   ├── E_skills.npy
+│   │   └── uids.npy
+│   │
+│   └── NER/                     # Named Entity Recognition (skills)
+│       ├── BIO.ipynb            # NER experimentation notebook
+│       ├── training_data_*.json
+│       ├── dataset*.json
+│       └── pretrained checkpoints
 │
-├── UIR/ # Reinforcement Learning backend (main)
-│ ├── Scripts/
-│ │ ├── CourseRecEnv.py # RL environment
-│ │ ├── Dataset.py # Dataset handling
-│ │ ├── Reinforce.py # RL agent logic
-│ │ ├── pipeline.py # Training pipeline entry point
-│ │ ├── matchings.py # Skill-job matching utilities
-│ │ └── tuning.py # Hyperparameter optimization (optional)
-│ │
-│ ├── config/
-│ │ └── run.yaml # Training and inference configuration
-│ │
-│ ├── models_weights/ # Pretrained RL models (not versioned)
-│ └── results/ # Training outputs and plots
+├── UIR/                         # Reinforcement Learning backend (main)
+│   ├── Scripts/
+│   │   ├── CourseRecEnv.py      # RL environment
+│   │   ├── Dataset.py           # Dataset handling
+│   │   ├── Reinforce.py         # RL agent logic
+│   │   ├── pipeline.py          # Training pipeline entry point
+│   │   ├── matchings.py         # Skill-job matching utilities
+│   │   └── tuning.py            # Hyperparameter optimization (optional)
+│   │
+│   ├── config/
+│   │   └── run.yaml             # Training and inference configuration
+│   │
+│   ├── models_weights/          # Pretrained RL models (not versioned)
+│   └── results/                 # Training outputs and plots
 │
-├── CLASS/ # Clustering-based approach (secondary)
+├── CLASS/                       # Clustering-based approach (secondary)
 │
 ├── Data-Collection/
-│ └── Final/ # Datasets
-│ ├── courses.json
-│ ├── jobs.json
-│ ├── resumes.json
-│ ├── taxonomy.csv
-│ └── mastery_levels.json
+│   └── Final/                   # Datasets
+│       ├── courses.json
+│       ├── jobs.json
+│       ├── resumes.json
+│       ├── taxonomy.csv
+│       └── mastery_levels.json
 │
-├── requirements.txt # Project dependencies
+├── requirements.txt             # Project dependencies
 ├── README.md
 └── LICENSE
+```
 
 ## Installation (Windows)
 
