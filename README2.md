@@ -1,3 +1,66 @@
+## Project Structure
+
+The repository is organized into three main components:
+- a **Chatbot module** with GUI and conversational logic
+- a **Reinforcement Learning backend** (UIR)
+- supporting datasets and experimental components
+
+
+rl_recommender_course/
+├── Chatbot/ # Conversational interface and GUI
+│ ├── GUI.py # Streamlit GUI (main demo entry point)
+│ ├── chat_handler.py # Conversation handling and state updates
+│ ├── LLMDialogManager.py # LLM wrapper (Mistral v2)
+│ ├── chatbot.py # Terminal-based chatbot (legacy)
+│ ├── state.py # User preference state
+│ ├── learnerProfile.py # Learner skill profile representation
+│ ├── taxonomy_index.py # ESCO taxonomy indexing
+│ ├── data_loader.py # Dataset loading utilities
+│ ├── utils.py # Helper functions
+│ │
+│ ├── CV_pdf/ # Example resumes (PDF)
+│ │
+│ ├── Embeddings/ # Skill embedding and semantic search
+│ │ ├── build_skill_embeddings.py
+│ │ ├── skill_search.py
+│ │ ├── E_skills.npy
+│ │ └── uids.npy
+│ │
+│ └── NER/ # Named Entity Recognition (skills)
+│ ├── BIO.ipynb # NER experimentation notebook
+│ ├── training_data_.json
+│ ├── dataset.json
+│ └── pretrained checkpoints
+│
+├── UIR/ # Reinforcement Learning backend (main)
+│ ├── Scripts/
+│ │ ├── CourseRecEnv.py # RL environment
+│ │ ├── Dataset.py # Dataset handling
+│ │ ├── Reinforce.py # RL agent logic
+│ │ ├── pipeline.py # Training pipeline entry point
+│ │ ├── matchings.py # Skill-job matching utilities
+│ │ └── tuning.py # Hyperparameter optimization (optional)
+│ │
+│ ├── config/
+│ │ └── run.yaml # Training and inference configuration
+│ │
+│ ├── models_weights/ # Pretrained RL models (not versioned)
+│ └── results/ # Training outputs and plots
+│
+├── CLASS/ # Clustering-based approach (secondary)
+│
+├── Data-Collection/
+│ └── Final/ # Datasets
+│ ├── courses.json
+│ ├── jobs.json
+│ ├── resumes.json
+│ ├── taxonomy.csv
+│ └── mastery_levels.json
+│
+├── requirements.txt # Project dependencies
+├── README.md
+└── LICENSE
+
 ## Installation (Windows)
 
 We recommend using a Python virtual environment.
@@ -106,7 +169,7 @@ Training a new reinforcement learning model is optional and **not required** to 
 
 Edit the configuration file:
 
-```text
+text
 UIR/config/run.yaml
 
 
@@ -115,8 +178,9 @@ This file controls:
 TODO
 
 ### Run Training
+```
 python UIR/Scripts/pipeline.py --config UIR/config/run.yaml
-
+```
 
 Training outputs, logs, and models are saved according to the configuration.
 
@@ -128,7 +192,7 @@ This feature is experimental and not required for standard usage
 
 ---
 
-```
+
 
 ## Models
 
@@ -148,7 +212,7 @@ This feature is experimental and not required for standard usage
 ### Reinforcement Learning Models
 
 - Pretrained RL models are stored in:
-  ```text
+  text
   UIR/models_weights/
 
 
@@ -157,7 +221,6 @@ These models are loaded automatically during the demo.
 
 ---
 
-```md
 ## Hardware Notes
 
 - A GPU is **strongly recommended** for running the chatbot with the LLM.
