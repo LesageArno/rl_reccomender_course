@@ -1,160 +1,283 @@
-# Course Recommendation System
-
-A reinforcement learning-based course recommendation system that helps learners acquire skills needed for jobs using clustering-based reward adjustment and usefulness-based approaches.
-
 ## Overview
 
-This system uses reinforcement learning to recommend courses to learners based on their current skills and job market requirements. It operates with two different approaches:
+This project implements a reinforcement learning framework for **sequential, job-oriented course recommendation**, with explicit modeling of skill mastery and personalized career objectives.
 
-1. **CLASS**: Clustering-based approach
-   - Groups similar courses using K-means clustering
-   - Adjusts rewards based on cluster transitions
-   - Encourages stable learning patterns within course clusters
-   - Uses mastery levels (0-3) for skill representation
+The core research question addressed is:
 
-2. **UIR**: Usefulness-based approach
-   - Uses information usefulness as the primary metric
-   - Implements weighted reward functions
-   - Focuses on maximizing the utility of course recommendations
-   - Uses binary skill representation (0-1)
+> How can we recommend an ordered sequence of courses that reduces skill gaps toward relevant jobs, while accounting for graded expertise levels and learner-specific goals?
 
-## Key Features
+Unlike traditional employability-based recommenders that optimize only the number of accessible jobs, this system:
 
-- Support for multiple RL algorithms (DQN, A2C, PPO)
-- Course recommendation based on:
-  - Learner's current skill levels
-  - Job market requirements
-  - Course outcomes
-- Two distinct approaches:
-  - **Clustering-based**: K-means clustering for course grouping and reward adjustment
-  - **Usefulness-based**: Information utility maximization with weighted rewards
-- Comprehensive evaluation metrics
-- Automatic cluster optimization using elbow method (CLASS)
-- Weight optimization for usefulness-based rewards (UIR)
+- models skills with discrete mastery levels,
+- explicitly measures skill-gap reduction,
+- formulates reward signals grounded in the **Usefulness of Information** principle,
+- supports preference-conditioned goal filtering (wanted / avoided skills),
+- enforces prerequisite constraints via action masking.
+
+The reinforcement learning environment, reward formulations, and goal-conditioning mechanisms have been redesigned and restructured compared to prior job-oriented course recommendation frameworks.
+
+This repository contains the full implementation used for experimentation and thesis research.
 
 ## Project Structure
 
+The repository is organized into three main components:
+- a **Chatbot module** with GUI and conversational logic
+- a **Reinforcement Learning backend** (UIR)
+- supporting datasets and experimental components
+
+
+```text
+rl_recommender_course/
+├── Chatbot/                     # Conversational interface and GUI
+│   ├── GUI.py                   # Streamlit GUI (main demo entry point)
+│   ├── chat_handler.py          # Conversation handling and state updates
+│   ├── LLMDialogManager.py      # LLM wrapper (Mistral v2)
+│   ├── chatbot.py               # Terminal-based chatbot (legacy)
+│   ├── state.py                 # User preference state
+│   ├── learnerProfile.py        # Learner skill profile representation
+│   ├── taxonomy_index.py        # ESCO taxonomy indexing
+│   ├── data_loader.py           # Dataset loading utilities
+│   ├── utils.py                 # Helper functions
+│   │
+│   ├── CV_pdf/                  # Example resumes (PDF)
+│   │
+│   ├── Embeddings/              # Skill embedding and semantic search
+│   │   ├── build_skill_embeddings.py
+│   │   ├── skill_search.py
+│   │   ├── E_skills.npy
+│   │   └── uids.npy
+│   │
+│   └── NER/                     # Named Entity Recognition (skills)
+│       ├── BIO.ipynb            # NER experimentation notebook
+│       ├── training_data_*.json
+│       ├── dataset*.json
+│       └── pretrained checkpoints
+│
+├── UIR/                         # Reinforcement Learning backend (main)
+│   ├── Scripts/
+│   │   ├── CourseRecEnv.py      # RL environment
+│   │   ├── Dataset.py           # Dataset handling
+│   │   ├── Reinforce.py         # RL agent logic
+│   │   ├── pipeline.py          # Training pipeline entry point
+│   │   ├── matchings.py         # Skill-job matching utilities
+│   │   ├── tuning.py            # Hyperparameter optimization (optional)
+│   │   └── evaluation.py        # results visualization and evaluation
+│   │    
+│   │
+│   ├── config/
+│   │   └── run.yaml             # Training and inference configuration
+│   │
+│   ├── models_weights/          # Pretrained RL models (not versioned)
+│   └── results/                 # Training outputs and plots
+│
+├── Data-Collection/
+│   └── Final/                   # Datasets
+│       ├── courses.json
+│       ├── jobs.json
+│       ├── resumes.json
+│       ├── taxonomy.csv
+│       └── mastery_levels.json
+│
+├── requirements.txt             # Project dependencies
+├── README.md
+└── LICENSE
 ```
-Project/
-├── CLASS/                      # Clustering-based approach
-│   ├── Scripts/              # Core recommendation system
-│   │   ├── CourseRecEnv.py   # RL environment with clustering
-│   │   ├── Reinforce.py      # RL implementation
-│   │   ├── Dataset.py        # Data management
-│   │   └── clustering.py     # Clustering implementation
-│   ├── config/               # Configuration files
-│   ├── results/              # Training results and plots
-│   └── README_DEVELOPMENT.md # Detailed development guide
-├── UIR/                      # Usefulness-based approach
-│   ├── Scripts/              # Core recommendation system
-│   │   ├── CourseRecEnv.py   # RL environment with usefulness
-│   │   ├── Reinforce.py      # RL implementation
-│   │   ├── Dataset.py        # Data management
-│   │   └── weight_optimization.py # Weight optimization
-│   ├── config/               # Configuration files
-│   ├── results/              # Training results and plots
-│   └── README_DEVELOPMENT.md # Detailed development guide
-└── Data - Collection/        # Dataset files
-    └── Final/
-        ├── courses.json      # Course data
-        ├── jobs.json         # Job listings
-        ├── resumes.json      # Learner profiles
-        ├── taxonomy.csv      # Skill taxonomy
-        └── mastery_levels.json # Skill mastery definitions
-```
 
-## Quick Start
+## Installation (Windows)
 
-### CLASS (Clustering-based)
+We recommend using a Python virtual environment.
 
-1. Install requirements:
+### 1. Create and activate a virtual environment
 ```bash
-cd CLASS
+python -m venv .venv
+.\.venv\Scripts\activate
+python -m pip install --upgrade pip
+```
+
+### 2. Install PyTorch
+
+CUDA (recommended for LLM inference):
+```
+pip install torch --index-url https://download.pytorch.org/whl/cu121
+```
+CPU-only (Not Recommended for LLM Inference)
+```
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+```
+
+### 3. Install Project Dependencies
+```
 pip install -r requirements.txt
 ```
 
-2. Configure the system in `config/run.yaml`:
-   - Set clustering parameters
-   - Choose RL algorithm and training settings
-   - Configure evaluation metrics
 
-3. Run the pipeline:
+## Running the Demo (Streamlit GUI)
+
+The Streamlit GUI is the **main entry point** for the project demo.
+
+### Start the GUI
+
+From the project root directory (`rl_recommender_course`):
+
 ```bash
-python Scripts/pipeline.py --config config/run.yaml
+streamlit run Chatbot/GUI.py
 ```
 
-### UIR (Usefulness-based)
+Demo Capabilities
 
-1. Install requirements:
-```bash
-cd UIR
-pip install -r requirements.txt
+Through the GUI, users can:
+
+- interact with the chatbot in natural language
+
+- specify skills they want to acquire or avoid
+
+- load a resume (CV) in PDF format
+
+- receive personalized course recommendations
+
+- obtain explanations for both preferences and recommendations
+
+
+
+---
+
+
+## Chatbot Commands
+
+The chatbot supports the following commands:
+
+- `:sem <text>`  
+  Extracts skill preferences from natural language input and updates the user profile.
+
+- `:rec`  
+  Generates a personalized sequence of recommended courses.
+
+- `:myskills`  
+  Displays the skills currently associated with the user profile.
+
+- `:show`  
+  Shows current include and avoid skill preferences.
+
+- `load resume`  
+  Extracts skills from a resume (PDF) and updates the user profile.
+
+- `clear`  
+  Resets the user profile and clears all preferences.
+
+which are automatically computed when using streamlit with specific buttons
+
+
+## Reinforcement Learning Backend (UIR)
+
+The **UIR (Usefulness-based Information Reward)** approach is the primary reinforcement learning
+method used in this project.
+
+### Key Characteristics
+
+- **Algorithm**: PPO / MaskablePPO  
+- **State**: learner skill vector  
+- **Action space**: available courses  
+- **Reward**: usefulness-based (skill acquisition and job applicability)
+
+Pretrained models are not included in the repository since they are too large.
+
+
+
+## Training a Reinforcement Learning Model (Optional)
+
+Training a new reinforcement learning model is **required** to run the demo.
+
+### Configure Training
+
+Edit the configuration file:
+
+text
+UIR/config/run.yaml
+
+
+This file controls:
+
+TODO
+
+### Run Training
+```
+python -m UIR.Scripts.pipeline --config UIR/config/run.yaml
 ```
 
-2. Configure the system in `config/run.yaml`:
-   - Set usefulness parameters and weights
-   - Choose RL algorithm and training settings
-   - Configure evaluation metrics
+Training outputs, logs, and models are saved according to the configuration.
 
-3. Run the pipeline:
-```bash
-python Scripts/pipeline.py --config config/run.yaml
-```
+#### Hyperparameter Optimization
 
-## Requirements
+Hyperparameter optimization is supported via tuning.py.
+This feature is experimental and not required for standard usage
 
-### Installation
 
-1. **Install dependencies:**
-```bash
-pip install -r requirements.txt
-```
+---
 
-### Dependencies
 
-The project requires the following Python packages:
 
-**Core ML/RL Libraries:**
-- `stable-baselines3==2.2.1` - Reinforcement learning algorithms (DQN, PPO, A2C)
-- `gymnasium>=0.28.0` - RL environment interface (compatible with stable-baselines3)
-- `scikit-learn>=1.0.0` - Machine learning utilities (K-means clustering, PCA)
+## Models
 
-**Data Processing:**
-- `numpy>=1.21.0` - Numerical computing
-- `pandas>=1.3.0` - Data manipulation and analysis
+### Named Entity Recognition (NER).
+- The model is used to extract skill mentions from user input.
+- The model path is configured directly in `chat_handler.py`.
 
-**Visualization:**
-- `matplotlib>=3.5.0` - Plotting and visualization
-- `seaborn>=0.11.0` - Statistical data visualization
+### Large Language Model (LLM)
 
-**Configuration:**
-- `PyYAML==6.0.1` - YAML configuration files
+- The chatbot uses an LLM downloaded automatically from HuggingFace.
+- Default model:
+  - `mistralai/Mistral-7B-Instruct-v0.2`
+- The first run may take several minutes due to model download.
 
-**Utilities:**
-- `tqdm>=4.62.0` - Progress bars for weight optimization and long-running operations
+### Reinforcement Learning Models
 
-### System Requirements
+- Pretrained RL models are stored in:
+  text
+  UIR/models_weights/
 
-- **Python**: 3.8 or higher
-- **Memory**: Minimum 4GB RAM (8GB recommended)
-- **Storage**: At least 1GB free space for datasets and results
-- **OS**: Windows, macOS, or Linux
+You should train an RL agent before using it.
+To decide which model to use, you must change run.yaml.
 
-## Documentation
 
-For detailed information about:
-- Development setup and guidelines
-- Configuration options
-- Results management
-- Clustering implementation (CLASS)
-- Usefulness-based approach (UIR)
-- Model training and evaluation
+---
 
-Please refer to:
-- `CLASS/README_DEVELOPMENT.md` for clustering-based approach
-- `UIR/README_DEVELOPMENT.md` for usefulness-based approach
+## Hardware Notes
+
+- A GPU is **strongly recommended** for running the chatbot with the LLM.
+- CPU-only execution is supported but will be significantly slower.
+- Reinforcement learning training primarily runs on CPU.
+
+
+## Demo
+🎥 Video walkthrough: <https://drive.google.com/file/d/1pfKi74UfCfmA7jmxe55IWCslMnUdnalt/view?usp=sharing>
+
+
+## Notes
+
+- This project is intended for **research and demonstration purposes**.
+- Code clarity and modularity are prioritized over production-level optimization.
+- Detailed methodological explanations are provided in the associated publication.
+
 
 ## Acknowledgements
 
-This project is developed based on the repository [JCRec](https://github.com/Jibril-Frej/JCRec) by [Jibril Frej](https://github.com/Jibril-Frej).
+This project extends and builds upon the **JCRec** framework by Jibril Frej:
 
+https://github.com/Jibril-Frej/JCRec
+
+
+## Acknowledgments
+
+This work builds upon the job-oriented course recommendation framework introduced by Jibril Frej in JCRec:
+
+- Frej, J., Dai, A., Montariol, S., Bosselut, A., & Käser, T. (2024).  
+  *Course Recommender Systems Need to Consider the Job Market*.  
+  Proceedings of SIGIR '24.  
+  https://doi.org/10.1145/3626772.3657847
+- GitHub: https://github.com/Jibril-Frej/JCRec
+
+Early development was based on Mark’s extension of this framework:
+
+- WUIR-CLASS-recSys: https://github.com/bm1nhtr/WUIR-CLASS-recSys
+
+The current implementation substantially restructures the reinforcement learning environment, reward modeling, and training pipeline, and does not rely on the original CLASS-based approach.
