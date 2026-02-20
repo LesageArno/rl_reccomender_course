@@ -1,3 +1,23 @@
+## Overview
+
+This project implements a reinforcement learning framework for **sequential, job-oriented course recommendation**, with explicit modeling of skill mastery and personalized career objectives.
+
+The core research question addressed is:
+
+> How can we recommend an ordered sequence of courses that reduces skill gaps toward relevant jobs, while accounting for graded expertise levels and learner-specific goals?
+
+Unlike traditional employability-based recommenders that optimize only the number of accessible jobs, this system:
+
+- models skills with discrete mastery levels,
+- explicitly measures skill-gap reduction,
+- formulates reward signals grounded in the **Usefulness of Information** principle,
+- supports preference-conditioned goal filtering (wanted / avoided skills),
+- enforces prerequisite constraints via action masking.
+
+The reinforcement learning environment, reward formulations, and goal-conditioning mechanisms have been redesigned and restructured compared to prior job-oriented course recommendation frameworks.
+
+This repository contains the full implementation used for experimentation and thesis research.
+
 ## Project Structure
 
 The repository is organized into three main components:
@@ -40,7 +60,9 @@ rl_recommender_course/
 │   │   ├── Reinforce.py         # RL agent logic
 │   │   ├── pipeline.py          # Training pipeline entry point
 │   │   ├── matchings.py         # Skill-job matching utilities
-│   │   └── tuning.py            # Hyperparameter optimization (optional)
+│   │   ├── tuning.py            # Hyperparameter optimization (optional)
+│   │   └── evaluation.py        # results visualization and evaluation
+│   │    
 │   │
 │   ├── config/
 │   │   └── run.yaml             # Training and inference configuration
@@ -48,7 +70,7 @@ rl_recommender_course/
 │   ├── models_weights/          # Pretrained RL models (not versioned)
 │   └── results/                 # Training outputs and plots
 │
-├── CLASS/                       # Clustering-based approach (secondary)
+├── CLASS/                       # Clustering-based approach (secondary, didn't end up using)
 │
 ├── Data-Collection/
 │   └── Final/                   # Datasets
@@ -159,13 +181,13 @@ method used in this project.
 - **Action space**: available courses  
 - **Reward**: usefulness-based (skill acquisition and job applicability)
 
-Pretrained models are included in the repository and are used by default in the demo.
+Pretrained models are not included in the repository since they are too large.
 
 
 
 ## Training a Reinforcement Learning Model (Optional)
 
-Training a new reinforcement learning model is optional and **not required** to run the demo.
+Training a new reinforcement learning model is **required** to run the demo.
 
 ### Configure Training
 
@@ -181,7 +203,7 @@ TODO
 
 ### Run Training
 ```
-python UIR/Scripts/pipeline.py --config UIR/config/run.yaml
+python -m UIR.Scripts.pipeline --config UIR/config/run.yaml
 ```
 
 Training outputs, logs, and models are saved according to the configuration.
@@ -217,8 +239,8 @@ This feature is experimental and not required for standard usage
   text
   UIR/models_weights/
 
-
-These models are loaded automatically during the demo.
+You should train an RL agent before using it.
+To decide which model to use, you must change run.yaml.
 
 
 ---
@@ -228,6 +250,10 @@ These models are loaded automatically during the demo.
 - A GPU is **strongly recommended** for running the chatbot with the LLM.
 - CPU-only execution is supported but will be significantly slower.
 - Reinforcement learning training primarily runs on CPU.
+
+
+## Demo
+🎥 Video walkthrough: <https://drive.google.com/file/d/1pfKi74UfCfmA7jmxe55IWCslMnUdnalt/view?usp=sharing>
 
 
 ## Notes
@@ -242,3 +268,20 @@ These models are loaded automatically during the demo.
 This project extends and builds upon the **JCRec** framework by Jibril Frej:
 
 https://github.com/Jibril-Frej/JCRec
+
+
+## Acknowledgments
+
+This work builds upon the job-oriented course recommendation framework introduced by Jibril Frej in JCRec:
+
+- Frej, J., Dai, A., Montariol, S., Bosselut, A., & Käser, T. (2024).  
+  *Course Recommender Systems Need to Consider the Job Market*.  
+  Proceedings of SIGIR '24.  
+  https://doi.org/10.1145/3626772.3657847
+- GitHub: https://github.com/Jibril-Frej/JCRec
+
+Early development was based on Mark’s extension of this framework:
+
+- WUIR-CLASS-recSys: https://github.com/bm1nhtr/WUIR-CLASS-recSys
+
+The current implementation substantially restructures the reinforcement learning environment, reward modeling, and training pipeline, and does not rely on the original CLASS-based approach.
