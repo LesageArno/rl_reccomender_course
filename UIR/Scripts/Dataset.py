@@ -104,8 +104,6 @@ class Dataset:
                 key: level2int[value] for key, value in skills_dict.items()
             }
             self.skills = set(self.skills2int.values())
-            # print(f"THESE ARE THE SKILLS: {self.skills}")
-            # print(f"THESE ARE SKILLS TO INT: {self.skills2int}")
         # If level_3 is false, we use the unique_id column as the skills
         else:
             self.skills = set(self.skills["unique_id"])
@@ -308,7 +306,7 @@ class Dataset:
         Args:
             learner (ndarray): list of skills and mastery level of the learner
             threshold (float): the threshold for the matching
-            jobs (ndarray): list of jobs required by the learner
+            jobs (ndarray): list of jobs the learner want to apply to (optional) if None, use self.jobs
 
         Returns:
             int: the number of applicable jobs
@@ -351,21 +349,6 @@ class Dataset:
         # Count jobs meeting the threshold
         nb_applicable_jobs = int(np.sum(per_job_match >= threshold))
         return nb_applicable_jobs
-
-        '''nb_applicable_jobs = 0
-        jobs_subset = set()
-
-        # get the index of the non zero elements in the learner array
-        skills = np.nonzero(learner)[0]
-
-        for skill in skills:
-            if skill in self.jobs_inverted_index:
-                jobs_subset.update(self.jobs_inverted_index[skill])
-        for job_id in jobs_subset:
-            matching = matchings.learner_job_matching(learner, self.jobs[job_id])
-            if matching >= threshold:
-                nb_applicable_jobs += 1
-        return nb_applicable_jobs'''
 
     def get_avg_applicable_jobs(self, threshold, jobs = None):
         """Get the average number of applicable jobs for all the learners

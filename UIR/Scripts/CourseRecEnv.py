@@ -75,8 +75,8 @@ class CourseRecEnv(gym.Env):
         self.dataset = dataset
         self.jobs = self.dataset.jobs  # None = usa tutti i job, altrimenti solo un sottoinsieme
         
-        ########################### USEFUL FOR ACTION MASKING
         self.courses = dataset.courses
+        ########################### USEFUL FOR ACTION MASKING
         self._req_skills = self.courses[:, 0, :].astype(np.float32)
         self._req_has = self._req_skills > 0
         self._req_safe = np.where(self._req_has, self._req_skills, 1.0).astype(np.float32)
@@ -102,8 +102,11 @@ class CourseRecEnv(gym.Env):
         self.seed = config.get("seed", 42)
         self.rng = np.random.default_rng(seed=self.seed)
 
-        ############################################################################     TO CHANGE
-        # The observation space is a vector of length nb_skills that represents the learner's skills.
+        # The observation space is either:
+        # - a vector of length nb_skills that represents the learner's skills.
+        # or
+        # - a vector of lenght 3 * nb_skills containing leaner's skills and preferences
+        # Both containing also the number of steps left
         # The vector contains skill levels, where the minimum level is 0 and the maximum level is 3.
         # We cannot set the lower bound to -1 because negative values are not allowed in this Box space.
         if self.config.get("use_preference", True):
@@ -696,7 +699,7 @@ class CourseRecEnv(gym.Env):
                 - truncated: Whether the episode was truncated
                 - info: Additional information about the step
         """
-        course = self.dataset.courses[action]
+        course = self.courses[action]
         learner = self._agent_skills
 
         # Skip-expertise case: use new metrics and utility
