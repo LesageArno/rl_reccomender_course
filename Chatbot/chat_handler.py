@@ -1,9 +1,11 @@
 # Chatbot/chat_handler.py
 
+from collections import defaultdict
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 import numpy as np
 import pdfplumber
+import pandas as pd
 
 from transformers import (
     AutoTokenizer,
@@ -13,7 +15,7 @@ from transformers import (
 
 from UIR.Scripts.Reinforce import Reinforce
 from .state import PrefState
-from .utils import create_random_profile, filter_jobs_by_skills
+from .utils import create_random_profile, filter_jobs_by_skills, filter_jobs_goal_conditioned_tl3
 from .LLMDialogManager import LLMDialogManager
 ChatMessage = Dict[str, str]  # {"role": "user" | "assistant" | "system", "content": "..."}
 
@@ -33,6 +35,9 @@ class ChatHandler:
         courses_acquisitions: Dict[str, List],
         searcher: Any,
         dataset: Any,
+        skills2int_tl3: Any,
+        n_tl3: Any,
+        int2skills_tl3: Any,
         device: str = "cuda",
         debug: bool = False,
     ) -> None:
@@ -49,18 +54,29 @@ class ChatHandler:
         )
         self.searcher = searcher
         self.dataset = dataset
+        self.skills2int_tl3 = skills2int_tl3
+        self.n_tl3 = n_tl3
+        self.int2skills_tl3 = int2skills_tl3
         self.debug = debug
 
         self.reinforce: Optional[Reinforce] = None
         # self.default_k: int = 2
         self.k_changed: bool = False
 
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-        )
-        self.ner_model = AutoModelForTokenClassification.from_pretrained(
-            "./Chatbot/NER/esco_skill_ner_multi_model/checkpoint-812"
-        )
+        ner_ckpt = "./Chatbot/NER/xml-roberta/checkpoint-2375"
+
+        #self.tokenizer = AutoTokenizer.from_pretrained(
+        #    "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+        #)
+        #self.ner_model = AutoModelForTokenClassification.from_pretrained(
+        #    #"./Chatbot/NER/esco_skill_ner_multi_model/checkpoint-812"
+        #    #"./Chatbot/NER/esco_skill_ner_multi_model_new/checkpoint-416"
+        #    #"./Chatbot/NER/esco_skill_ner_both_dataset/checkpoint-1100"
+        #    "./Chatbot/NER/PROVA_pt2/checkpoint-3880"                              #RIGHT ONE
+        #)
+        self.tokenizer = AutoTokenizer.from_pretrained(ner_ckpt)
+        self.ner_model = AutoModelForTokenClassification.from_pretrained(ner_ckpt)
+
         self.ner_pipeline = pipeline(
             task="token-classification",
             model=self.ner_model,
@@ -121,7 +137,7 @@ class ChatHandler:
             return (
                 #"A random user profile has been created. "
                 "Your resume has been processed and your profile updated. "
-                "You can type ':myskills' to view your skills."
+                "You can press 'my skills' button to view your skills."
             )
 
         if msg == "clear":
@@ -130,11 +146,42 @@ class ChatHandler:
 
         if msg.startswith(":sem "):
             query = msg[5:].strip()
+
+            skills = self.llm.extract_structured_preferences(query, history=self.history)
+            print(skills)
+
+
+            # 🧠 1) GATE LLM
+            has_skills = self.llm.detect_skill_presence(query)
+
+            if not has_skills:
+                # ❌ no skill → only LLM ANSWER
+                reply = self.llm.chat(
+                    user_input=query,
+                    history=self.history,
+                    system_prompt=None,
+                    extra_context=None,
+                    max_new_tokens=500, #120,
+                    temperature=0.2,
+                )
+
+                self.history.append({"role": "user", "content": message})
+                self.history.append({"role": "assistant", "content": reply})
+                self.history[:] = self.history[-self.max_history_messages:]
+
+                return reply + "\n" + "Remember that you can always modify your profile by using the interface on the right pane."
+
             include_ids, avoid_ids, acquired_ids, _ = self._semantic_ids(query)
+
+            levels_by_uid = self.llm.infer_mastery_levels(
+                user_text=query,
+                acquired_uids=acquired_ids,
+                uid2canon=self.uid2canon,
+            )
 
             include_pairs = {(self.uid2canon[int(i)], i) for i in include_ids}
             avoid_pairs = {(self.uid2canon[int(i)], i) for i in avoid_ids}
-            acquired_pairs = {(self.uid2canon[int(i)], i, 1) for i in acquired_ids}
+            acquired_pairs = {(self.uid2canon[int(i)], i, levels_by_uid.get(i, 1)) for i in acquired_ids}
 
             self.state.set_include(include_pairs)
             self.state.set_avoid(avoid_pairs)
@@ -145,7 +192,7 @@ class ChatHandler:
                 include_pairs=include_pairs,
                 avoid_pairs=avoid_pairs,
                 acquired_pairs=acquired_pairs,
-                history=self.history
+                #history=self.history
             )
 
             self.history.append({"role": "user", "content": message})
@@ -157,23 +204,64 @@ class ChatHandler:
             return reply 
 
         if msg == ":rec":
-            learner_vec = self.state.profile.to_skill_vector(self.dataset)
-            forbidden = self.forbidden_courses(
-                self.state.get_include(),
-                self.state.get_avoid(),
+            include_pairs = self.state.get_include()
+            avoid_pairs = self.state.get_avoid()
+
+            want_vec, avoid_vec = self.build_tl3_preference_vectors(include_pairs, avoid_pairs)
+
+            learner_vec = self.state.profile.to_tl3_skill_vector(
+                skills2int_tl3=self.skills2int_tl3,
+                n_tl3=self.n_tl3,
             )
-            recommendation = self.perform_recommendation(learner_vec, forbidden)
+            #learner_vec = self.state.profile.to_skill_vector(self.dataset)
+
+            #forbidden = self.forbidden_courses(
+            #    self.state.get_include(),
+            #    self.state.get_avoid(),
+            #)
+            recommendation = self.perform_recommendation(learner_vec,want_vec, avoid_vec)#, forbidden)
+            
+            jobs_goal = recommendation["jobs_goal"]
+            
+            #print(recommendation['nb_applicable_jobs'])
+            courses = {}                                              # In this there will be all the skill associated to course ids
             skills_learned = {}
             for course_id in recommendation["seq_course_codes"]:
                 print(course_id)
+                courses[course_id] = []
+                names = []
                 for skill in self.courses_acquisitions.get(course_id, []):
+                    print(f"Skills uid {skill}, name {self.uid2canon.get(skill[0], 'Unknown Skill')}")
                     skill_name = self.uid2canon.get(skill[0], "Unknown Skill")
-                    skills_learned[skill_name] = skill[1]
+                    if skill_name in names:
+                        continue
+                    names.append(skill_name)
+                    skill_level = skill[1]
+                    skills_learned[skill_name] = (skill[1], skill[0])           ###### SKILL[0] JUST TO SEE THE UID ASSOCIATED TO IT
+                    courses[course_id].append((skill_name, skill_level))
 
-            print(skills_learned)
+            learned_vec = self.skills_learned_to_tl3_vec(skills_learned, self.skills2int_tl3, self.n_tl3)
+            debug = self.debug_job_skills(jobs_goal, want_vec, avoid_vec, learner_vec, learned_vec)
+            debug["nb_applicable_jobs"] = recommendation["nb_applicable_jobs"]
+            debug["recommended_courses"] = courses
+            print(courses)
+
+            for metric in debug:
+                print(f"{metric}: {debug[metric]}")
+
+            if skills_learned == {}:
+                inc = self.state.get_include()
+                avo = self.state.get_avoid()
+
+                return (
+                    "I couldn't recommend any courses with your current preferences. "
+                    f"You asked to include: {inc}, and avoid: {avo}. "
+                    "With these constraints, every course is excluded (any course that matches your include set also contains at least one avoided skill). "
+                    "Would you like to adjust your preferences (remove/relax an avoid skill, or add/relax an include skill) so I can generate recommendations?"
+                )
 
             reply = self.llm.build_recommendation_context(
-                history=self.history,
+                history=None, #self.history,
                 course_ids=recommendation["seq_course_codes"],
                 skills_learned=skills_learned,
                 include_pairs=self.state.get_include(),
@@ -186,18 +274,39 @@ class ChatHandler:
             Here are your recommended courses: {recommendation['seq_course_codes']} \n \
             Skills you will learn: {skills_learned} \
             "
-
-            return rep + "\n" + reply #f"Here you are: {recommendation}"
+            rep = f"Here are your recommended courses: {recommendation['seq_course_codes']} \n" #\
+                    #Check insights on the window on the right to have further details about this recommendation. \n"
+            
+            insight = f"Please have a look at the insights on the right pane so you have a better understanding of \
+                    the recommendation, and if you are not fine with it try to adjust your profile accordingly and try again."
+            return rep + "\n" + reply + "\n" + insight, debug
+            #return rep + "\n" + "\n" + reply, debug #f"Here you are: {recommendation}"
 
         if msg == ":myskills":
-            return self._show_skills()
+            reply = self._show_skills()
 
+            self.history.append({"role": "user", "content": message})
+            self.history.append({"role": "assistant", "content": reply})
+
+            # Only last N messages
+            self.history[:] = self.history[-self.max_history_messages:]
+
+            return reply
+            
         if msg == ":show":
-            return self._show_prefs()
+            reply = self._show_prefs()
+
+            self.history.append({"role": "user", "content": message})
+            self.history.append({"role": "assistant", "content": reply})
+
+            # Only last N messages
+            self.history[:] = self.history[-self.max_history_messages:]
+            return reply
 
         if msg == ":filter":
-            _, msg_out = self._filter_jobs()
-            return msg_out    
+            filtered_jobs, msg_out = self._filter_jobs()
+            jobs_list = "\n".join(map(str, filtered_jobs.keys()))
+            return f"```\n{jobs_list}\n```\n{msg_out}"
 
         reply = self.llm.chat(
             user_input=message,       
@@ -213,6 +322,147 @@ class ChatHandler:
     # ------------------------------------------------------------------ #
     # Helpers: inspection                                                 #
     # ------------------------------------------------------------------ #
+    def debug_job_skills(
+        self,
+        jobs_goal,        # shape (J, S)
+        want_uids,        # shape (S,)
+        avoid_uids,       # shape (S,)
+        acquired_uids,    # shape (S,)
+        skills_learned,   # shape (S,)
+    ):
+        """
+        Level-aware debug over multiple job goals (TL3-aligned).
+        Counts are computed on UNIQUE TL3 indices across all jobs (no double counting per job).
+        """
+
+        jobs_goal = np.asarray(jobs_goal)
+        want_uids = np.asarray(want_uids)
+        avoid_uids = np.asarray(avoid_uids)
+        acquired_uids = np.asarray(acquired_uids)
+        skills_learned = np.asarray(skills_learned)
+
+        # after levels (0..3)
+        after = np.maximum(acquired_uids, skills_learned).clip(0, 3)
+
+        # --- skill uniche (presenza, ignora livelli) ---
+        jobs_presence = (jobs_goal > 0).any(axis=0)          # (46,) bool
+        learned_presence = (skills_learned > 0)              # (46,) bool
+        want_presence = (want_uids > 0)
+        avoid_presence = (avoid_uids > 0)
+
+        want_in_jobs_goal = int(np.sum(want_presence & jobs_presence))
+        want_in_learned = int(np.sum(want_presence & learned_presence))
+        avoid_in_learned = int(np.sum(avoid_presence & learned_presence))
+
+        # --- livelli coperti (max 3 per skill) ---
+        # richiesto: somma livelli su job, ma ogni skill max 3
+        required_levels = jobs_goal.sum(axis=0).clip(0, 3)   # (46,)
+        covered_levels = np.minimum(required_levels, after)  # (46,)
+
+        levels_required_total = int(required_levels.sum())
+        levels_covered_total = int(covered_levels.sum())
+        levels_missing_total = int((required_levels - covered_levels).sum())
+
+        required_presence = required_levels > 0
+        fully_covered_presence = required_presence & (after >= required_levels)
+
+        skills_required_unique = int(required_presence.sum())
+        skills_fully_covered_unique = int(fully_covered_presence.sum())
+        skills_not_fully_covered_unique = skills_required_unique - skills_fully_covered_unique
+
+        # livelli mancanti per skill
+        levels_missing = (required_levels - covered_levels).clip(0)
+
+        # quante volte la skill compare nei job (presenza, non livelli)
+        job_presence_count = (jobs_goal > 0).sum(axis=0)
+
+        # prendo solo skill davvero mancanti
+        missing_mask = levels_missing > 0
+
+        # ranking: prima quelle più presenti nei job, poi più livelli mancanti
+        ranking = sorted(
+            [
+                {
+                    "skill_idx": int(i),
+                    "skill_name": self.int2skills_tl3[int(i)],
+                    
+                    "levels_required": int(required_levels[i]),
+                    "levels_missing": int(levels_missing[i]),
+                    "job_coverage": int(job_presence_count[i]),
+                }
+                for i in np.where(required_levels)[0] #missing_mask)[0]
+            ],
+            key=lambda x: (-x["job_coverage"], -x["levels_missing"])
+        )
+
+        print("####################################################")
+        #print(ranking)
+        self.print_skill_ranking(ranking, 46)
+        print("####################################################")
+
+        extra_learned_mask = learned_presence & (~jobs_presence)
+        extra_ranking = sorted(
+            [
+                {
+                    "skill_idx": int(i),
+                    "skill_name": self.int2skills_tl3[int(i)],
+                    "learned_level": int(skills_learned[i]),
+                    "job_coverage": int((jobs_goal > 0).sum(axis=0)[i]),  # sarà 0 per definizione
+                }
+                for i in np.where(extra_learned_mask)[0]
+            ],
+            key=lambda x: (-x["learned_level"], x["skill_name"])  # prima livello, poi nome
+        )
+        print("####################################################")
+        self.print_extra_skill_ranking(extra_ranking, 46)
+        print("####################################################")
+
+
+        return {
+            "jobs_count": int(jobs_goal.shape[0]),
+
+            "total_want": sum(want_uids),
+            "want_in_jobs_goal_unique": want_in_jobs_goal,
+            "want_in_learned_unique": want_in_learned,
+
+            "total_avoid": sum(avoid_uids),
+            "avoid_in_learned_unique": avoid_in_learned,
+
+            "levels_required_total": levels_required_total,
+            "levels_covered_total": levels_covered_total,
+            "levels_missing_total": levels_missing_total,
+
+            "skills_required_unique": skills_required_unique,
+            "skills_fully_covered_unique": skills_fully_covered_unique,
+            "skills_not_fully_covered_unique": skills_not_fully_covered_unique,
+
+            "ranking": ranking,
+            "extra_ranking": extra_ranking,
+        }
+    
+    def print_skill_ranking(self, ranking, top_k=10):
+        print("\n=== Skill mancanti (priorità) ===")
+        for r in ranking[:top_k]:
+            print(
+                f"- {r['skill_name']} | "
+                f"jobs:{r['job_coverage']} | "
+                f"req_lv:{r['levels_required']} | "
+                f"missing_lv:{r['levels_missing']}"
+            )
+
+    def print_extra_skill_ranking(self, ranking, top_k=10):
+        print("\n=== Skill mancanti (priorità) ===")
+        for r in ranking[:top_k]:
+            print(
+                f"- {r['skill_name']} | "
+                f"jobs:{r['job_coverage']} | "
+                f"learned_lv:{r['learned_level']}"
+            )
+
+
+
+
+
 
     def _show_skills(self) -> str:
         '''
@@ -220,10 +470,12 @@ class ChatHandler:
         '''
         if not self.state.profile or not self.state.profile.skills_explicit:
             return "No skills in profile yet. Use 'load resume' first."
+        
+        acq_skills = self.state.get_acquired()
 
         lines = [
-            f"- Skill {uid}: level {level}, name '{self.uid2canon[int(uid)]}'"
-            for uid, level in self.state.profile.skills_explicit.items()
+            f"- Skill {uid}: level {level}, name '{name}'"
+            for name, uid, level in acq_skills
         ]
         return "Your current skills:\n" + "\n".join(lines)
 
@@ -242,6 +494,8 @@ class ChatHandler:
     def perform_recommendation(
         self,
         learner_vec: np.ndarray,
+        want_vec: np.ndarray,
+        avoid_vec: np.ndarray,
         forbidden_courses: Optional[List[int]] = None,
     ) -> List[int]:
         '''
@@ -254,7 +508,7 @@ class ChatHandler:
         '''
         if self.k_changed:
             self._ensure_reinforce()
-        return self.reinforce.recommend(learner_vec, forbidden_courses)
+        return self.reinforce.recommend(learner_vec,want=want_vec, avoid=avoid_vec, forbidden=None)
 
     def _ensure_reinforce(self) -> None:
         '''
@@ -267,15 +521,11 @@ class ChatHandler:
             model="ppo_mask",
             k=k,
             threshold=self.dataset.config.get("threshold", 0.8),
-            run=0,
             save_name=f"chat_k{k}",
             total_steps=0,
             eval_freq=100,
-            feature="Weighted-Usefulness-as-Rwd",
-            baseline=False,
+            feature="UIR",
             method=1,
-            beta1=0.1,
-            beta2=0.9,
             params=None,
         )
         self.k_changed = False  # reset change flag
@@ -325,7 +575,7 @@ class ChatHandler:
         
         :return: (filtered_jobs, message)
         '''
-        include_ids = {uid for (_canon, uid) in self.state.get_include()}
+        '''include_ids = {uid for (_canon, uid) in self.state.get_include()}
         avoid_ids = {uid for (_canon, uid) in self.state.get_avoid()}
 
         filtered = filter_jobs_by_skills(
@@ -334,8 +584,23 @@ class ChatHandler:
             avoid_skill_ids=avoid_ids,
             level_map=self.levels,
             min_level_num=1,
+        )'''
+        include_pairs = self.state.get_include()  # Set[Tuple[canon, uid_str]]
+        avoid_pairs = self.state.get_avoid()      # Set[Tuple[canon, uid_str]]
+
+        want, avoid = self.build_tl3_preference_vectors(
+            include_pairs=include_pairs,
+            avoid_pairs=avoid_pairs,
+            conflict_policy="include_wins",
         )
 
+        filtered = filter_jobs_goal_conditioned_tl3(
+            jobs_dict=self.jobs,
+            want=want,
+            avoid=avoid,
+            skills2int_tl3=self.skills2int_tl3,
+            level_map=self.levels,
+        )
         return filtered, f"{len(filtered)} jobs match your current filters."
 
     # ------------------------------------------------------------------ #
@@ -379,7 +644,7 @@ class ChatHandler:
 
         for phrase, intent in candidate_spans:
             print(f"phrase: {phrase}")
-            matches = self.searcher.search_reranked(phrase)
+            matches = self.searcher.search_reranked(phrase, min_ce=0.6)
 
             for uid_int, similarity in matches:
                 uid = str(uid_int)
@@ -469,3 +734,81 @@ class ChatHandler:
                 avoid_ids.add(str(uid_int))
 
         return include_ids - avoid_ids, avoid_ids
+
+
+
+    # ------------------------------------------------------------------ #
+    # TL3 mapping for compatibility                                      #
+    # ------------------------------------------------------------------ #
+    def build_tl3_preference_vectors(
+        self,
+        include_pairs: Set[Tuple[str, str]],
+        avoid_pairs: Set[Tuple[str, str]],
+        *,
+        conflict_policy: str = "include_wins",
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Convert TL4 include/avoid (uid as str) -> TL3 one-hot vectors (len = self.n_tl3).
+        Uses mapping built to match RL training: self.skills2int_tl3[tl4_uid] = tl3_index.
+        """
+        want = np.zeros(self.n_tl3, dtype=np.float32)
+        avoid = np.zeros(self.n_tl3, dtype=np.float32)
+
+        def _uid_to_tl3_idx(uid: str):
+            try:
+                return self.skills2int_tl3.get(int(uid))
+            except Exception:
+                return None
+
+        for _name, uid in include_pairs:
+            idx = _uid_to_tl3_idx(uid)
+            if idx is not None:
+                want[idx] = 1.0
+
+        for _name, uid in avoid_pairs:
+            idx = _uid_to_tl3_idx(uid)
+            if idx is not None:
+                avoid[idx] = 1.0
+
+        # resolve conflicts
+        conflict = (want > 0) & (avoid > 0)
+        if np.any(conflict):
+            if conflict_policy == "include_wins":
+                avoid[conflict] = 0.0
+            elif conflict_policy == "avoid_wins":
+                want[conflict] = 0.0
+            elif conflict_policy == "zero_both":
+                want[conflict] = 0.0
+                avoid[conflict] = 0.0
+
+        return want, avoid
+    
+
+    def skills_learned_to_tl3_vec(self, skills_learned, skills2int_tl3, n_tl3, replace_unk=2):
+        """
+        Convert skills_learned {name: (level_str, tl4_uid)} -> TL3 vector with mastery levels (0..3),
+        using the same logic as Dataset.get_avg_skills(): map strings -> int, replace unknown (-1),
+        average duplicates, round.
+        """
+        buckets = defaultdict(list)  # tl3_idx -> [levels...]
+
+        for (lvl_str, tl4_uid) in skills_learned.values():
+
+            if not (isinstance(lvl_str, str) and lvl_str in self.levels):
+                continue
+
+            lvl = self.levels[lvl_str]
+            if lvl == -1:
+                lvl = replace_unk
+
+            idx = skills2int_tl3.get(int(tl4_uid))
+            if idx is not None:
+                buckets[idx].append(int(lvl))
+
+        vec = np.zeros(n_tl3, dtype=int)
+        for idx, lvls in buckets.items():
+            vec[idx] = int(round(sum(lvls) / len(lvls)))
+
+        print(vec)
+
+        return vec

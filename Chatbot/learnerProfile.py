@@ -1,5 +1,6 @@
 # Chatbot/learnerProfile.py
 
+from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Dict, Set, Tuple, Optional
 
@@ -87,5 +88,58 @@ class UserProfile:
             if uid_int in dataset.skills2int:
                 idx = dataset.skills2int[uid_int]
                 vec[idx] = int(level)
+
+        return vec
+    
+    def to_tl3_skill_vector(
+        self,
+        skills2int_tl3: dict[int, int],
+        n_tl3: int,
+        min_conf: float = 0.5,
+    ) -> np.ndarray:
+        """
+        Build a TL3 learner vector (len = n_tl3) from TL4 skills in the profile,
+        using the same aggregation policy as RL training: average + round.
+
+        Args:
+            skills2int_tl3: mapping TL4 unique_id (int) -> TL3 index (0..n_tl3-1)
+            n_tl3: number of TL3 categories (should be 46)
+            min_conf: kept for interface consistency (inferred skills currently disabled)
+
+        Returns:
+            np.ndarray shape (n_tl3,), dtype=int32
+        """
+        vec = np.zeros(n_tl3, dtype=np.int32)
+
+        eff = self.effective_skills(min_conf=min_conf)
+        if not eff:
+            return vec
+
+        tl3_levels = defaultdict(list)
+
+        for uid, level in eff.items():
+            try:
+                uid_int = int(uid)
+                mastery = int(level)
+            except (TypeError, ValueError):
+                continue
+
+            if mastery <= 0:
+                continue
+
+            tl3_idx = skills2int_tl3.get(uid_int)
+            if tl3_idx is None:
+                continue
+
+            # clamp to [0,3] (defensive)
+            if mastery < 0:
+                mastery = 0
+            elif mastery > 3:
+                mastery = 3
+
+            tl3_levels[tl3_idx].append(mastery)
+
+        for tl3_idx, levels in tl3_levels.items():
+            vec[tl3_idx] = int(round(sum(levels) / len(levels)))
 
         return vec

@@ -1,8 +1,9 @@
 import random
 import re
-from typing import List, Dict, Set
+from typing import List, Dict, Set, Any
 
 import pandas as pd
+import numpy as np
 
 from .state import PrefState  # used in type hints
 
@@ -133,6 +134,69 @@ def filter_jobs_by_skills(
         kept[job_id] = pairs
 
     return kept
+
+
+def filter_jobs_goal_conditioned_tl3(
+    jobs_dict: Dict[str, list],
+    want: np.ndarray,                 # shape: (n_tl3,), values in {0,1}
+    avoid: np.ndarray,                # shape: (n_tl3,), values in {0,1}
+    skills2int_tl3: Dict[int, int],   # TL4 uid -> TL3 index
+    level_map: Dict[Any, int],
+) -> Dict[str, list]:
+    """
+    Filter TL4 jobs using the same W1-hard goal-job logic as the RL environment (TL3 space).
+
+    A TL3 skill is considered "required" by a job if the job contains at least one TL4 skill
+    that maps to that TL3 and has a numeric level > 0.
+
+    Rules (W1-hard):
+      - WANT: keep jobs that require at least one wanted TL3 skill (if WANT is empty, do not filter by WANT)
+      - AVOID: exclude jobs that require any avoided TL3 skill
+      - Fallback: if empty, relax AVOID; if still empty, keep all jobs
+    """
+    norm_level_map = {str(k).lower().strip(): int(v) for k, v in level_map.items()}
+
+    want_idx = set(np.nonzero(want)[0])
+    avoid_idx = set(np.nonzero(avoid)[0])
+
+    job_ids = list(jobs_dict.keys())
+    req3_by_job: Dict[str, set[int]] = {}
+
+    for jid, pairs in jobs_dict.items():
+        req3 = set()
+        for sid, lvl in pairs:
+            lvl_num = norm_level_map.get(str(lvl).lower().strip(), -1)
+            if lvl_num <= 0:
+                lvl_num = 3
+
+            tl3 = skills2int_tl3.get(int(sid))
+            if tl3 is not None:
+                req3.add(int(tl3))
+
+        req3_by_job[jid] = req3
+
+    # WANT condition
+    if not want_idx:
+        has_want = {jid: True for jid in job_ids}
+    else:
+        has_want = {jid: bool(req3_by_job[jid] & want_idx) for jid in job_ids}
+
+    # AVOID condition
+    if not avoid_idx:
+        has_avoid = {jid: False for jid in job_ids}
+    else:
+        has_avoid = {jid: bool(req3_by_job[jid] & avoid_idx) for jid in job_ids}
+
+    kept_ids = [jid for jid in job_ids if has_want[jid] and not has_avoid[jid]]
+
+    # Defensive fallback (match RL environment behavior)
+    if not kept_ids:
+        kept_ids = [jid for jid in job_ids if has_want[jid]]
+        if not kept_ids:
+            kept_ids = job_ids[:]
+
+    return {jid: jobs_dict[jid] for jid in kept_ids}
+
 
 
 def _tok(text: str) -> List[str]:

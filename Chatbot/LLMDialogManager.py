@@ -30,13 +30,17 @@ Interaction rules:
 - When you explain recommendations, refer explicitly to:
   - the user's goals and preferences
   - the skills covered by the courses
-  - how the course sequence helps fill gaps or reach target roles.
+  - how the course sequence helps fill gaps or reach target roles but only if recommendation are really useful in filling gaps or reaching target roles.
 
 Context you may receive:
 - A textual summary of the user's profile and preferences (skills, goals, constraints).
 - A description of course sequences recommended by the RL agent, possibly with scores or skill coverage.
 Use the provided context to ground your answers about the user profile and the recommended courses.
 Do NOT invent specific details about the course catalog or the user's history that are not in the context.
+DO NOT invent courses existance.
+Do NOT suggest courses, NEVER.
+Do NOT invent skills that are not given to you from the taxonomy in the context.
+
 You may use your general knowledge for generic explanations about skills, technologies, and job roles.
 """.strip()
 
@@ -235,7 +239,7 @@ class LLMDialogManager:
             inputs,
             generation_config=gen_config,
             attention_mask=torch.ones_like(inputs),
-            eos_token_id=self.terminators,
+            eos_token_id=self.tokenizer.eos_token_id, #self.terminators,
             pad_token_id=self.tokenizer.eos_token_id,
         )
 
@@ -291,7 +295,12 @@ class LLMDialogManager:
             "preferences have just been added or updated in their profile," \
             "based on the original text they provided, " \
             "and what this means for future course recommendations." \
-            "Do not explain how the system has updated the skill preferences."
+            "Explain ONLY the skills listed in the context (Include/Avoid/Acquired). "
+            "Do NOT infer new skills from the user's message. "
+            "If all lists are empty/None, say you couldn't detect specific skills and ask the user to name concrete skills/tools."
+
+            #"Do not explain how the system has updated the skill preferences."
+            #"Do not invent courses, if no skill are detected tell him that."
         )
 
         return self.chat(
@@ -300,7 +309,7 @@ class LLMDialogManager:
             system_prompt=None,
             extra_context=extra_context,
             max_new_tokens=200,
-            temperature=0.2,
+            temperature=0.0,
         )
     
     def build_recommendation_context(
@@ -383,10 +392,10 @@ class LLMDialogManager:
         )
 
         user_input_for_llm = (
-                "Explain to the user why this sequence of courses is appropriate for them, "
-                "based on their preferences and the skills covered by the courses. "
+                "Explain to the user why this sequence of courses (naming courses with their Ids) is appropriate for them, "
+                "focus on the skills covered by the courses that better align with their skill preferences. "
                 "When the level is Unknown, assume a beginner level. "
-                "Answer in at most 3 short sentences."
+                "Answer in at most 4 sentences."
             )
         
         reply = self.chat(
@@ -516,3 +525,238 @@ class LLMDialogManager:
             data = []
 
         return data
+
+
+    def detect_skill_presence(self, text: str) -> bool:
+        system_prompt = """
+        You are a classifier.
+        Your task is to decide whether the user's message contains
+        explicit mentions of concrete professional skills, tools, technologies,
+        or competencies that could reasonably be added to a skill profile,
+        whether they are preferences to include or preference to avoid. 
+        Every time the user make some question the answer should be: NO.
+        All the times the user make an explicit prhase regarding preferences answer: YES.
+
+        Accept also sentences like:
+
+        I know computer vision,
+        I am proficient in forensic analysis
+
+        Answer ONLY with one word:
+        YES or NO
+        """
+        #Answer YES only if the message clearly mentions specific skills
+        #(e.g. Python, SQL, Kubernetes, project management, data analysis).
+        #Answer NO for generic, conversational, vague, or meta messages.
+        #""".strip()
+
+        user_input = f"Message:\n{text}"
+
+        reply = self.chat(
+            user_input=user_input,
+            system_prompt=system_prompt,
+            history=None,
+            extra_context=None,
+            max_new_tokens=1,
+            temperature=0.0,
+        )
+        print(reply)
+        return not reply.strip().upper().startswith("NO")
+        #return reply.strip().upper().startswith("Y")
+
+
+
+
+
+
+    def infer_mastery_levels(
+        self,
+        user_text: str,
+        acquired_uids: Set[str],
+        uid2canon: Dict[int, str],
+        max_new_tokens: int = 64,
+    ) -> Dict[str, int]:
+        """
+        Infer mastery levels (1..3) for a set of acquired skill UIDs from a single user utterance.
+        Returns a dict uid_str -> level_int. Missing UIDs default to 1 upstream.
+        Output format is constrained to lines 'UID=LEVEL' to keep parsing cheap.
+        """
+        if not acquired_uids:
+            return {}
+
+        # Build a compact skill list for the model (names help disambiguate)
+        items = []
+        for uid in sorted(acquired_uids, key=lambda x: int(x)):
+            name = uid2canon.get(int(uid), "")
+            items.append(f"{uid}\t{name}")
+        skills_block = "\n".join(items)
+
+        system_prompt = """
+    You are a strict information extraction module.
+    Given a user message and a list of skills (UID + name), infer the user's mastery level for EACH listed skill.
+
+    Levels:
+    1 = beginner / basic / learning / limited exposure
+    2 = intermediate / can work independently
+    3 = advanced / expert / can lead or mentor
+
+    Rules:
+    - Use ONLY the user message as evidence. Do not assume extra experience.
+    - If the user provides no clear evidence for a skill, output level 1.
+    - Output ONLY lines in the exact format: UID=LEVEL
+    - One line per UID, no extra text, no bullet points, no explanations.
+    """.strip()
+
+        user_input = (
+            "User message:\n"
+            f"{user_text}\n\n"
+            "Skills to rate (UID<TAB>Name):\n"
+            f"{skills_block}\n\n"
+            "Return the levels now."
+        )
+
+        raw = self.chat(
+            user_input=user_input,
+            history=None,
+            system_prompt=system_prompt,
+            extra_context=None,
+            max_new_tokens=max_new_tokens,
+            temperature=0.0,
+        )
+
+        # Parse UID=LEVEL lines
+        out: Dict[str, int] = {}
+        for line in raw.splitlines():
+            line = line.strip()
+            if not line or "=" not in line:
+                continue
+            uid, lvl = line.split("=", 1)
+            uid = uid.strip()
+            lvl = lvl.strip()
+            if uid in acquired_uids and lvl in {"1", "2", "3"}:
+                out[uid] = int(lvl)
+
+        return out
+    
+    def extract_structured_preferences(self, text: str, history: Optional[List[ChatMessage]] = None) -> Dict[str, List[str]]:
+        '''
+        Docstring for extract_structured_preferences
+        
+        :param text: user text
+        :type text: str
+        :return: A dictionary containing the extracted structured preferences
+        :rtype: Dict[str, List[str]]
+        '''
+        system_prompt = """
+            You are a JSON extraction engine. You MUST output ONLY valid JSON and NOTHING ELSE.
+
+            STRICT OUTPUT RULES
+            - Output must be exactly ONE JSON object.
+            - No other words or text or notes besides the JSON.
+            - Do not output any explanation, note, apology, or hypothetical example.
+            - Do not use markdown code fences.
+            - The first non-whitespace character MUST be "{" and the last MUST be "}".
+            - If nothing can be extracted, output an empty object with the same schema (empty arrays).
+
+            SCHEMA (must match exactly; no extra keys):
+            {
+            "acquired": [{"text": "string", "evidence": "string"}],
+            "include":  [{"text": "string", "evidence": "string"}],
+            "avoid":    [{"text": "string", "evidence": "string"}],
+            "target_roles": [{"text": "string", "evidence": "string"}]
+            }
+
+            DEFINITIONS
+            - acquired: skills/tools/competencies the user explicitly claims to have.
+            - include: skills/tools/competencies the user explicitly wants to add/learn.
+            - avoid: skills/tools/competencies the user explicitly wants to avoid.
+            - target_roles: job roles the user explicitly says they want to become.
+
+            EVIDENCE RULE
+            - "evidence" MUST be an exact substring copied from the user's message.
+
+            FALSE POSITIVE CONTROL
+            - Do NOT extract generic terms like "job", "market", "background", "computer science" unless the user explicitly states them as a skill to add/avoid/have/want.
+            - If the user asks a question or requests an explanation (e.g., "Is ABAP useful?"), do NOT add include/acquired/avoid/target_roles unless they explicitly say they want to add/avoid/have/want something.
+            - Do NOT invent anything that the user did not say.
+
+            EXAMPLES
+
+            User: "I've seen ABAP in the catalog. Is it useful?"
+            Output:
+            {"acquired":[],"include":[],"avoid":[],"target_roles":[]}
+
+            User: "Ok,then add it to my preferences."
+            Output:
+            {"acquired":[],"include":[{"text":"ABAP","evidence":"add ABAP to my preferences"}],"avoid":[],"target_roles":[]}
+            """
+        
+        user_input = f"Message:\n{text}"
+        reply = self.chat(
+            user_input=user_input,
+            system_prompt=system_prompt,
+            history=history,
+            extra_context=None,
+            max_new_tokens=500,
+            temperature=0.0,
+        )
+        reply = reply.strip()
+
+        start = reply.find("{")
+        end = reply.rfind("}")
+
+        if start != -1 and end != -1:
+            reply = reply[start:end+1]
+        #parsed = self.safe_json_extract(reply)
+        return json.loads(reply)
+    
+
+    def safe_json_extract(self, raw_text: str, fallback: dict | None = None) -> dict:       #THIS SHOULD GO TO UTILS NOT HERE
+        """
+        Extract the first valid JSON object from a model reply.
+        Robust against:
+        - extra text before/after JSON
+        - single quotes instead of double quotes
+        - trailing commas
+        - model explanations
+        """
+
+        if fallback is None:
+            fallback = {
+                "acquired": [],
+                "include": [],
+                "avoid": [],
+                "target_roles": []
+            }
+
+        if not raw_text:
+            return fallback
+
+        # 1️⃣ Extract first {...} block
+        match = re.search(r"\{.*\}", raw_text, re.DOTALL)
+        if not match:
+            return fallback
+
+        candidate = match.group(0).strip()
+
+        # 2️⃣ Normalize common model mistakes
+
+        # Replace single quotes with double quotes
+        candidate = candidate.replace("'", '"')
+
+        # Remove trailing commas
+        candidate = re.sub(r",\s*}", "}", candidate)
+        candidate = re.sub(r",\s*]", "]", candidate)
+
+        # 3️⃣ Try loading
+        try:
+            parsed = json.loads(candidate)
+
+            # Ensure schema keys exist
+            for key in fallback:
+                parsed.setdefault(key, [])
+
+            return parsed
+
+        except json.JSONDecodeError:
+            return fallback

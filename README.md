@@ -120,7 +120,7 @@ The Streamlit GUI is the **main entry point** for the project demo.
 From the project root directory (`rl_recommender_course`):
 
 ```bash
-streamlit run Chatbot/GUI.py
+streamlit run Chatbot/NEW_GUI.py
 ```
 
 Demo Capabilities
