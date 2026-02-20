@@ -1,104 +1,52 @@
-# Course Recommendation System - Development Guide (Usefulness-based Approach)
+# A Usefulness of Information Approach to Goal-Directed Course Recommendation
 
-This document provides detailed information for developers working on the course recommendation system with usefulness-based reward functions and weight optimization.
+This repository implements an advanced **Reinforcement Learning (RL)** framework for sequential course recommendation. Moving beyond simple employability metrics, the system optimizes learning pathways based on the **Usefulness of Information (UIR)**, aligning recommendations with specific learner goals, job market demands, and personal learning preferences.
 
+## 🌟 Key Innovations
+* **Information Usefulness Reward (UIR):** A novel reward function based on Cholvy et al.’s framework, measuring knowledge gap reduction rather than just job counts.
+* **Action Masking (MaskablePPO):** Eliminates structurally invalid actions (courses with unmet prerequisites), leading to **10x faster convergence**.
+* **Mastery-Aware Modeling:** Explicitly handles skill progression across discrete levels (*Beginner, Intermediate, Advanced*) using the **ESCO** taxonomy.
+* **Preference-Driven Guidance:** Integrates user-defined interests directly into the reinforcement learning signal.
 
-## Usefulness-based Approach
+---
 
-The system uses information usefulness as the primary metric for course recommendations, focusing on maximizing the utility of learning outcomes rather than just job applicability.
+## 🧠 Methodology: Usefulness of Information (UIR)
 
+The system evaluates the informational value of a course using three core dimensions:
+1.  **Knowledge Gap Reduction ($N_r$):** Measures how many missing skills required by goals are covered.
+2.  **Residual Informational Needs ($N_m$):** Measures the skills still missing after the course.
+3.  **Useless Content ($N_{nr}$):** Quantifies redundant or irrelevant information provided by the course.
 
-### Reward Functions
-The system implements two main reward function types:
+### Reward Variants
+The framework supports multiple reward formulations:
+* **UIR-Threshold-Based:** A strict interpretation where a skill is "acquired" only when the mastery level fully meets the job requirement.
+* **UIR-Gap-Based:** A continuous approach that rewards incremental progress (reducing the distance between current and target mastery).
+* **EUIR (Hybrid):** Combines informational usefulness ($U$) with a normalized employability signal ($E$) for maximum stability at longer horizons.
 
-1. **Usefulness-as-Rwd**:
-   - Direct information utility as reward signal
-   - Focuses purely on learning value
-   - Simple and interpretable
+---
 
-2. **Weighted-Usefulness-as-Rwd**:
-   - Combines job applicability (beta1) and utility (beta2)
-   - Balanced approach between career goals and learning
-   - Requires weight optimization
+## 🎭 User Preferences Integration
 
-### Weight Optimization Process
-1. **Grid Search**:
-   - Test different beta1/beta2 combinations
-   - Evaluate performance across multiple k values
-   - Find optimal weight balance
+The system incorporates personal learning objectives through a dual-vector preference model. For each skill in the taxonomy, the user profile includes two binary vectors of dimension $N$ (where $N$ is the total number of skills):
 
-2. **Evaluation**:
-   - Train models with different weights
-   - Measure average applicable jobs
-   - Compare performance metrics
+* **Want Vector ($V_{want}$):** A binary vector where $1$ indicates a skill the user is specifically interested in acquiring.
+* **Avoid Vector ($V_{avoid}$):** A binary vector where $1$ indicates a skill the user wishes to exclude or deprioritize.
 
-3. **Visualization**:
-   - Generate heatmaps of weight combinations
-   - Plot optimization results
-   - Save best weights for pipeline use
+These vectors act as a **shaping signal** during the RL training process. The reward is adjusted to favor courses providing "wanted" skills while penalizing those containing "avoid" skills, ensuring the recommended sequence is not only effective for the market but also aligned with the learner's personal journey.
 
-## Configuration Guide
+---
 
-The system is configured through `config/run.yaml` with the following parameters:
+## 🛠️ Technical Architecture
 
-### Model Configuration
-```yaml
-model: "dqn"  # or "ppo", "a2c"
-total_steps: 500000
-eval_freq: 1000
-```
+### Core Components
+* **Agent:** Proximal Policy Optimization (**PPO**) with invalid action masking via `MaskablePPO`.
+* **Environment:** A custom Gymnasium-based environment representing learners, courses, and job requirements.
+* **Taxonomy:** Skills are mapped to the **ESCO** (European Skills, Competences, Qualifications and Occupations) standard.
 
-### Environment Configuration
-```yaml
-threshold: 0.8  # Matching threshold
-k: 2  # Number of recommendations
-baseline: false  # Baseline model
-feature: "Weighted-Usefulness-as-Rwd"  # or "Usefulness-as-Rwd"
-```
-
-### Weight Configuration
-```yaml
-model_weights:
-  dqn:
-    beta1: 0.1  # Weight for job applications
-    beta2: 0.9  # Weight for utility
-  ppo:
-    beta1: 0.1  # Weight for job applications
-    beta2: 0.9  # Weight for utility
-```
-
-## Results Management
-
-### Directory Structure
-```
-UIR/
-├── results/             # Training results and logs
-├── weight/              # Weight optimization results
-└── Scripts/             # Core system files
-```
-
-
-## Weight Optimization Workflow
-
-1. **Run Weight Optimization**:
-   ```bash
-   python Scripts/weight_optimization.py
-   ```
-
-2. **Review Results**:
-   - Check `weight/weight_optimization_results.png`
-   - Note best beta1/beta2 values
-   - Analyze performance patterns
-
-3. **Update Configuration**:
-   - Add optimal weights to `config/run.yaml`
-   - Set appropriate feature type
-   - Configure model parameters
-
-4. **Run Main Pipeline**:
-   ```bash
-   python Scripts/pipeline.py --config config/run.yaml
-   ```
-
-
-
+### Project Structure
+```text
+UIR-Recommendation/
+├── Scripts/            # Core RL logic and MaskablePPO implementation
+├── config/             # YAML configurations for rewards, horizons, and preference vectors
+├── results/            # Training logs and performance heatmaps
+└── README.md

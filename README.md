@@ -175,15 +175,15 @@ method used in this project.
 ### Key Characteristics
 
 - **Algorithm**: PPO / MaskablePPO  
-- **State**: learner skill vector  
+- **State**: learner skill vector and preferences  
 - **Action space**: available courses  
-- **Reward**: usefulness-based (skill acquisition and job applicability)
+- **Reward**: usefulness-based (skill acquisition and job Employability)
 
 Pretrained models are not included in the repository since they are too large.
 
 
 
-## Training a Reinforcement Learning Model (Optional)
+## Training a Reinforcement Learning Model
 
 Training a new reinforcement learning model is **required** to run the demo.
 
@@ -259,11 +259,6 @@ To decide which model to use, you must change run.yaml.
 - Detailed methodological explanations are provided in the associated publication.
 
 
-## Acknowledgements
-
-This project extends and builds upon the **JCRec** framework by Jibril Frej:
-
-https://github.com/Jibril-Frej/JCRec
 
 
 ## Acknowledgments
