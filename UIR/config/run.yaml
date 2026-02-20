@@ -1,69 +1,53 @@
-# File: run.yaml
-# Description: Configuration file for the course recommendation system
-# Purpose: Compare different approaches for course recommendation with mastery levels and clustering
-
 # Data Paths
-taxonomy_path: Data - Collection/Final/taxonomy.csv      # Path to skill taxonomy data
-course_path: Data - Collection/Final/courses.json        # Path to course data
+taxonomy_path: Data - Collection/Final/taxonomy.csv     # Path to skill taxonomy data
+course_path: Data - Collection/Final/courses.json       # Path to course data
 cv_path: Data - Collection/Final/resumes.json           # Path to learner profiles
 job_path: Data - Collection/Final/jobs.json             # Path to job listings
 mastery_levels_path: Data - Collection/Final/mastery_levels.json  # Path to skill mastery levels
-results_path: UIR/results/results_k                              # Directory for storing results_k2
-name_exp: Norm_WUIR_strict-mastery                    # Branch name for organizing results
-pretrained_model_path: UIR/models_weights/WUIR-deficit-based_k2  # Path to pretrained model (if any)
-use_pretrained: false                                 # Whether to use a pretrained model
-save_model: false                                     # Whether to save the trained model
+results_path: UIR/results/preferences_v2_k                              # Directory for storing results_k2
+name_exp: UIR-gap-based                               # Branch name for organizing results
+pretrained_model_path: UIR/models_weights/preferences/UIR-gap-based_AVOID  # Path to pretrained model (if any)
+use_pretrained: false                                 # Whether to use a pretrained model from pretrained_model_path
+save_model: false                                     # Whether to save the trained model in results_path/name_exp
+save_dir: UIR/models_weights/preferences_v2
 
 # Data Processing Parameters
 level_3: true                                          # Use third level of taxonomy (true) or fourth level (false)
-                                                       # True: fewer, more general skills
-                                                       # False: more specific skills
+                                                       # True: fewer, more general skills (46 total skills)
+                                                       # False: more specific skills (~3000 total skills)
 
 # Dataset Size Parameters
-nb_courses: 100 #100                                        # Number of courses to include in the dataset
+nb_courses: 100                                        # Number of courses to include in the dataset
 nb_cvs: -1                                             # Number of learner profiles to use (-1 for all)
 max_cv_skills: 15                                      # Maximum number of skills per learner profile
 nb_jobs: 100                                           # Number of jobs to include in the dataset
 set_dataset_seed: true
-dataset_seed: 42
+dataset_seed: 42                                       # Set this seed in order not to have a variable dataset
 
 # Model Parameters
 threshold: 0.8                                         # Minimum matching threshold for job eligibility
-k: 5                                                 # Number of course recommendations to generate
-model: ppo_mask # dqn                                          # Reinforcement learning algorithm (DQN, PPO, A2C)
-total_steps: 500000 #500000                                   # Total training steps
-eval_freq: 2000 # 1000                                       # Evaluation frequency during training
-nb_runs: 1                                            # Number of independent runs
-seed: 50                                              # Random seed for reproducibility
+k: 2                                                   # Number of course recommendations to generate
+model: ppo_mask                                        # Reinforcement learning algorithm (dqn, ppo, a2c, ppo_mask) only ppo and ppo_mask are implemented well
+total_steps: 500000                                    # Total training steps
+eval_freq: 2000                                        # Evaluation frequency during training
+seed: 42                                               # Random seed for reproducibility of experiments
 
 # Model Configuration
-baseline: false                                         # Model type:
-use_standard: false                                     # true: Baseline model (skip-expertise only)
-                                                       # false: Enhanced model with mastery levels and clustering
-feature: "Weighted-Usefulness-as-Rwd"                         # Feature type for non-baseline model
-#options: "Usefulness-as-Rwd" or "Weighted-Usefulness-as-Rwd"
+use_preference: true                                   # set to true if you want to use environment with preferences, false otherwise
 
-method: 0                                              # When baseline=False whether to use strict-mastery or deficit based (0,1 respectively)
 
-# Purpose
-# This configuration is designed to compare different approaches:
-# 1. Baseline model: Skip-expertise-only approach (no mastery levels)
-# 2. Enhanced model: Mastery levels with clustering and Usefulness as reward
-# 3. Advanced model: Weighted combination of job applicability and skill development
+feature: "UIR"                               # feature to use as reward
+#options: "Employability" or "UIR" or "EUIR"         
 
-# Model Hyperparameters for feature "Weighted-Usefulness-as-Rwd"
-model_weights:
-  dqn:
-    beta1: 0.1                                        # Weight for job applications in reward calculation
-    beta2: 0.9                                        # Weight for utility in reward calculation
-  ppo:
-    beta1: 0.1                                        # Weight for job applications in reward calculation
-    beta2: 0.9                                        # Weight for utility in reward calculation
-  ppo_mask:
-    "beta1": 1.0
-    "beta2": 1.0
+method: 1                                              # used only when feature in {"UIR","EUIR"} (0=threshold, 1=gap)
 
-hypers: {
+
+# Model Hyperparameters
+
+use_standard: false                                    # true: use library standard hyperparameters
+                                                       # false: use ```hypers``` below
+
+hypers: {                                             # Standard hyperparameters used to train all models(not best)
   "device": "cuda",
   "n_steps": 256,
   "batch_size": 128,
@@ -76,6 +60,6 @@ hypers: {
   "lr_initial": 1e-3,
   "lr_final": 1e-4,
   "warmup_frac": 0,
-  "start_at": 0.70,
+  "start_at": 0.70,                                   # Cosine lr decay starts from (percentage of start), goes from lr_initial to lr_final 
   "target_kl": 0.02
 }

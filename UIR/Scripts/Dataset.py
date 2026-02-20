@@ -367,7 +367,7 @@ class Dataset:
                 nb_applicable_jobs += 1
         return nb_applicable_jobs'''
 
-    def get_avg_applicable_jobs(self, threshold):
+    def get_avg_applicable_jobs(self, threshold, jobs = None):
         """Get the average number of applicable jobs for all the learners
 
         Args:
@@ -376,9 +376,11 @@ class Dataset:
         Returns:
             float: the average number of applicable jobs
         """
+        if jobs is None:
+            jobs = self.jobs
         avg_applicable_jobs = 0
         for learner in self.learners:
-            avg_applicable_jobs += self.get_nb_applicable_jobs(learner, threshold, self.jobs)
+            avg_applicable_jobs += self.get_nb_applicable_jobs(learner, threshold, jobs=jobs)
         avg_applicable_jobs /= len(self.learners)
         return avg_applicable_jobs
 

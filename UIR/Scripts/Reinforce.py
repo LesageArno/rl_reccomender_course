@@ -1,10 +1,7 @@
 import os
-import json
 import math
-from time import process_time
-
-import numpy as np
 import torch
+
 from stable_baselines3 import DQN, A2C, PPO
 from sb3_contrib.common.wrappers import ActionMasker
 from sb3_contrib import MaskablePPO
@@ -17,85 +14,67 @@ class Reinforce:
 
     This class implements a reinforcement learning approach for course recommendations
     using various RL algorithms from stable-baselines3. The system can operate in two modes:
-      1) Baseline: uses number of applicable jobs as reward
-      2) Skip-expertise (utility-based): considers both skill acquisition and job applicability
+      1) Employability (baseline): uses number of applicable jobs as reward
+      2) UIR (utility-based): consider Usefulness of information as reward 
 
     The goal is to train an RL agent that recommends courses to maximize learners' job opportunities.
 
     Attributes:
         dataset: Dataset object containing learners, jobs, and courses
+        config: Configuration dictionary for the recommendation system
         model_name (str): RL algorithm ('dqn', 'a2c', 'ppo', or 'ppo_mask')
         k (int): Max number of course recommendations per learner
         threshold (float): Min matching score required for job applicability
-        run (int): Run identifier for experiment tracking
         save_name (str): Base name used when saving results
         total_steps (int): Total number of training steps
         eval_freq (int): Frequency of evaluation during training
         feature (str): Feature type for reward calculation
-        baseline (bool): Whether to use baseline reward
-        method (int): Mastery method flag (strict vs deficit-based)
-        beta1, beta2 (float|None): Weights for weighted reward (optional)
+        method (int): Mastery method flag (threshold-based vs gap-based)
         params (dict|None): Algorithm hyperparameters (optional)
     """
 
     def __init__(
         self,
         dataset,
-        model,
-        k,
-        threshold,
-        run,
-        save_name,
-        total_steps=1000,
-        eval_freq=100,
-        feature="Usefulness-of-info-as-Rwd",
-        baseline=False,
-        method=1,
-        beta1=None,
-        beta2=None,
-        params=None,
+        config,
+        k = None,
         use_pretrained=False,
         pretrained_path=None
     ):
-        """Initialize the RL recommendation system (no changes in behavior)."""
-        self.baseline = baseline
-        self.method = max(0, min(1, method))
+        """Initialize the RL recommendation system"""
         self.dataset = dataset
-        self.model_name = model
-        self.k = k
-        self.threshold = threshold
-        self.run = run
-        self.save_name = save_name
-        self.total_steps = total_steps
-        self.eval_freq = eval_freq
-        self.feature = feature
-        self.beta1 = beta1
-        self.beta2 = beta2
-        self.params = params
-        self.use_standard = self.dataset.config.get('use_standard', False)
-        self.use_pretrained = use_pretrained
-        self.pretrained_path = pretrained_path
+        self.config = config
+        self.method = config["method"]
+        self.model_name = config["model"]
+        if k is not None:
+            self.k = k
+        else:
+            self.k = config["k"]
+        self.threshold = config["threshold"]
+        self.save_name = config["name_exp"]
+        self.total_steps = config["total_steps"]
+        self.eval_freq = config["eval_freq"]
+        self.feature = config["feature"]
+        self.params = config.get("hypers", None)
+        self.use_standard = config.get('use_standard', False)
+        self.use_pretrained = use_pretrained or self.config.get("use_pretrained", False)
+        self.pretrained_path = pretrained_path or self.config.get("pretrained_model_path")
+
+        if self.feature in {"UIR", "EUIR"} and self.method not in (0, 1):
+            raise ValueError("method must be 0 (threshold) or 1 (gap) when feature is UIR/EUIR")
+
+
 
         # Create training and evaluation environments
         self.train_env = CourseRecEnv(
             dataset,
-            threshold=self.threshold,
+            config=self.config,
             k=self.k,
-            baseline=self.baseline,
-            method=self.method,
-            feature=self.feature,
-            beta1=self.beta1,
-            beta2=self.beta2,
         )
         self.eval_env = CourseRecEnv(
             dataset,
-            threshold=self.threshold,
+            config=self.config,
             k=self.k,
-            baseline=self.baseline,
-            method=self.method,
-            feature=self.feature,
-            beta1=self.beta1,
-            beta2=self.beta2,
         )
 
         # Mask unavailable actions when using maskable PPO
@@ -111,20 +90,12 @@ class Reinforce:
         self.get_model()
 
         self.all_results_filename = (
-            save_name
+            self.save_name
             + "_k"
             + str(self.k)
             + "_seed"
-            + str(self.dataset.config["seed"])
+            + str(self.config["seed"])
             + ".txt"
-        )
-        self.final_results_filename = (
-            save_name
-            + "_k"
-            + str(self.k)
-            + "_seed"
-            + str(self.dataset.config["seed"])
-            + ".json"
         )
 
         self.eval_callback = EvaluateCallback(
@@ -142,9 +113,7 @@ class Reinforce:
           - PPO / MaskablePPO: Proximal Policy Optimization (with/without action masking)
         """
 
-        def delayed_cosine_schedule(
-            initial: float, final: float, start_at: float = 0.65, warmup_frac: float = 0.05
-        ):
+        def delayed_cosine_schedule(initial: float, final: float, start_at: float = 0.65, warmup_frac: float = 0.05):
             """Piecewise schedule: warmup -> flat -> cosine decay to final."""
             initial = float(initial)
             final = float(final)
@@ -162,11 +131,6 @@ class Reinforce:
 
             return sched
 
-        if not self.use_pretrained:
-            self.use_pretrained = self.dataset.config.get("use_pretrained", False)
-        if self.pretrained_path is None:
-            self.pretrained_path = self.dataset.config.get("pretrained_model_path", None)
-
         if self.params is None:
             self.params = {
                 "gamma": 0.95,
@@ -182,44 +146,43 @@ class Reinforce:
                 "clip_range": 0.2,
                 "device": "auto",
             }
-
+        
         if self.model_name == "dqn":
             if self.use_pretrained:
-                self.model = DQN.load(self.pretrained_path, env=self.train_env)
-                print(f"Loaded pretrained DQN model from {self.pretrained_path}")
+                self.model = DQN.load(f"{self.pretrained_path}_k{self.k}", env=self.train_env)
+                print(f"Loaded pretrained DQN model from {self.pretrained_path}_k{self.k}")
             else:
                 self.model = DQN(env=self.train_env, verbose=0, policy="MlpPolicy")
 
         elif self.model_name == "a2c":
             if self.use_pretrained:
-                self.model = A2C.load(self.pretrained_path, env=self.train_env, device="cpu")
-                print(f"Loaded pretrained A2C model from {self.pretrained_path}")
+                self.model = A2C.load(f"{self.pretrained_path}_k{self.k}", env=self.train_env, device=self.params["device"])
+                print(f"Loaded pretrained A2C model from {self.pretrained_path}_k{self.k}")
             else:
-                self.model = A2C(env=self.train_env, verbose=0, policy="MlpPolicy", device="cpu")
+                self.model = A2C(env=self.train_env, verbose=0, policy="MlpPolicy", device=self.params["device"])
 
         elif self.model_name == "ppo":
             if self.use_pretrained:
                 self.model = PPO.load(
-                    self.pretrained_path,
+                    f"{self.pretrained_path}_k{self.k}",
                     env=self.train_env,
-                    device="auto",
-                    custom_objects=self.params,
+                    device=self.params["device"],
                 )
-                print(f"Loaded pretrained PPO model from {self.pretrained_path}")
+                print(f"Loaded pretrained PPO model from {self.pretrained_path}_k{self.k}")
             else:
                 if self.use_standard:
                     self.model = PPO(
                         "MlpPolicy",
                         env=self.train_env,
-                        seed=self.dataset.config["seed"],
+                        seed=self.config["seed"],
                         verbose=0,
                     )
                 else:
                     self.model = PPO(
                         "MlpPolicy",
                         env=self.train_env,
-                        device="auto",
-                        seed=self.dataset.config["seed"],
+                        device=self.params["device"],
+                        seed=self.config["seed"],
                         gamma=self.params["gamma"],
                         gae_lambda=self.params["gae_lambda"],
                         n_steps=self.params["n_steps"],
@@ -240,19 +203,19 @@ class Reinforce:
         elif self.model_name == "ppo_mask":
             if self.use_pretrained:
                 self.model = MaskablePPO.load(
-                    self.pretrained_path,
+                    f"{self.pretrained_path}_k{self.k}",
                     env=self.train_env,
-                    device="auto",
-                    custom_objects=self.params,
+                    device=self.params["device"],
                 )
+                print(f"Loaded pretrained MaskablePPO model from {self.pretrained_path}_k{self.k}")
             else:
                 print("CUDA Available: ", torch.cuda.is_available())
                 if self.use_standard:
                     self.model = MaskablePPO(
                         'MlpPolicy',
                         env=self.train_env,
-                        device='cuda' if torch.cuda.is_available() else 'cpu',
-                        seed=self.dataset.config["seed"],
+                        device=self.params["device"],
+                        seed=self.config["seed"],
                         verbose=0
                     )
                 else:
@@ -260,7 +223,7 @@ class Reinforce:
                         "MlpPolicy",
                         env=self.train_env,
                         device=self.params["device"], #"cuda" if torch.cuda.is_available() else "cpu",
-                        seed=self.dataset.config["seed"],
+                        seed=self.config["seed"],
                         gamma=self.params["gamma"],
                         gae_lambda=self.params["gae_lambda"],
                         n_steps=self.params["n_steps"],
@@ -282,126 +245,47 @@ class Reinforce:
         else:
             raise ValueError(f"Unsupported model type: {self.model_name}")
 
-    def update_learner_profile(self, learner, course):
-        """Update learner's skill vector with the course-provided skills/levels.
-
-        Args:
-            learner (np.ndarray): Current learner skill vector.
-            course (np.ndarray): Course skills array [required, provided].
-
-        Returns:
-            np.ndarray: Updated learner skill vector.
-        """
-        learner = np.maximum(learner, course[1])
-        return learner
-
     def reinforce_recommendation(self):
-        """Train and evaluate the RL model; compute and save results.
-
-        Steps:
-          1) Compute initial metrics (attractiveness and applicable jobs)
-          2) Train the RL agent on the training environment
-          3) Evaluate the trained policy over all learners
-          4) Produce a recommendation sequence per learner
-          5) Update learner profiles based on recommended courses
-          6) Compute final metrics and save results
-
-        Outputs:
-          - TXT file with intermediate evaluation results
-          - JSON file with final metrics and recommendations
         """
-        results = dict()
+        Train the reinforcement learning model.
 
-        # Initial metrics (start)
-        avg_l_attrac_debut = self.dataset.get_avg_learner_attractiveness()
-        print(f"The average attractiveness of the learners is {avg_l_attrac_debut:.2f}")
-        results["original_attractiveness"] = avg_l_attrac_debut
+        The training process:
+        - uses the configured RL algorithm (PPO, MaskablePPO, etc.)
+        - logs evaluation metrics via EvaluateCallback
+        - optionally saves the trained model
 
-        avg_app_j_debut = self.dataset.get_avg_applicable_jobs(self.threshold)
-        print(f"The average nb of applicable jobs per learner is {avg_app_j_debut:.2f}")
-        results["original_applicable_jobs"] = avg_app_j_debut
-
+        All performance metrics and intermediate evaluations are handled
+        by the EvaluateCallback during training.
+        """
         # Train the model (find the policy)
-        self.model.learn(total_timesteps=self.total_steps, callback=self.eval_callback, log_interval=10)
+        self.model.learn(total_timesteps=self.total_steps, 
+                         callback=self.eval_callback, 
+                         log_interval=10)
 
         # Optionally save the trained model
-        save_dir = self.dataset.config.get("save_dir", "UIR")
-        model_dir = os.path.join(save_dir, "models_weights")
-        os.makedirs(model_dir, exist_ok=True)
-        if self.dataset.config.get("save_model", False):
-            self.model.save(os.path.join(model_dir, self.final_results_filename))
+        if self.config.get("save_model", False):
+            save_dir = self.config.get("save_dir")
 
-        # Evaluate the model and produce recommendations
-        time_start = process_time()
-        recommendations = dict()
-        for i, learner in enumerate(self.dataset.learners):
-            # Initialize evaluation environment with the selected learner
-            self.eval_env.reset(options={"learner": learner})
-            done = False
-            index = self.dataset.learners_index[i]
-            recommendation_sequence = []
+            if not save_dir:
+                raise ValueError("save_model=true requires 'save_dir' in config.")
+            
+            os.makedirs(save_dir, exist_ok=True)
+            
+            save_path = os.path.join(save_dir, f"{self.save_name}_k{self.k}")
+            self.model.save(save_path)
+            
+            print(f"[INFO] Model saved to: {save_path}")
 
-            while not done:
-                # Observation is the current learner skill state
-                obs = self.eval_env.unwrapped.get_obs()
-                if isinstance(self.model, MaskablePPO):
-                    mask = self.eval_env.unwrapped.get_action_mask()
-                    action, _state = self.model.predict(obs, action_masks=mask, deterministic=True)
-                else:
-                    action, _state = self.model.predict(obs, deterministic=True)
 
-                # Step the environment with the chosen action
-                obs, reward, done, _, info = self.eval_env.step(action)
-
-                # Only record valid recommendations (reward != -1)
-                if reward != -1:
-                    recommendation_sequence.append(action.item())
-
-            # Update learner profile with the recommended courses
-            for course in recommendation_sequence:
-                self.dataset.learners[i] = self.update_learner_profile(
-                    learner, self.dataset.courses[course]
-                )
-
-            # Store course identifiers for this learner
-            recommendations[index] = [
-                self.dataset.courses_index[course_id] for course_id in recommendation_sequence
-            ]
-
-        time_end = process_time()
-        avg_recommendation_time = (time_end - time_start) / len(self.dataset.learners)
-        print(f"Average Recommendation Time: {avg_recommendation_time:.4f} seconds")
-        results["avg_recommendation_time"] = avg_recommendation_time
-
-        # Final metrics (end)
-        avg_l_attrac_fin = self.dataset.get_avg_learner_attractiveness()
-        print(f"The new average attractiveness of the learners is {avg_l_attrac_fin:.2f}")
-        results["new_attractiveness"] = avg_l_attrac_fin
-
-        avg_app_j_fin = self.dataset.get_avg_applicable_jobs(self.threshold)
-        print(f"The new average nb of applicable jobs per learner is {avg_app_j_fin:.2f}")
-        results["new_applicable_jobs"] = avg_app_j_fin
-
-        results["recommendations"] = recommendations
-
-        # Persist final results to JSON (path logic unchanged)
-        json.dump(
-            results,
-            open(
-                os.path.join(
-                    f"{self.dataset.config['results_path']}{self.k}/seed{self.dataset.config['seed']}",
-                    self.final_results_filename,
-                ),
-                "w",
-            ),
-            indent=4,
-        )
-
-    def recommend(self, learner_vec, forbidden=None):
+    def recommend(self, learner_vec, want, avoid, forbidden=None):
         env = self.eval_env.unwrapped
 
-        env.set_extra_invalid_actions(forbidden)
-        obs, _ = env.reset(options={"learner": learner_vec})
+        print(f"want = {want}")
+        print(f"avoid = {avoid}")
+
+        #env.set_extra_invalid_actions(forbidden)
+        #obs, _ = env.reset(options={"learner": learner_vec})
+        obs, _ = env.reset(options={"learner": learner_vec, "want": want, "avoid": avoid})
 
         seq = []
         seq_readable = []
@@ -417,10 +301,10 @@ class Reinforce:
                 course_id = self.dataset.courses_index[int(action)]
                 seq_readable.append(course_id)
                 nb_jobs = info["nb_applicable_jobs"]
-                #print(nb_jobs)
 
         return {
             "seq_ids": seq,
             "seq_course_codes": seq_readable,
-            "nb_applicable_jobs": nb_jobs
+            "nb_applicable_jobs": nb_jobs,
+            "jobs_goal": env.jobs_goal
         }
