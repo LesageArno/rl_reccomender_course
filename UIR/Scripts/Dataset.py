@@ -405,13 +405,26 @@ class Dataset:
         attractiveness /= len(self.learners)
         return attractiveness
 
-    def get_learner_missing_skills(self, learner, job_id):
-        """Return the set of skill indices where learner level is below the job requirement."""
-        job_skills = self.jobs[job_id]
+    def get_learner_missing_skills(self, learner: np.ndarray, job_id: int, jobs: np.ndarray = None) -> np.ndarray:
+        """
+        Return a boolean mask of missing skills for a given job.
 
-        missing_skills = set(np.nonzero((job_skills - learner) > 0)[0])
+        A skill is considered missing if the learner's mastery level is strictly
+        below the job requirement for that skill.
 
-        return missing_skills
+        Args:
+            learner (np.ndarray): Learner skill vector (mastery levels).
+            job_id (int): Index of the job/goal.
+
+        Returns:
+            np.ndarray: Boolean mask of shape (nb_skills,), where True indicates
+                        that the corresponding skill is missing for the job.
+        """
+        if jobs is None:
+            jobs = self.jobs
+        job_skills = jobs[job_id]
+        # Missing skill ⇔ required level > learner level
+        return job_skills > learner
 
 
 @njit(cache=True)

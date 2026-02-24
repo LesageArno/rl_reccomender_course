@@ -407,50 +407,66 @@ class CourseRecEnv(gym.Env):
         info = self.get_info()
         return observation, info
 
-    def calculate_course_metrics(self, learner, course):
-        """Calculate Nr, Nm, Nnr metrics for a course recommendation (THRESHOLD-BASED-METHOD).
+    def calculate_course_metrics(self, learner: np.ndarray, course: np.ndarray) -> tuple:
+        """
+        Calculate (Nr, Nm, Nnr) for a course recommendation (THRESHOLD-BASED, mastery-aware).
 
-        These metrics evaluate the effectiveness of a course recommendation:
-        - Nr: Sum over all unachievable goals of the intersection between skills acquired after taking the course and missing skills for each goal
-        - Nm: Sum over all unachievable goals of the remaining missing skills after taking the course
-        - Nnr: Number of skills provided by the course that are not in missing skills
+        Mastery-aware interpretation (per job g and skill s):
+        - A skill is missing before the course if: req_g[s] > learner[s]
+        - After the course, the learner's level becomes: cons[s] = max(learner[s], provided[s])
+        - A missing skill is considered "covered" for job g if: cons[s] >= req_g[s]
+
+        Metrics:
+        - Nr: Sum over all unachievable jobs (having at least one missing skill BEFORE the course)
+                of the number of missing skills that become covered AFTER the course.
+        - Nm: Sum over the same jobs of the number of missing skills that remain uncovered AFTER the course.
+        - Nnr: Number of skills improved by the course (provided > learner) that are not missing
+                for ANY job (union of missing skills BEFORE the course).
 
         Args:
-            learner (np.ndarray): Current learner's skill vector
-            course (np.ndarray): Course's skills array [required, provided]
+            learner (np.ndarray): Learner skill vector (mastery levels).
+            course (np.ndarray): Course representation [required, provided], where course[1] is provided.
 
         Returns:
-            tuple: (Nr, Nm, Nnr) metrics
+            tuple: (Nr, Nm, Nnr) as integers.
         """
-        # Calculate skills after learning the course
+        ##################################################################
+        #                            NUMBA                               #
+        ##################################################################
+        if self.config.get("use_numba", True):
+            return _calc_metrics_threshold_mastery_numba(learner, course[1], self.jobs_goal)
+        ##################################################################
+        ##################################################################
+
+        # Learner levels after taking the course (target-level model)
         cons_skills = np.maximum(learner, course[1])
-        cons_skills_set = set(np.nonzero(cons_skills > 0)[0])
 
-        # Get skills provided by the course
-        course_provided_skills = set(np.nonzero((course[1] - learner) > 0)[0])
+        # Skills strictly improved by this course (used for Nnr)
+        provided_new = course[1] > learner  # boolean mask
 
-        # Initialize Nr and Nm
         Nr = 0
         Nm = 0
 
-        # Calculate for each job
+        # --- Nr and Nm: job-wise contributions over "unachievable" jobs (missing_before.any()) ---
         for job_id in range(len(self.jobs_goal)):
-            # Get missing skills for this job before learning
-            missing_skills = self.dataset.get_learner_missing_skills(learner, job_id)
+            req = self.jobs_goal[job_id]
 
-            # Check if this job is in Ga (unachievable goals)
-            if len(missing_skills) > 0:
-                # Calculate Nr: intersection of acquired skills and missing skills
-                Nr += len(cons_skills_set.intersection(missing_skills))
+            # Missing skills BEFORE course for this job (boolean mask)
+            missing_before = self.dataset.get_learner_missing_skills(learner, job_id, jobs = self.jobs_goal)
 
-                # Calculate Nm: remaining missing skills after learning
-                Nm += len(missing_skills - cons_skills_set)
+            # "Unachievable" ⇔ at least one missing skill before course
+            if missing_before.any():
+                # A missing skill is covered if AFTER the course cons >= req
+                covered = missing_before & (cons_skills >= req)
 
-        # Calculate Nnr: number of skills provided by the course that are not in any missing skills
-        all_missing_skills = set()
-        for job_id in range(len(self.jobs_goal)):
-            all_missing_skills.update(self.dataset.get_learner_missing_skills(learner, job_id))
-        Nnr = len(course_provided_skills - all_missing_skills)
+                Nr += int(covered.sum())
+                Nm += int(missing_before.sum() - covered.sum())
+
+        # --- Nnr: improved skills that are not missing for ANY job BEFORE the course ---
+        # Union of missing skills across all jobs (boolean OR over jobs)
+        all_missing_any = (self.jobs_goal > learner).any(axis=0)
+
+        Nnr = int((provided_new & ~all_missing_any).sum())
 
         return Nr, Nm, Nnr
 
@@ -1031,5 +1047,65 @@ def _calc_metrics_deficit_numba(learner: np.ndarray,
         gain = cons_skills[s] - learner[s]
         if gain > 0.0 and not needed[s]:
             Nnr += gain
+
+    return Nr, Nm, Nnr
+
+
+@njit(cache=True, fastmath=True)
+def _calc_metrics_threshold_mastery_numba(
+        learner: np.ndarray,
+        course_provided: np.ndarray,  # course[1]
+        jobs: np.ndarray              # job requirements (l_g), shape (num_jobs, num_skills)
+    ) -> tuple:
+    """
+    Mastery-threshold version:
+      missing_before: jobs[j,s] > learner[s]
+      covered_after:  max(learner[s], course_provided[s]) >= jobs[j,s]
+
+    Nr: sum over unachievable jobs of (# missing skills that become satisfied after course)
+    Nm: sum over unachievable jobs of (# missing skills still not satisfied after course)
+    Nnr: # skills increased by course that are not missing for any job before course
+    """
+
+    num_jobs, num_skills = jobs.shape
+
+    Nr = 0
+    Nm = 0
+
+    # union of missing skills across ALL jobs BEFORE course
+    all_missing_any = np.zeros(num_skills, dtype=np.bool_)
+
+    for j in range(num_jobs):
+        has_deficit = False
+        nr_job = 0
+        nm_job = 0
+
+        for s in range(num_skills):
+            req = jobs[j, s]
+            lv  = learner[s]
+
+            # missing before?
+            if req > lv:
+                has_deficit = True
+                all_missing_any[s] = True
+
+                cv = course_provided[s]
+                cons = lv if lv >= cv else cv  # max(lv, cv)
+
+                # mastery threshold for this goal/job:
+                if cons >= req:
+                    nr_job += 1
+                else:
+                    nm_job += 1
+
+        if has_deficit:
+            Nr += nr_job
+            Nm += nm_job
+
+    # Nnr: skills that course increases, and that were NOT missing for any job (before)
+    Nnr = 0
+    for s in range(num_skills):
+        if course_provided[s] > learner[s] and not all_missing_any[s]:
+            Nnr += 1
 
     return Nr, Nm, Nnr
