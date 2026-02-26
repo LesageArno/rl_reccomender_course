@@ -82,7 +82,7 @@ class Reinforce:
 
             def mask_fn(env):
                 # Return boolean action mask from the unwrapped environment
-                return env.unwrapped.get_action_mask().astype(bool)
+                return env.get_wrapper_attr("get_action_mask")()
 
             self.train_env = ActionMasker(self.train_env, mask_fn)
             self.eval_env = ActionMasker(self.eval_env, mask_fn)
@@ -182,6 +182,7 @@ class Reinforce:
                         "MlpPolicy",
                         env=self.train_env,
                         device=self.params["device"],
+                        max_grad_norm=self.params["max_grad_norm"],
                         seed=self.config["seed"],
                         gamma=self.params["gamma"],
                         gae_lambda=self.params["gae_lambda"],
@@ -223,6 +224,7 @@ class Reinforce:
                         "MlpPolicy",
                         env=self.train_env,
                         device=self.params["device"], #"cuda" if torch.cuda.is_available() else "cpu",
+                        max_grad_norm=self.params["max_grad_norm"],
                         seed=self.config["seed"],
                         gamma=self.params["gamma"],
                         gae_lambda=self.params["gae_lambda"],

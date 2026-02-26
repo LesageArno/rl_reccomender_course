@@ -5,6 +5,8 @@ import yaml
 from .Dataset import Dataset
 
 from .Reinforce import Reinforce
+import torch
+torch.distributions.Distribution.set_default_validate_args(False)
 
 def check_paths(cfg: dict) -> None:
     for key in ["taxonomy_path", "course_path", "cv_path", "job_path", "mastery_levels_path"]:

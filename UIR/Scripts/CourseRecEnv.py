@@ -660,6 +660,8 @@ class CourseRecEnv(gym.Env):
 
         # Defensive fallback (if all invalid, allow first one)
         if not valid_courses.any():
+            # pick one deterministic action to keep distribution valid
+            valid_courses[:] = False
             valid_courses[0] = True
 
         return valid_courses
@@ -885,7 +887,7 @@ class EvaluateCallback(BaseCallback):
                 while not done:
                     obs = self.eval_env.unwrapped.get_obs()
                     if isinstance(self.model, MaskablePPO):
-                        mask = self.eval_env.unwrapped.get_action_mask()
+                        mask = self.eval_env.get_wrapper_attr("get_action_mask")()
                         action, _state = self.model.predict(obs, action_masks=mask, deterministic=True)
                     else:
                         action, _state = self.model.predict(obs, deterministic=True)  # Predict action using current policy
