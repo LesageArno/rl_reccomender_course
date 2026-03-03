@@ -28,7 +28,6 @@ class PlotConfig:
     # Example: preferences5
     EXPERIMENT_SUBDIR: str = "preferences_v3_k3"
 
-    # dimensioni griglia per-modello
     GRID_ROWS: int = 2
     GRID_COLS: int = 4
 
