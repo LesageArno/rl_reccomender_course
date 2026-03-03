@@ -29,7 +29,7 @@ The repository is organized into three main components:
 ```text
 rl_recommender_course/
 ├── Chatbot/                     # Conversational interface and GUI
-│   ├── GUI.py                   # Streamlit GUI (main demo entry point)
+│   ├── NEW_GUI.py               # Streamlit GUI (main demo entry point)
 │   ├── chat_handler.py          # Conversation handling and state updates
 │   ├── LLMDialogManager.py      # LLM wrapper (Mistral v2)
 │   ├── chatbot.py               # Terminal-based chatbot (legacy)
@@ -60,7 +60,7 @@ rl_recommender_course/
 │   │   ├── Reinforce.py         # RL agent logic
 │   │   ├── pipeline.py          # Training pipeline entry point
 │   │   ├── matchings.py         # Skill-job matching utilities
-│   │   ├── tuning.py            # Hyperparameter optimization (optional)
+│   │   ├── tuning.py            # Hyperparameter optimization (optional, not finalized)
 │   │   └── evaluation.py        # results visualization and evaluation
 │   │    
 │   │
@@ -98,11 +98,11 @@ python -m pip install --upgrade pip
 
 CUDA (recommended for LLM inference):
 ```
-pip install torch --index-url https://download.pytorch.org/whl/cu121
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 ```
 CPU-only (Not Recommended for LLM Inference)
 ```
-pip install torch --index-url https://download.pytorch.org/whl/cpu
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 ```
 
 ### 3. Install Project Dependencies
@@ -191,13 +191,18 @@ Training a new reinforcement learning model is **required** to run the demo.
 
 Edit the configuration file:
 
-text
-UIR/config/run.yaml
+`UIR/config/run.yaml`
 
 
 This file controls:
 
-TODO
+- **Data paths**: taxonomy, courses, jobs, learner profiles, mastery levels, and result directories.
+- **Dataset construction**: number of courses, jobs, learner profiles, taxonomy level (L3 vs L4), and dataset seed for reproducibility.
+- **Model selection**: algorithm (DQN, PPO, A2C, MaskablePPO), reward feature (Employability / UIR / EUIR), and gap/threshold method.
+- **Training configuration**: total training steps, evaluation frequency, random seed.
+- **Hyperparameters**: optimizer settings, learning rate schedule, entropy coefficient, clipping range, and KL target.
+- **Preference conditioning**: whether to enable goal-based filtering in the environment.
+- **Pretrained model usage**: load/save behavior and experiment naming.
 
 ### Run Training
 ```
@@ -232,8 +237,7 @@ This feature is experimental and not required for standard usage
 ### Reinforcement Learning Models
 
 - Pretrained RL models are stored in:
-  text
-  UIR/models_weights/
+  `UIR/models_weights/`
 
 You should train an RL agent before using it.
 To decide which model to use, you must change run.yaml.
