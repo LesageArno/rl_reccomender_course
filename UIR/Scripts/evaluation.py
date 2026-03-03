@@ -3,10 +3,13 @@ import re
 import glob
 from dataclasses import dataclass
 from typing import Dict, List, Tuple, Optional
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from statsmodels.stats.multicomp import pairwise_tukeyhsd
+
 
 
 # =============================================================================
@@ -16,15 +19,14 @@ import matplotlib.pyplot as plt
 @dataclass
 class PlotConfig:
     # ====== Settings ======
-    ROOT: str = r"C:\Users\alexi\Desktop\rl_reccomender_course\UIR\results"
-    #ROOT = r"C:\Users\ACER-PC\Desktop\WUIR-CLASS-recSys\UIR\results"  # cartella che contiene results_k*
-    BASELINE: Optional[float] = None                  # None per disattivare baseline       [2.0, 4.1, 8.0, 10.5]
+    ROOT: str = str((Path(__file__).resolve().parent / ".." / "results").resolve())
+    BASELINE: Optional[float] = None                  # None to deactivate baseline       [2.0, 4.1, 8.0, 10.5] #values for frej comparison BEST POSSIBLE
     SAVEFIG: bool = True
-    OUTDIR_NAME: str = "saved_results_preferences"
+    OUTDIR_NAME: str = "saved_results_preferences_v3"
 
     # Folder under ROOT where your experiment results are stored
     # Example: preferences5
-    EXPERIMENT_SUBDIR: str = "preferences_v2_k2"
+    EXPERIMENT_SUBDIR: str = "preferences_v3_k3"
 
     # dimensioni griglia per-modello
     GRID_ROWS: int = 2
@@ -35,7 +37,11 @@ class PlotConfig:
 
     # Metrics available in new logs
     # New logs: step E_goal reward gap pref time
-    METRICS: Tuple[str, ...] = ("E_goal", "gap", "pref", "reward", "req_levels", "req_skills", "skills_covered", "skills_missing")  # add "reward" if you also want to plot/debug it
+    METRICS: Tuple[str, ...] = ("E_goal", "gap", "pref", "skills_covered", "skills_missing")  # add "reward" if you also want to plot/debug it
+
+    # Whether to run or not the statistical test
+    RUN_STAT_TESTS: bool = True
+    DEBUG_STAT: bool = True
 
 
 @dataclass
@@ -57,8 +63,8 @@ def build_metric_specs(cfg: PlotConfig) -> Dict[str, MetricSpec]:
         "gap": MetricSpec(ylabel="Skill gap", best="min", baseline=None),
         "pref": MetricSpec(ylabel="Preference coverage", best="max", baseline=None),
         "reward": MetricSpec(ylabel="Reward (debug)", best="max", baseline=None),
-        "req_levels": MetricSpec(ylabel="Req levels", best="max", baseline=None),
-        "req_skills": MetricSpec(ylabel="Req skills", best="max", baseline=None),
+        #"req_levels": MetricSpec(ylabel="Req levels", best="max", baseline=None),
+        #"req_skills": MetricSpec(ylabel="Req skills", best="max", baseline=None),
         "skills_covered": MetricSpec(ylabel="Skills covered", best="max", baseline=None),
         "skills_missing": MetricSpec(ylabel="Skills missing", best="min", baseline=None),
     }
@@ -113,9 +119,10 @@ def load_single_run(filepath: str, model: str, k: int, seed: int) -> pd.DataFram
     """
     Load a single run file into a DataFrame.
 
-    Supports:
-    - New logs: step E_goal reward gap pref time (6 columns)
-    - Old logs: step reward time (3 columns)
+    # Supported formats:
+    # - 10 columns (latest): step, E_goal, reward, gap, pref, req_levels, req_skills, skills_covered, skills_missing, time
+    # - 6 columns  (new):    step, E_goal, reward, gap, pref, time
+    # - 3 columns  (legacy): step, reward, time
 
     Returns a DataFrame with at least:
     - step
@@ -252,7 +259,7 @@ def interpolate_metric_columns(df: pd.DataFrame, metric: str) -> pd.DataFrame:
     out[cols] = out[cols].interpolate(method="linear", limit_direction="both")
 
     out[f"{metric}_mean"] = out[cols].mean(axis=1)
-    out[f"{metric}_std"] = out[cols].std(axis=1, ddof=0)  # population std (ddof=0)
+    out[f"{metric}_std"] = out[cols].std(axis=1, ddof=0)  
 
     return out
 
@@ -352,8 +359,8 @@ def plot_overview_for_k(agg_dfs: Dict[Tuple[int, str], pd.DataFrame],
                         outdir: str,
                         k: int) -> None:
     """
-    1 figure per k con 3 subplots (E_goal, gap, pref).
-    In ogni subplot: le 3 curve dei modelli (mean ± std).
+    1 figure per k with nb_metrics subplots (E_goal, gap, pref, ...).
+    Each subplot contains: model curves (mean ± std).
     """
     metrics = list(metric_specs.keys())
     n = len(metrics)
@@ -408,8 +415,8 @@ def plot_metric_models_for_k(agg_dfs: Dict[Tuple[int, str], pd.DataFrame],
                              outdir: str,
                              k: int) -> None:
     """
-    1 figure per (k, metric) con 3 subplots (uno per modello).
-    In ogni subplot: solo quel modello, e marker sul punto best (max/min).
+    1 figure per (k, metric) with subplots (one per model).
+    Each subplot: model with marker on best reached point(max/min).
     """
     # prendi i modelli disponibili per quel k
     models = sorted([m for (kk, m) in agg_dfs.keys() if kk == k])
@@ -553,7 +560,8 @@ def pick_best_index(series: pd.Series, best: str) -> int:
 
 def build_summary(agg_dfs: Dict[Tuple[int, str], pd.DataFrame],
                   metric_specs: Dict[str, MetricSpec],
-                  cfg: PlotConfig) -> pd.DataFrame:
+                  cfg: PlotConfig,
+                  runs_by_group: Dict[Tuple[int, str], List[pd.DataFrame]] = None) -> pd.DataFrame:
     """
     Build one summary table with:
     - k, model, metric
@@ -562,6 +570,46 @@ def build_summary(agg_dfs: Dict[Tuple[int, str], pd.DataFrame],
     - seeds
     """
     rows = []
+
+    stat_results = {}
+
+    if cfg.RUN_STAT_TESTS and runs_by_group is not None:            #PERFORMING TUKEY HDS (STATISTICAL TEST)
+        ks = sorted({k for (k, _m) in agg_dfs.keys()})
+        for metric, spec in metric_specs.items():
+            for k in ks:
+                group_data = []
+                model_names = []
+                # for each metric and for each k we found the best value
+                for (kk, model), df_list in runs_by_group.items():
+                    if kk == k:
+                        # Best value for each seed
+                        seeds_best = [ (df_s[metric].max() if spec.best=="max" else df_s[metric].min()) for df_s in df_list ]
+                        group_data.append(seeds_best)
+                        model_names.append(model)
+                
+                if len(group_data) > 1:
+                    try:
+                        # Mean computation
+                        means = [np.mean(g) for g in group_data]
+                        best_idx = np.argmax(means) if spec.best == "max" else np.argmin(means)
+                        best_model = model_names[best_idx]
+                        
+                        flattened_data = [item for sublist in group_data for item in sublist]
+                        labels = [m for i, m in enumerate(model_names) for _ in range(len(group_data[i]))]
+                        res = pairwise_tukeyhsd(endog=flattened_data, groups=labels, alpha=0.05)
+
+                        if cfg.DEBUG_STAT:
+                            print(f"\n>>> DEBUG STAT: {metric} (k={k})")
+                            for name, val in zip(model_names, group_data):
+                                print(f"  Model: {name:20} | Seed Values: {np.round(val,2)} | Mean: {np.mean(val):.2f}")
+                            print(res.summary()) # Print Tukey table with meandiff and p-adj
+                        
+                        # Interpretation: who is similar to best?
+                        stat_results[(k, metric, best_model)] = "BEST"
+                        for _, row in pd.DataFrame(res.summary().data[1:], columns=res.summary().data[0]).iterrows():
+                            if row['group1'] == best_model and not row['reject']: stat_results[(k, metric, row['group2'])] = "Similar"
+                            if row['group2'] == best_model and not row['reject']: stat_results[(k, metric, row['group1'])] = "Similar"
+                    except: pass
 
     for (k, model), df in agg_dfs.items():
         seeds = int(df["n"].iloc[0]) if "n" in df.columns else 1
@@ -579,6 +627,8 @@ def build_summary(agg_dfs: Dict[Tuple[int, str], pd.DataFrame],
 
             idx = pick_best_index(m, spec.best)
 
+            stat_flag = stat_results.get((k, metric, model), "Inferior" if cfg.RUN_STAT_TESTS else "N/A")
+
             rows.append({
                 "k": k,
                 "Model": model,
@@ -588,6 +638,7 @@ def build_summary(agg_dfs: Dict[Tuple[int, str], pd.DataFrame],
                 "Std at Best": float(df.loc[idx, std_col]) if std_col in df.columns else np.nan,
                 "Step at Best": int(df.loc[idx, "step"]),
                 "Avg last 50 (mean)": float(m.tail(50).mean()),
+                "Statistical Sig.": stat_flag,
             })
 
     out = pd.DataFrame(rows)
@@ -640,7 +691,7 @@ def main():
 
 
     # 4) Summary table
-    df_summary = build_summary(agg_dfs, metric_specs, cfg)
+    df_summary = build_summary(agg_dfs, metric_specs, cfg, runs_by_group)
     print(df_summary)
 
     if cfg.SAVEFIG and not df_summary.empty:

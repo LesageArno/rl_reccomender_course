@@ -1,6 +1,7 @@
 # Chatbot/chat_handler.py
 
 from collections import defaultdict
+import json
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 import numpy as np
@@ -65,15 +66,6 @@ class ChatHandler:
 
         ner_ckpt = "./Chatbot/NER/xml-roberta/checkpoint-2375"
 
-        #self.tokenizer = AutoTokenizer.from_pretrained(
-        #    "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-        #)
-        #self.ner_model = AutoModelForTokenClassification.from_pretrained(
-        #    #"./Chatbot/NER/esco_skill_ner_multi_model/checkpoint-812"
-        #    #"./Chatbot/NER/esco_skill_ner_multi_model_new/checkpoint-416"
-        #    #"./Chatbot/NER/esco_skill_ner_both_dataset/checkpoint-1100"
-        #    "./Chatbot/NER/PROVA_pt2/checkpoint-3880"                              #RIGHT ONE
-        #)
         self.tokenizer = AutoTokenizer.from_pretrained(ner_ckpt)
         self.ner_model = AutoModelForTokenClassification.from_pretrained(ner_ckpt)
 
@@ -147,10 +139,6 @@ class ChatHandler:
         if msg.startswith(":sem "):
             query = msg[5:].strip()
 
-            skills = self.llm.extract_structured_preferences(query, history=self.history)
-            print(skills)
-
-
             # 🧠 1) GATE LLM
             has_skills = self.llm.detect_skill_presence(query)
 
@@ -171,7 +159,19 @@ class ChatHandler:
 
                 return reply + "\n" + "Remember that you can always modify your profile by using the interface on the right pane."
 
-            include_ids, avoid_ids, acquired_ids, _ = self._semantic_ids(query)
+            try:
+                skills = self.llm.extract_structured_preferences(query, history=self.history)
+                # Convert LLM JSON -> spans like NER
+                candidate_spans = []
+                candidate_spans += [(x["text"], "INCLUDE_SKILL") for x in skills.get("include", [])]
+                candidate_spans += [(x["text"], "AVOID_SKILL") for x in skills.get("avoid", [])]
+                candidate_spans += [(x["text"], "ACQUIRED_SKILL") for x in skills.get("acquired", [])]
+            except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+                candidate_spans = self._run_ner_extract_spans(query)
+
+            print(candidate_spans)
+
+            include_ids, avoid_ids, acquired_ids, _ = self._semantic_ids(candidate_spans)
 
             levels_by_uid = self.llm.infer_mastery_levels(
                 user_text=query,
@@ -516,17 +516,12 @@ class ChatHandler:
         '''
         k = self.state.get_k()
         print(k)
+        
         self.reinforce = Reinforce(
             dataset=self.dataset,
-            model="ppo_mask",
+            config=self.dataset.config,
             k=k,
-            threshold=self.dataset.config.get("threshold", 0.8),
-            save_name=f"chat_k{k}",
-            total_steps=0,
-            eval_freq=100,
-            feature="UIR",
-            method=1,
-            params=None,
+            use_pretrained=True
         )
         self.k_changed = False  # reset change flag
 
@@ -628,13 +623,11 @@ class ChatHandler:
 
     def _semantic_ids(
             self,
-            message: str,
+            candidate_spans: List[Tuple[str, str]],
     ) -> Tuple[Set[str], Set[str], Set[str], Set[str]]:
         """
         Extract ESCO skill IDs from a user message via NER + semantic search.
         """
-        candidate_spans = self._run_ner_extract_spans(message)
-
         print(f"Candidate Spans (for Linking): {candidate_spans}")
 
         include_ids: Set[str] = set()

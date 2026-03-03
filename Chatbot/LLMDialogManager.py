@@ -541,6 +541,10 @@ class LLMDialogManager:
 
         I know computer vision,
         I am proficient in forensic analysis
+        I want to become someone
+        I would like to learn something
+        I want to avoid something 
+        I don't want to learn something
 
         Answer ONLY with one word:
         YES or NO

@@ -78,5 +78,5 @@ class SkillSearcher:
         if self.cross_encoder_name is None:
             return None
         if self.reranker is None:
-            self._reranker = CrossEncoder(self.cross_encoder_name)
-        return self._reranker
+            self.reranker = CrossEncoder(self.cross_encoder_name)
+        return self.reranker

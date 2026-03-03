@@ -4,11 +4,11 @@ course_path: Data - Collection/Final/courses.json       # Path to course data
 cv_path: Data - Collection/Final/resumes.json           # Path to learner profiles
 job_path: Data - Collection/Final/jobs.json             # Path to job listings
 mastery_levels_path: Data - Collection/Final/mastery_levels.json  # Path to skill mastery levels
-results_path: UIR/results/preferences_v2_k                              # Directory for storing results_k2
-name_exp: UIR-gap-based                               # Branch name for organizing results
-pretrained_model_path: UIR/models_weights/preferences/UIR-gap-based_AVOID  # Path to pretrained model (if any)
+results_path: UIR/results/preferences_v3_k                              # Directory for storing results_k
+name_exp: Employability                              # Branch name for organizing results
+pretrained_model_path: UIR/models_weights/preferences_v2/UIR-gap-based  # Path to pretrained model (if any)
 use_pretrained: false                                 # Whether to use a pretrained model from pretrained_model_path
-save_model: false                                     # Whether to save the trained model in results_path/name_exp
+save_model: false                                     # Whether to save the trained model in save_dir/name_exp
 save_dir: UIR/models_weights/preferences_v2
 
 # Data Processing Parameters
@@ -17,26 +17,26 @@ level_3: true                                          # Use third level of taxo
                                                        # False: more specific skills (~3000 total skills)
 
 # Dataset Size Parameters
-nb_courses: 100                                        # Number of courses to include in the dataset
+nb_courses: 3000                                        # Number of courses to include in the dataset
 nb_cvs: -1                                             # Number of learner profiles to use (-1 for all)
 max_cv_skills: 15                                      # Maximum number of skills per learner profile
-nb_jobs: 100                                           # Number of jobs to include in the dataset
+nb_jobs: 3587                                           # Number of jobs to include in the dataset
 set_dataset_seed: true
 dataset_seed: 42                                       # Set this seed in order not to have a variable dataset
 
 # Model Parameters
 threshold: 0.8                                         # Minimum matching threshold for job eligibility
-k: 2                                                   # Number of course recommendations to generate
+k: 3                                                   # Number of course recommendations to generate
 model: ppo_mask                                        # Reinforcement learning algorithm (dqn, ppo, a2c, ppo_mask) only ppo and ppo_mask are implemented well
 total_steps: 500000                                    # Total training steps
 eval_freq: 2000                                        # Evaluation frequency during training
-seed: 42                                               # Random seed for reproducibility of experiments
+seed: 55                                               # Random seed for reproducibility of experiments
 
 # Model Configuration
 use_preference: true                                   # set to true if you want to use environment with preferences, false otherwise
 
 
-feature: "UIR"                               # feature to use as reward
+feature: "Employability"                                         # feature to use as reward
 #options: "Employability" or "UIR" or "EUIR"         
 
 method: 1                                              # used only when feature in {"UIR","EUIR"} (0=threshold, 1=gap)
@@ -49,15 +49,16 @@ use_standard: false                                    # true: use library stand
 
 hypers: {                                             # Standard hyperparameters used to train all models(not best)
   "device": "cuda",
-  "n_steps": 256,
-  "batch_size": 128,
-  "n_epochs": 8,
-  "num_minibatches": 1,
-  "clip_range": 0.25,
+  "n_steps": 1024, #256
+  "batch_size": 64, #128
+  "n_epochs": 4, #8
+  "num_minibatches": 4, #1
+  "max_grad_norm": 0.5,  
+  "clip_range": 0.2,
   "ent_coef": 0.025,
   "gamma": 0.95,
   "gae_lambda": 0.93,
-  "lr_initial": 1e-3,
+  "lr_initial": 3e-4,
   "lr_final": 1e-4,
   "warmup_frac": 0,
   "start_at": 0.70,                                   # Cosine lr decay starts from (percentage of start), goes from lr_initial to lr_final 
