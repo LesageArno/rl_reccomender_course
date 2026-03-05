@@ -86,10 +86,11 @@ rl_recommender_course/
 ## Installation (Windows)
 
 We recommend using a Python virtual environment.
+Supported Python version: 3.12
 
 ### 1. Create and activate a virtual environment
 ```bash
-python -m venv .venv
+py -3.12 -m venv .venv
 .\.venv\Scripts\activate
 python -m pip install --upgrade pip
 ```

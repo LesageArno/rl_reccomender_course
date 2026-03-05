@@ -26,6 +26,8 @@ def subsample_jobs_like_dataset(jobs: dict, nb_jobs: int = 100, seed: int = 42) 
     - sample deterministico con random.seed(seed)
     - ordine finale = ordine dei job selezionati (come random.sample)
     """
+    if nb_jobs >= len(jobs) or nb_jobs <= 0:
+        return jobs
     job_ids_in_order = list(jobs.keys())  # stesso ordine di jobs.items() nel Dataset
     random.seed(seed)
     picked_indices = random.sample(range(len(job_ids_in_order)), nb_jobs)
@@ -126,7 +128,7 @@ def initialize_all_data(canonical_col: str = "Type Level 4") -> Dict[str, Any]:
 
     # Runtime job, level data, courses
     jobs = load_json(JOBS_JSON)
-    jobs = subsample_jobs_like_dataset(jobs, nb_jobs=100, seed=42)
+    jobs = subsample_jobs_like_dataset(jobs, nb_jobs=-1, seed=42)
     levels = load_json(LEVELS_JSON)
     courses = load_json(COURSES_JSON)
 

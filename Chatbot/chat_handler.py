@@ -596,7 +596,11 @@ class ChatHandler:
             skills2int_tl3=self.skills2int_tl3,
             level_map=self.levels,
         )
-        return filtered, f"{len(filtered)} jobs match your current filters."
+        nb_jobs = len(filtered)
+
+        if len(filtered) > 100:
+            filtered = dict(list(filtered.items())[:100])
+        return filtered, f"{nb_jobs} jobs match your current filters."
 
     # ------------------------------------------------------------------ #
     # NER + semantic ESCO matching                                      #
