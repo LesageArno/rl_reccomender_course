@@ -534,7 +534,7 @@ class LLMDialogManager:
         explicit mentions of concrete professional skills, tools, technologies,
         or competencies that could reasonably be added to a skill profile,
         whether they are preferences to include or preference to avoid. 
-        Every time the user make some question the answer should be: NO.
+        Do not be too strict.
         All the times the user make an explicit prhase regarding preferences answer: YES.
 
         Accept also sentences like:
@@ -671,17 +671,17 @@ class LLMDialogManager:
             }
 
             DEFINITIONS
-            - acquired: skills/tools/competencies the user explicitly claims to have.
-            - include: skills/tools/competencies the user explicitly wants to add/learn.
-            - avoid: skills/tools/competencies the user explicitly wants to avoid.
+            - acquired: skills/tools/competencies the user explicitly claims to have acquired.
+            - include: skills/tools/competencies the user wants to add/learn or they are interested in.
+            - avoid: skills/tools/competencies the user wants to avoid or is not interested in.
             - target_roles: job roles the user explicitly says they want to become.
 
             EVIDENCE RULE
             - "evidence" MUST be an exact substring copied from the user's message.
 
             FALSE POSITIVE CONTROL
-            - Do NOT extract generic terms like "job", "market", "background", "computer science" unless the user explicitly states them as a skill to add/avoid/have/want.
-            - If the user asks a question or requests an explanation (e.g., "Is ABAP useful?"), do NOT add include/acquired/avoid/target_roles unless they explicitly say they want to add/avoid/have/want something.
+            - Do NOT extract generic terms like "job", "market", "background" unless the user explicitly states them as a skill to add/avoid/have/want.
+            - If the user asks a question or requests an explanation (e.g., "Is ABAP useful?"), do NOT add include/acquired/avoid/target_roles unless they explicitly say they want to add/avoid/have/want it.
             - Do NOT invent anything that the user did not say.
 
             EXAMPLES

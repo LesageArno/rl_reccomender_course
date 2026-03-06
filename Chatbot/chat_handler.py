@@ -64,7 +64,7 @@ class ChatHandler:
         # self.default_k: int = 2
         self.k_changed: bool = False
 
-        ner_ckpt = "./Chatbot/NER/xml-roberta/checkpoint-2375"
+        ner_ckpt = "./Chatbot/NER/xml-roberta/best_model"
 
         self.tokenizer = AutoTokenizer.from_pretrained(ner_ckpt)
         self.ner_model = AutoModelForTokenClassification.from_pretrained(ner_ckpt)
@@ -164,6 +164,7 @@ class ChatHandler:
                 # Convert LLM JSON -> spans like NER
                 candidate_spans = []
                 candidate_spans += [(x["text"], "INCLUDE_SKILL") for x in skills.get("include", [])]
+                candidate_spans += [(x["text"], "INCLUDE_SKILL") for x in skills.get("target_roles", [])]
                 candidate_spans += [(x["text"], "AVOID_SKILL") for x in skills.get("avoid", [])]
                 candidate_spans += [(x["text"], "ACQUIRED_SKILL") for x in skills.get("acquired", [])]
             except (json.JSONDecodeError, KeyError, TypeError, ValueError):

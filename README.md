@@ -116,6 +116,22 @@ pip install -r requirements.txt
 
 The Streamlit GUI is the **main entry point** for the project demo.
 
+### Important prerequisite
+
+Before running the demo, you must first train the required models:
+
+- **Reinforcement Learning model(s):**  
+  you need to train an RL model **for each value of `k`** you want to use for recommendation.  
+  The training procedure is described later in the section  
+  **Training a Reinforcement Learning Model**.
+
+- **Named Entity Recognition (NER) model:**  
+  you must train the NER model by running the notebook  
+  `Chatbot/NER/BIO.ipynb`  
+  from start to finish as it is.
+
+The demo depends on these trained models and will not work correctly unless they are available.
+
 ### Start the GUI
 
 From the project root directory (`rl_recommender_course`):
@@ -227,6 +243,8 @@ This feature is experimental and not required for standard usage
 ### Named Entity Recognition (NER).
 - The model is used to extract skill mentions from user input.
 - The model path is configured directly in `chat_handler.py`.
+
+You should train the NER model by running BIO.ipynb notebook before using it
 
 ### Large Language Model (LLM)
 
