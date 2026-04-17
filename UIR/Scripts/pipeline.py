@@ -51,7 +51,7 @@ def main():
     check_paths(config)
 
     dataset = create_and_print_dataset(config)
-    exit(1)
+    exit(0)
         
     #print(f"feature: {config['feature']}")
     #print("-------------------------------------------")
