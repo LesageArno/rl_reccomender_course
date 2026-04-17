@@ -3,7 +3,7 @@
 # Purpose: Compare different approaches for course recommendation with mastery levels and clustering
 
 # Data Paths
-taxonomy_path: ../../Data - Collection/Final/taxonomy.csv      # Path to skill taxonomy data
+taxonomy_path: ../../Data - Collection/taxonomy.csv      # Path to skill taxonomy data
 course_path: ../../Data - Collection/Final/courses.json        # Path to course data
 cv_path: ../../Data - Collection/Final/resumes.json           # Path to learner profiles
 job_path: ../../Data - Collection/Final/jobs.json             # Path to job listings

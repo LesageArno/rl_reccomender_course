@@ -16,7 +16,7 @@ from transformers import (
 
 from UIR.Scripts.Reinforce import Reinforce
 from .state import PrefState
-from .utils import create_random_profile, filter_jobs_by_skills, filter_jobs_goal_conditioned_tl3
+from ..Taxonomy.utils import create_random_profile, filter_jobs_by_skills, filter_jobs_goal_conditioned_tl3
 from .LLMDialogManager import LLMDialogManager
 ChatMessage = Dict[str, str]  # {"role": "user" | "assistant" | "system", "content": "..."}
 

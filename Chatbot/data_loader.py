@@ -4,8 +4,8 @@ import pandas as pd
 import random
 from typing import Dict, Any, Tuple
 
-from .utils import normalize
-from .taxonomy_index import build_alias_index
+from ..Taxonomy.utils import normalize
+from ..Taxonomy.taxonomy_index import build_alias_index
 
 # Paths for chatbot runtime
 TAXONOMY_CSV = "Data - Collection/Final/taxonomy.csv"

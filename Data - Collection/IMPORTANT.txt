@@ -1,0 +1,14 @@
+In taxonomy.csv, the name of a skill is the same for a level 4 (id. 1424, id. 1425). This is problematic.
+
+perform internal investigations 1424 -> perform internal investigations (1)
+perform internal investigations 1425 -> perform internal investigations (2)
+
+---- Fuzzification methods
+Let K be the set of all known skills. Let U be the set of all known skills with unknown levels. 
+Let N(i) be the neighbouring set of the skill i in U within the taxonomy.
+We have multiple methods to infer the level of i.
+
+Linear: ∀(i∈U) : α(i) = #(N(i)&K)/#N(i)
+Weighted Linear: ∀(i∈U) : α(i) = [∑α(N(i)&K)/#(N(i)&K)]*γ + (1-γ)*[#(N(i)&K)/#N(i)]
+log2: ∀(i∈U) : α(i) = [#(N(i)&K)*0.5]/log2(#N(i))
+Weighted log2: ∀(i∈U) : α(i) = [∑α(N(i)&K)/#(N(i)&K)]*γ + (1-γ)*[[#(N(i)&K)*0.5]/log2(#N(i))]
