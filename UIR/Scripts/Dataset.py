@@ -62,7 +62,8 @@ class Dataset:
         self.load_jobs()
         self.load_courses()
         self.get_subsample()
-        self.make_course_consistent()
+        if not self.config.get("fuzzyMode", False):
+            self.make_course_consistent()
 
     def load_skills(self):
         """
@@ -118,7 +119,11 @@ class Dataset:
         avg_skills = defaultdict(list)
         for skill, mastery_level in skill_list:
             # If the mastery level is a string and is in the mastery levels, we replace it with the corresponding value
-            if isinstance(mastery_level, str) and mastery_level in self.mastery_levels:
+            # Alternatively, we do the same if fuzzy
+            if isinstance(mastery_level, float) and 0<=mastery_level<=1 and self.config.get("fuzzyMode", False):
+                skill = self.skills2int[skill]
+                avg_skills[skill].append(mastery_level)
+            elif isinstance(mastery_level, str) and mastery_level in self.mastery_levels:
                 mastery_level = self.mastery_levels[mastery_level]
                 if mastery_level == -1:
                     mastery_level = replace_unk
@@ -127,7 +132,7 @@ class Dataset:
         # We take the average of the mastery levels for each skill because on our dataset we can have multiple mastery levels for the same skill
         for skill in avg_skills.keys():
             avg_skills[skill] = sum(avg_skills[skill]) / len(avg_skills[skill])
-            avg_skills[skill] = round(avg_skills[skill])
+            avg_skills[skill] = round(avg_skills[skill]) if not self.config.get("fuzzyMode", False) else round(avg_skills[skill], 6)
 
         return avg_skills
 
@@ -163,7 +168,7 @@ class Dataset:
         self.learners_index = dict()
 
         # Initialize skill matrix with zeros
-        self.learners = np.zeros((len(learners), len(self.skills)), dtype=int)
+        self.learners = np.zeros((len(learners), len(self.skills)), dtype=float if self.config.get("fuzzyMode", False) else int)
         index = 0
 
         for learner_id, learner in learners.items():
@@ -195,7 +200,7 @@ class Dataset:
             replace_unk (int, optional): The value to replace the unknown mastery levels. Defaults to 3.
         """
         jobs = json.load(open(self.config["job_path"]))
-        self.jobs = np.zeros((len(jobs), len(self.skills)), dtype=int)
+        self.jobs = np.zeros((len(jobs), len(self.skills)), dtype=float if self.config.get("fuzzyMode", False) else int)
         self.jobs_index = dict()
         index = 0
         for job_id, job in jobs.items():
@@ -219,7 +224,7 @@ class Dataset:
             replace_unk (int, optional): The value to replace the unknown mastery levels. Defaults to 2.
         """
         courses = json.load(open(self.config["course_path"]))
-        self.courses = np.zeros((len(courses), 2, len(self.skills)), dtype=int)
+        self.courses = np.zeros((len(courses), 2, len(self.skills)), dtype=float if self.config.get("fuzzyMode", False) else int)
         self.courses_index = dict()
         index = 0
         for course_id, course in courses.items():

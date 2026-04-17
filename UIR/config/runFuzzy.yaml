@@ -1,18 +1,20 @@
 # Data Paths
 taxonomy_path: Taxonomy/taxonomy.csv                    # Path to skill taxonomy data
-course_path: Data - Collection/Final/courses.json       # Path to course data
-cv_path: Data - Collection/Final/resumes.json           # Path to learner profiles
-job_path: Data - Collection/Final/jobs.json             # Path to job listings
-mastery_levels_path: Data - Collection/Final/mastery_levels.json  # Path to skill mastery levels
-results_path: UIR/results/preferences_v3_k                              # Directory for storing results_k
+course_path: Data - Collection/Fuzzy/fuzzy_courses.json       # Path to course data
+cv_path: Data - Collection/Fuzzy/fuzzy_resumes.json           # Path to learner profiles
+job_path: Data - Collection/Fuzzy/fuzzy_jobs.json             # Path to job listings
+mastery_levels_path: Data - Collection/Fuzzy/fuzzy_mastery_levels.json  # Path to skill mastery levels
+results_path: UIR/resultsFuzzy/preferences_v3_k                              # Directory for storing results_k
 name_exp: Employability                              # Branch name for organizing results
 pretrained_model_path: UIR/models_weights/preferences_v2/UIR-gap-based  # Path to pretrained model (if any)
 use_pretrained: false                                 # Whether to use a pretrained model from pretrained_model_path
 save_model: false                                     # Whether to save the trained model in save_dir/name_exp
 save_dir: UIR/models_weights/preferences_v2
+fuzzyMode: True
+
 
 # Data Processing Parameters
-level_3: true                                          # Use third level of taxonomy (true) or fourth level (false)
+level_3: false                                          # Use third level of taxonomy (true) or fourth level (false)
                                                        # True: fewer, more general skills (46 total skills)
                                                        # False: more specific skills (~3000 total skills)
 

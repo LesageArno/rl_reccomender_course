@@ -51,16 +51,17 @@ def main():
     check_paths(config)
 
     dataset = create_and_print_dataset(config)
-    
-    print(f"feature: {config['feature']}")
-    print("-------------------------------------------")
+    exit(1)
+        
+    #print(f"feature: {config['feature']}")
+    #print("-------------------------------------------")
 
-    recommender = Reinforce(
-        dataset=dataset,
-        config = config,
-    )
+    #recommender = Reinforce(
+    #    dataset=dataset,
+    #    config = config,
+    #)
 
-    recommender.reinforce_recommendation()
+    #recommender.reinforce_recommendation()
 
 
 if __name__ == "__main__":

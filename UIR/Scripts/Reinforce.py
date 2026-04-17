@@ -278,7 +278,6 @@ class Reinforce:
             
             print(f"[INFO] Model saved to: {save_path}")
 
-
     def recommend(self, learner_vec, want, avoid, forbidden=None):
         env = self.eval_env.unwrapped
 

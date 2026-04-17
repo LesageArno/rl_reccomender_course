@@ -58,7 +58,7 @@ class CourseRecEnv(gym.Env):
         baseline (bool): Whether to use Employability as reward (True) or ```UIR/EUIR``` as reward (False)
     """
 
-    def __init__(self, dataset, config, k=3):
+    def __init__(self, dataset, config, k=3, fuzzyMode=False):
         """Initialize the course recommendation environment.
 
         Args:
@@ -67,11 +67,14 @@ class CourseRecEnv(gym.Env):
             k (int, optional): Maximum number of course recommendations. Defaults to 3.
         """
         self.config = config
+        self.fuzzyMode = fuzzyMode
         self.feature = config.get("feature", "UIR")
         self.baseline = self.feature == "Employability"
         self.method = config.get("method", 1)
         self.threshold = config.get("threshold", 0.8)
 
+        
+        
         self.dataset = dataset
         self.jobs = self.dataset.jobs  # None = usa tutti i job, altrimenti solo un sottoinsieme
         
@@ -251,7 +254,6 @@ class CourseRecEnv(gym.Env):
         )
         return initial_skills
     
-
     def _eval_want_avoid(self, learner, learner_idx, base_seed=123):
         """
         Deterministic eval preferences:
