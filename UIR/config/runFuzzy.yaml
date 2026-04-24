@@ -10,11 +10,15 @@ pretrained_model_path: UIR/models_weights/preferences_v2/UIR-gap-based  # Path t
 use_pretrained: false                                 # Whether to use a pretrained model from pretrained_model_path
 save_model: false                                     # Whether to save the trained model in save_dir/name_exp
 save_dir: UIR/models_weights/preferences_v2
-fuzzyMode: True
 
+# Mode for fuzzy logic
+fuzzyMode: 1 #0 Crisp, 1 Fuzzy Set, 2 Fuzzy Set Type II
+useMaxOnAggregatedUseful: False
+useMaxOnAggregatedMissing: False
+useMaxOnAggregatedUnnecessary: False
 
 # Data Processing Parameters
-level_3: false                                          # Use third level of taxonomy (true) or fourth level (false)
+level_3: true                                          # Use third level of taxonomy (true) or fourth level (false)
                                                        # True: fewer, more general skills (46 total skills)
                                                        # False: more specific skills (~3000 total skills)
 
@@ -30,15 +34,15 @@ dataset_seed: 42                                       # Set this seed in order 
 threshold: 0.8                                         # Minimum matching threshold for job eligibility
 k: 3                                                   # Number of course recommendations to generate
 model: ppo_mask                                        # Reinforcement learning algorithm (dqn, ppo, a2c, ppo_mask) only ppo and ppo_mask are implemented well
-total_steps: 500000                                    # Total training steps
-eval_freq: 2000                                        # Evaluation frequency during training
+total_steps: 5000                                    # Total training steps (normal to 500_000)
+eval_freq: 5                                        # Evaluation frequency during training (normal to 2_000)
 seed: 55                                               # Random seed for reproducibility of experiments
 
 # Model Configuration
 use_preference: true                                   # set to true if you want to use environment with preferences, false otherwise
 
 
-feature: "Employability"                                         # feature to use as reward
+feature: "UIR"                                         # feature to use as reward
 #options: "Employability" or "UIR" or "EUIR"         
 
 method: 1                                              # used only when feature in {"UIR","EUIR"} (0=threshold, 1=gap)
@@ -48,7 +52,7 @@ method: 1                                              # used only when feature 
 
 use_standard: false                                    # true: use library standard hyperparameters
                                                        # false: use ```hypers``` below
-
+use_numba: false
 hypers: {                                             # Standard hyperparameters used to train all models(not best)
   "device": "cuda",
   "n_steps": 1024, #256

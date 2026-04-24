@@ -15,6 +15,7 @@ from sb3_contrib import MaskablePPO
 from stable_baselines3.common.callbacks import BaseCallback
 
 from UIR.Scripts import matchings
+#from .Fuzzy.fuzzyExpertiseAwareFramework import Training as FuzzyTraining, Goals as FuzzyGoals, FuzzySkillExpertiseSet as FSES
 
 
 class CourseRecEnv(gym.Env):
@@ -243,7 +244,7 @@ class CourseRecEnv(gym.Env):
         n_skills = random.randint(self.min_skills, self.max_skills)
 
         # Initialize the skills array with zeros
-        initial_skills = np.zeros(self.nb_skills, dtype=np.int32)
+        initial_skills = np.zeros(self.nb_skills, dtype=np.int32 if not self.config.get("fuzzyMode", 0) else np.float32)
 
         # Choose unique skill indices without replacement
         skill_indices = self.rng.choice(self.nb_skills, size=n_skills, replace=False)
@@ -583,7 +584,7 @@ class CourseRecEnv(gym.Env):
             Nr, Nm, Nnr = self.calculate_course_metrics(learner, course)
         else:
             Nr, Nm, Nnr = self.calculate_course_metrics_gap(learner, course)
-
+            
         # Calculate achievable goals
         initial_goals, new_goals = self.calculate_achievable_goals(learner, course)
 
@@ -668,34 +669,6 @@ class CourseRecEnv(gym.Env):
 
         return valid_courses
 
-    def _sample_mastery_outcome(self, base_levels):
-        """
-        This function is useful if want to address potentially overlearning from a course.
-
-        base_levels: course level target {1,2,3}
-        :returns updated levels resulting from potential overlearning.
-        """
-        base_levels = np.asarray(base_levels, dtype=int)
-        p_double = 0.008
-        p_over = 0.05
-
-        mask = base_levels > 0
-
-        k = np.sum(mask)
-        p_double /= k
-        p_over /= k
-
-        # Independent Bernoulli for +2 and +1
-        # Note: if +2 triggers, +1 is not applied (higher jump has priority)
-        jump2 = self.rng.random(base_levels.shape) < p_double
-        jump1 = (self.rng.random(base_levels.shape) < p_over) & (~jump2)
-
-        outcome = base_levels + jump1.astype(int) + (2 * jump2.astype(int))
-        outcome = np.clip(outcome, 0, 3)  
-        outcome[~mask] = 0
-
-        return outcome
-
     def step(self, action):
         """Execute one step in the environment.
 
@@ -745,8 +718,6 @@ class CourseRecEnv(gym.Env):
         else:  # UIR-models
             # Calculate Usefulness-of-info-as-Rwd
             utility = self.calculate_utility(learner, course, self.method)
-
-            # learned_course = self._sample_mastery_outcome(course[1])      # calculate overlearning
 
             self._agent_skills = np.maximum(self._agent_skills, course[1])  # learned_course)
             
@@ -988,7 +959,7 @@ class EvaluateCallback(BaseCallback):
         return True  # Returning True continues training
 
 
-@njit(cache=True)
+@njit(cache=True, debug=True)
 def _calc_metrics_deficit_numba(learner: np.ndarray,
                                 course_provided: np.ndarray,
                                 jobs: np.ndarray) -> tuple:

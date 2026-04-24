@@ -1,17 +1,22 @@
 from typing import Any, Annotated
+from numpy import floating
+ 
 
 class FuzzySkillExpertiseSet():
-    def __init__(self, skillExpertiseSet:list[list[Any,float]]|dict[Any,float], *, fromSelf:bool=False, roundingDecimal:int=6):
+    def __init__(self, skillExpertiseSet:list[list[Any,float]]|dict[Any,float]|list[float], *, fromSelf:bool=False, roundingDecimal:int=6):
         """A class to represent and perform operations on Fuzzy Skill Expertise Set. It can take as input a list of skill-expertise pair, or a dictionary representing directly the skill-expertise set.
 
         Args:
-            skillExpertiseSet (list[list[Any,float]] | dict[Any,float]): A list containing pairs of skill/expertise or a dictionary mapping a skill to an expertise level.
+            skillExpertiseSet (list[list[Any,float]] | dict[Any,float] | list[float]): A list containing pairs of skill/expertise, a dictionary mapping skills to expertise levels or a list containing float where all the float represent the expertise for the skill at index i.
             fromSelf (bool, optional): ~~This is not meant to be used by the user directly. It is used internally to create copies of the object. Defaults to False.~~
             roundingDecimal (int, optional): Operations on floats may result in awkward results (eg. 3.00000000004). As a consequence, we prune the obtained values for such an operation to the defined rounding decimal. Defaults to 6.
         """
         # If the input is a list, transform it into a skill-expertise set.
         if not fromSelf and not isinstance(skillExpertiseSet, dict):
-            self.fuzzySkillExpertiseSet:dict[Any, float] = {val[0]:val[1] for val in skillExpertiseSet}
+            if isinstance(skillExpertiseSet[0], (float,floating)):
+                self.fuzzySkillExpertiseSet:dict[Any, float] = dict(enumerate(skillExpertiseSet))
+            else:
+                self.fuzzySkillExpertiseSet:dict[Any, float] = {val[0]:val[1] for val in skillExpertiseSet}
         
         # If it already is a skill expertise-set format, register it directly
         else:

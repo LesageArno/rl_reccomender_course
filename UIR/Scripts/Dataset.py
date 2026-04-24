@@ -62,7 +62,7 @@ class Dataset:
         self.load_jobs()
         self.load_courses()
         self.get_subsample()
-        if not self.config.get("fuzzyMode", False):
+        if not self.config.get("fuzzyMode", 0):
             self.make_course_consistent()
 
     def load_skills(self):
@@ -120,7 +120,7 @@ class Dataset:
         for skill, mastery_level in skill_list:
             # If the mastery level is a string and is in the mastery levels, we replace it with the corresponding value
             # Alternatively, we do the same if fuzzy
-            if isinstance(mastery_level, float) and 0<=mastery_level<=1 and self.config.get("fuzzyMode", False):
+            if isinstance(mastery_level, float) and 0<=mastery_level<=1 and self.config.get("fuzzyMode", 0):
                 skill = self.skills2int[skill]
                 avg_skills[skill].append(mastery_level)
             elif isinstance(mastery_level, str) and mastery_level in self.mastery_levels:
@@ -132,7 +132,7 @@ class Dataset:
         # We take the average of the mastery levels for each skill because on our dataset we can have multiple mastery levels for the same skill
         for skill in avg_skills.keys():
             avg_skills[skill] = sum(avg_skills[skill]) / len(avg_skills[skill])
-            avg_skills[skill] = round(avg_skills[skill]) if not self.config.get("fuzzyMode", False) else round(avg_skills[skill], 6)
+            avg_skills[skill] = round(avg_skills[skill]) if not self.config.get("fuzzyMode", 0) else round(avg_skills[skill], 6)
 
         return avg_skills
 
@@ -168,7 +168,7 @@ class Dataset:
         self.learners_index = dict()
 
         # Initialize skill matrix with zeros
-        self.learners = np.zeros((len(learners), len(self.skills)), dtype=float if self.config.get("fuzzyMode", False) else int)
+        self.learners = np.zeros((len(learners), len(self.skills)), dtype=float if self.config.get("fuzzyMode", 0) else int)
         index = 0
 
         for learner_id, learner in learners.items():
@@ -200,7 +200,7 @@ class Dataset:
             replace_unk (int, optional): The value to replace the unknown mastery levels. Defaults to 3.
         """
         jobs = json.load(open(self.config["job_path"]))
-        self.jobs = np.zeros((len(jobs), len(self.skills)), dtype=float if self.config.get("fuzzyMode", False) else int)
+        self.jobs = np.zeros((len(jobs), len(self.skills)), dtype=float if self.config.get("fuzzyMode", 0) else int)
         self.jobs_index = dict()
         index = 0
         for job_id, job in jobs.items():
@@ -224,7 +224,7 @@ class Dataset:
             replace_unk (int, optional): The value to replace the unknown mastery levels. Defaults to 2.
         """
         courses = json.load(open(self.config["course_path"]))
-        self.courses = np.zeros((len(courses), 2, len(self.skills)), dtype=float if self.config.get("fuzzyMode", False) else int)
+        self.courses = np.zeros((len(courses), 2, len(self.skills)), dtype=float if self.config.get("fuzzyMode", 0) else int)
         self.courses_index = dict()
         index = 0
         for course_id, course in courses.items():
@@ -319,16 +319,19 @@ class Dataset:
         if jobs is None:
             jobs = self.jobs
         if self.config.get("use_numba", True):
-            nb_applicable_jobs = _nb_applicable_jobs_numba(
-                learner,
-                jobs, #self.jobs,
-                threshold
-            )
+            nb_applicable_jobs = _nb_applicable_jobs_numba(learner, jobs, threshold)
             return int(nb_applicable_jobs)
+
         # Early exit: no jobs or no required skills anywhere
         job_required_counts = np.count_nonzero(self.jobs, axis=1)  # denominator per job
         if job_required_counts.size == 0 or not np.any(job_required_counts):
             return 0
+        
+        if self.config.get("fuzzyMode", 0):
+            # Get the jobs with all the requirements
+            # Then count the number of fulfilled jobs  
+            allRequirements = np.all(learner>=self.jobs*threshold, axis=1)
+            return int(np.sum(allRequirements))
 
         # Element-wise fractions for ALL skills (not only learner's nonzeros):
         # - where job requires a skill (job_s > 0): min(learner_s, job_s) / job_s

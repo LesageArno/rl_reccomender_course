@@ -12,8 +12,7 @@
                 "--config",
                 "UIR/config/runFuzzy.yaml"
             ],
-            "module": "UIR.Scripts.pipeline"
-        }
+            "module": "UIR.Scripts.pipeline"        }
     ]
 }
 
