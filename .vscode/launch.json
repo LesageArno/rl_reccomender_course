@@ -6,13 +6,16 @@
     "configurations": [
         {
             "name": "Python Debugger: Module",
-            "type": "debugpy",
+            "type": "python",
             "request": "launch",
+            "module": "UIR.Scripts.pipeline",
             "args": [
                 "--config",
-                "UIR/config/runFuzzy.yaml"
+                "UIR/config/runFuzzyDebug.yaml"
             ],
-            "module": "UIR.Scripts.pipeline"        }
+            "python": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
+            "console": "integratedTerminal"
+        }
     ]
 }
 
