@@ -1,0 +1,83 @@
+# Data Paths
+taxonomy_path: Taxonomy/taxonomy.csv                    # Path to skill taxonomy data
+course_path: Data - Collection/Final/courses.json       # Path to course data
+job_path: Data - Collection/Final/jobs.json             # Path to job listings
+
+# To change
+cv_path: Data - Collection/Final/resumes.json           # Path to learner profiles
+k: 2                                                   # Number of course recommendations to generate
+seed: 50                                               # Random seed for reproducibility of experiments
+name_exp: Employability_crisp                              # Branch name for organizing results
+feature: "Employability"                                         # feature to use as reward
+#options: "Employability" or "UIR" or "EUIR"   
+dataset_seed: 50                                       # Set this seed in order not to have a variable dataset
+
+
+
+
+mastery_levels_path: Data - Collection/Final/mastery_levels.json  # Path to skill mastery levels
+
+# Results
+results_path: UIR/resultsFuzzy/preferences_v3_k                              # Directory for storing results_k
+
+# Do not change
+pretrained_model_path: UIR/models_weights/preferences_v2/UIR-gap-based  # Path to pretrained model (if any)
+use_pretrained: false                                 # Whether to use a pretrained model from pretrained_model_path
+save_model: false                                     # Whether to save the trained model in save_dir/name_exp
+save_dir: UIR/models_weights/preferences_v2
+
+# Mode for fuzzy logic
+fuzzyMode: 0 #0 Crisp, 1 Fuzzy Set, 2 Fuzzy Set Type II
+useMaxOnAggregatedUseful: False
+useMaxOnAggregatedMissing: False
+useMaxOnAggregatedUnnecessary: False
+
+# Data Processing Parameters
+level_3: true                                          # Use third level of taxonomy (true) or fourth level (false)
+                                                       # True: fewer, more general skills (46 total skills)
+                                                       # False: more specific skills (~3000 total skills)
+
+# Dataset Size Parameters
+nb_courses: 3000                                        # Number of courses to include in the dataset
+nb_cvs: -1                                             # Number of learner profiles to use (-1 for all)
+max_cv_skills: 15                                      # Maximum number of skills per learner profile
+nb_jobs: 3587                                           # Number of jobs to include in the dataset
+set_dataset_seed: true
+
+# Model Parameters
+threshold: 0.8                                         # Minimum matching threshold for job eligibility
+model: ppo_mask                                        # Reinforcement learning algorithm (dqn, ppo, a2c, ppo_mask) only ppo and ppo_mask are implemented well
+total_steps: 500000                                    # Total training steps (normal to 500_000)
+eval_freq: 2000                                        # Evaluation frequency during training (normal to 2_000)
+
+# Model Configuration
+use_preference: true                                   # set to true if you want to use environment with preferences, false otherwise
+
+
+      
+
+method: 1                                              # used only when feature in {"UIR","EUIR"} (0=threshold, 1=gap)
+
+
+# Model Hyperparameters
+
+use_standard: false                                    # true: use library standard hyperparameters
+                                                       # false: use ```hypers``` below
+use_numba: true
+hypers: {                                             # Standard hyperparameters used to train all models(not best)
+  "device": "cuda",
+  "n_steps": 1024, #256
+  "batch_size": 64, #128
+  "n_epochs": 4, #8
+  "num_minibatches": 4, #1
+  "max_grad_norm": 0.5,  
+  "clip_range": 0.2,
+  "ent_coef": 0.025,
+  "gamma": 0.95,
+  "gae_lambda": 0.93,
+  "lr_initial": 3e-4,
+  "lr_final": 1e-4,
+  "warmup_frac": 0,
+  "start_at": 0.70,                                   # Cosine lr decay starts from (percentage of start), goes from lr_initial to lr_final 
+  "target_kl": 0.02
+}
