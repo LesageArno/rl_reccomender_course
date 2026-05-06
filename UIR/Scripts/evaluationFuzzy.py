@@ -22,7 +22,7 @@ COLS = ["Iteration", "Average jobs", "Average reward", "Average goal gap", "Aver
 EVALUATE_ON = ["Average jobs", "Average reward", "Average goal gap", "Average pref cov", "Average total levels req", "Average skills req unique", "Average skills fully covered", "Average skills missing unique", "Time"]
 
 # Type of metric being maximised
-METRIC = "Employability"
+METRIC = "UIR" #UIR or Employability
 
 # Get working directory and extraction path
 ROOT_PATH = Path(os.getcwd())
