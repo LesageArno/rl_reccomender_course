@@ -1,11 +1,26 @@
 # Data Paths
 taxonomy_path: Taxonomy/taxonomy.csv                    # Path to skill taxonomy data
 course_path: Data - Collection/Fuzzy/fuzzy_courses.json       # Path to course data
-cv_path: Data - Collection/Fuzzy/fuzzy_resumes.json           # Path to learner profiles
 job_path: Data - Collection/Fuzzy/fuzzy_jobs.json             # Path to job listings
+
+# To change
+cv_path: Data - Collection/Fuzzy/fuzzy_resumes.json           # Path to learner profiles
+k: 3                                                   # Number of course recommendations to generate
+seed: 43                                               # Random seed for reproducibility of experiments
+name_exp: MUIR_fuzzy                              # Branch name for organizing results
+feature: "MUIR"                                         # feature to use as reward
+#options: "Employability" or "UIR" or "EUIR" or "MUIR"
+dataset_seed: 43                                       # Set this seed in order not to have a variable dataset
+
+
+
+
 mastery_levels_path: Data - Collection/Fuzzy/fuzzy_mastery_levels.json  # Path to skill mastery levels
+
+# Results
 results_path: UIR/resultsFuzzy/preferences_v3_k                              # Directory for storing results_k
-name_exp: Employability                              # Branch name for organizing results
+
+# Do not change
 pretrained_model_path: UIR/models_weights/preferences_v2/UIR-gap-based  # Path to pretrained model (if any)
 use_pretrained: false                                 # Whether to use a pretrained model from pretrained_model_path
 save_model: false                                     # Whether to save the trained model in save_dir/name_exp
@@ -28,24 +43,20 @@ nb_cvs: -1                                             # Number of learner profi
 max_cv_skills: 15                                      # Maximum number of skills per learner profile
 nb_jobs: 3587                                           # Number of jobs to include in the dataset
 set_dataset_seed: true
-dataset_seed: 42                                       # Set this seed in order not to have a variable dataset
 
 # Model Parameters
 threshold: 0.8                                         # Minimum matching threshold for job eligibility
-k: 3                                                   # Number of course recommendations to generate
 model: ppo_mask                                        # Reinforcement learning algorithm (dqn, ppo, a2c, ppo_mask) only ppo and ppo_mask are implemented well
-total_steps: 5000                                    # Total training steps (normal to 500_000)
-eval_freq: 5                                        # Evaluation frequency during training (normal to 2_000)
-seed: 55                                               # Random seed for reproducibility of experiments
+total_steps: 500000                                    # Total training steps (normal to 500_000)
+eval_freq: 2000                                        # Evaluation frequency during training (normal to 2_000)
 
 # Model Configuration
 use_preference: true                                   # set to true if you want to use environment with preferences, false otherwise
 
 
-feature: "UIR"                                         # feature to use as reward
-#options: "Employability" or "UIR" or "EUIR" (deprecated) or "MUIR" (monotonic fuzzy usefulness of information)        
+      
 
-method: 1                                              # used only when feature in {"UIR","EUIR", "MUIR"} (0=threshold, 1=gap)
+method: 1                                              # used only when feature in {"UIR","EUIR"} (0=threshold, 1=gap)
 
 
 # Model Hyperparameters
