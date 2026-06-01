@@ -56,7 +56,7 @@ class CourseRecEnv(gym.Env):
         max_skills (int): Maximum number of skills a learner can have
         threshold (float): Minimum matching score required for job applicability
         k (int): Maximum number of course recommendations per learner
-        baseline (bool): Whether to use Employability as reward (True) or ```UIR/EUIR``` as reward (False)
+        baseline (bool): Whether to use Employability as reward (True) or ```UIR/EUIR`/MUIR`` as reward (False)
     """
 
     def __init__(self, dataset, config, k=3, fuzzyMode=False):
@@ -558,7 +558,7 @@ class CourseRecEnv(gym.Env):
 
         return initial_goals, new_goals
 
-    def calculate_utility(self, learner, course, method=1):
+    def calculate_utility(self, learner, course, method=1, MUIR:bool = False):
         """Calculate the utility of a course recommendation.
 
         The utility function is defined as:
@@ -575,6 +575,7 @@ class CourseRecEnv(gym.Env):
             learner (np.ndarray): Current learner's skill vector
             course (np.ndarray): Course's skills array [required, provided]
             method (int): Whether to use binary information or skills mastery deficit, default 1(mastery deficit)
+            MUIR (bool): Whether to exclude Nnr component of the formula (fuzzy Nnr is not monotonic) 
 
         Returns:
             float: Utility value of the course recommendation
@@ -595,8 +596,12 @@ class CourseRecEnv(gym.Env):
         # Calculate |E(φ)|: number of new jobs that become applicable
         E_phi = new_goals - initial_goals
 
-        # Calculate denominator for Nr fraction
-        denominator = Nr + Nm + (Nnr / (Nnr + 1))
+        # Calculate denominator for Nr fraction with MUIR or without
+        if not MUIR:
+            denominator = Nr + Nm + (Nnr / (Nnr + 1))
+        else:
+            denominator = Nr + Nm
+            
         if denominator == 0:  # Avoid division by zero
             Nr_fraction = 0
         else:
@@ -679,6 +684,7 @@ class CourseRecEnv(gym.Env):
            - Baseline: Employability as rwd model
            - UIR: Utility function value as rwd model
            - EUIR: (normalized Employability) + Utility function value as rwd model
+           - MUIR: (Monotonic Fuzzy UIR) without non monotonic unnecessary component
         4. Checks if the episode should terminate
 
         Args:
@@ -717,7 +723,7 @@ class CourseRecEnv(gym.Env):
             reward = info["nb_applicable_jobs"]
         else:  # UIR-models
             # Calculate Usefulness-of-info-as-Rwd
-            utility = self.calculate_utility(learner, course, self.method)
+            utility = self.calculate_utility(learner, course, self.method, self.feature == "MUIR")
 
             self._agent_skills = np.maximum(self._agent_skills, course[1])  # learned_course)
             
@@ -729,7 +735,7 @@ class CourseRecEnv(gym.Env):
             info = self.get_info()
             info["utility"] = utility
 
-            if self.feature == "UIR":
+            if self.feature in ["UIR", "MUIR"]:
                 reward = info["utility"]  # Use utility as reward
             elif self.feature == "EUIR":
                 reward = (info["nb_applicable_jobs"]) / len(self.jobs) + info["utility"]  # Combine both metrics (DEPRECATED)
