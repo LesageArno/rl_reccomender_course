@@ -12,7 +12,7 @@ save_model: false                                     # Whether to save the trai
 save_dir: UIR/models_weights/preferences_v2
 
 # Mode for fuzzy logic
-fuzzyMode: 1 #0 Crisp, 1 Fuzzy Set, 2 Fuzzy Set Type II
+fuzzyMode: 0 #0 Crisp, 1 Fuzzy Set, 2 Fuzzy Set Type II
 useMaxOnAggregatedUseful: False
 useMaxOnAggregatedMissing: False
 useMaxOnAggregatedUnnecessary: False
@@ -36,13 +36,13 @@ k: 3                                                   # Number of course recomm
 model: ppo_mask                                        # Reinforcement learning algorithm (dqn, ppo, a2c, ppo_mask) only ppo and ppo_mask are implemented well
 total_steps: 5000                                    # Total training steps (normal to 500_000)
 eval_freq: 5                                        # Evaluation frequency during training (normal to 2_000)
-seed: 55                                               # Random seed for reproducibility of experiments
+seed: 1092                                               # Random seed for reproducibility of experiments
 
 # Model Configuration
 use_preference: true                                   # set to true if you want to use environment with preferences, false otherwise
 
 
-feature: "UIR"                                         # feature to use as reward
+feature: "MUIR"                                         # feature to use as reward
 #options: "Employability" or "UIR" or "EUIR" (deprecated) or "MUIR" (monotonic fuzzy usefulness of information)        
 
 method: 1                                              # used only when feature in {"UIR","EUIR", "MUIR"} (0=threshold, 1=gap)
