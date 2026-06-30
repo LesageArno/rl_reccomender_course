@@ -11,7 +11,7 @@
             "module": "UIR.Scripts.pipeline",
             "args": [
                 "--config",
-                "UIR/config/runFuzzyTests.yaml"
+                "UIR/config/runFuzzy2Tests.yaml"
             ],
             "python": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
             "console": "integratedTerminal"

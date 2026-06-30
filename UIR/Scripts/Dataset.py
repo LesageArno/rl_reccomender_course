@@ -62,7 +62,7 @@ class Dataset:
         self.load_jobs()
         self.load_courses()
         self.get_subsample()
-        if not self.config.get("fuzzyMode", 0):
+        if self.config.get("fuzzyMode", 0) == 0:
             self.make_course_consistent()
 
     def load_skills(self):
@@ -114,13 +114,15 @@ class Dataset:
         """Load the mastery levels from the file specified in the config and store it in the class attribute"""
         self.mastery_levels = json.load(open(self.config["mastery_levels_path"]))
 
-    def get_avg_skills(self, skill_list, replace_unk):
-        """Compute averaged (rounded) mastery per skill, mapping unknown (-1) to replace_unk."""
+    def get_avg_skills(self, skill_list, replace_unk, mode:str):
+        """Compute averaged (rounded) mastery per skill, mapping unknown (-1) to replace_unk.
+        mode can be acquire or require. If acquire, work with triangle, otherwise, work with ramps (Apply only if fuzzy mode II).
+        """
         avg_skills = defaultdict(list)
         for skill, mastery_level in skill_list:
             # If the mastery level is a string and is in the mastery levels, we replace it with the corresponding value
             # Alternatively, we do the same if fuzzy
-            if isinstance(mastery_level, float) and 0<=mastery_level<=1 and self.config.get("fuzzyMode", 0):
+            if isinstance(mastery_level, (float, list)) and self.config.get("fuzzyMode", 0): # This is for fuzzy I and II
                 skill = self.skills2int[skill]
                 avg_skills[skill].append(mastery_level)
             elif isinstance(mastery_level, str) and mastery_level in self.mastery_levels:
@@ -131,6 +133,24 @@ class Dataset:
                 avg_skills[skill].append(mastery_level)
         # We take the average of the mastery levels for each skill because on our dataset we can have multiple mastery levels for the same skill
         for skill in avg_skills.keys():
+            
+            # If we are working with Fuzzy II, then use fuzzy arithmetics
+            if self.config.get("fuzzyMode", 0) == 2 and mode=="acquire":
+                m = len(avg_skills[skill])
+                e = sum(i[0] for i in avg_skills[skill])
+                el = sum(i[0]-i[1] for i in avg_skills[skill])
+                er = sum(i[0]+i[2] for i in avg_skills[skill])
+                nu = {el/m, er/m}
+                avg_skills[skill] = [round(e/m,6), round(e/m - min(nu), 6), round(max(nu) - e/m,6)]
+                continue
+            elif self.config.get("fuzzyMode", 0) == 2 and mode=="require":
+                m = len(avg_skills[skill])
+                e = sum(i[0] for i in avg_skills[skill])
+                er = sum(i[1] for i in avg_skills[skill])
+                avg_skills[skill] = [round(e/m,6), round(er/m,6)]
+                continue
+            
+            # Else continue with normal arithmetics
             avg_skills[skill] = sum(avg_skills[skill]) / len(avg_skills[skill])
             avg_skills[skill] = round(avg_skills[skill]) if not self.config.get("fuzzyMode", 0) else round(avg_skills[skill], 6)
 
@@ -169,12 +189,17 @@ class Dataset:
 
         # Initialize skill matrix with zeros
         # TODO: Add self.confidence_left and self.confidence_right
-        self.learners = np.zeros((len(learners), len(self.skills)), dtype=float if self.config.get("fuzzyMode", 0) else int)
+        if self.config.get("fuzzyMode", 0) == 0:
+            self.learners = np.zeros((len(learners), len(self.skills)), dtype=int)
+        elif self.config.get("fuzzyMode", 0) == 1:
+            self.learners = np.zeros((len(learners), len(self.skills)), dtype=float)
+        elif self.config.get("fuzzyMode",0)==2:
+            self.learners = np.zeros((len(learners), len(self.skills), 3), dtype=float)
         index = 0
 
         for learner_id, learner in learners.items():
             # Get average skill levels for each skill
-            learner_skills = self.get_avg_skills(learner, replace_unk)
+            learner_skills = self.get_avg_skills(learner, replace_unk, mode="acquire")
 
             # Skip learners with too many skills
             if len(learner_skills) > self.max_learner_skills:
@@ -201,7 +226,15 @@ class Dataset:
             replace_unk (int, optional): The value to replace the unknown mastery levels. Defaults to 3.
         """
         jobs = json.load(open(self.config["job_path"]))
-        self.jobs = np.zeros((len(jobs), len(self.skills)), dtype=float if self.config.get("fuzzyMode", 0) else int)
+        
+        # Select the right version depending on fuzzification mode
+        if self.config.get("fuzzyMode", 0) == 0:
+            self.jobs = np.zeros((len(jobs), len(self.skills)), dtype=int)
+        elif self.config.get("fuzzyMode", 0) == 1:
+            self.jobs = np.zeros((len(jobs), len(self.skills)), dtype=float)
+        elif self.config.get("fuzzyMode", 0) == 2:
+            self.jobs = np.zeros((len(jobs), len(self.skills), 2), dtype=float)
+        
         self.jobs_index = dict()
         index = 0
         for job_id, job in jobs.items():
@@ -209,7 +242,7 @@ class Dataset:
             self.jobs_index[job_id] = index
 
             # Get average skill levels for each skill
-            job_skills = self.get_avg_skills(job, replace_unk)
+            job_skills = self.get_avg_skills(job, replace_unk, mode="require")
 
             for skill, level in job_skills.items():
                 self.jobs[index][skill] = level
@@ -225,7 +258,14 @@ class Dataset:
             replace_unk (int, optional): The value to replace the unknown mastery levels. Defaults to 2.
         """
         courses = json.load(open(self.config["course_path"]))
-        self.courses = np.zeros((len(courses), 2, len(self.skills)), dtype=float if self.config.get("fuzzyMode", 0) else int)
+        
+        if self.config.get("fuzzyMode", 0) == 0:
+            self.courses = np.zeros((len(courses), 2, len(self.skills)), dtype=int)
+        elif self.config.get("fuzzyMode", 0) == 1:
+            self.courses = np.zeros((len(courses), 2, len(self.skills)), dtype=float)
+        elif self.config.get("fuzzyMode", 0) == 2:
+            self.courses = np.zeros((len(courses), 2, len(self.skills), 3), dtype=float)
+
         self.courses_index = dict()
         index = 0
         for course_id, course in courses.items():
@@ -237,15 +277,15 @@ class Dataset:
             self.courses_index[index] = course_id
 
             # Get average skill levels for provided skills
-            provided_skills = self.get_avg_skills(course["to_acquire"], replace_unk)
+            provided_skills = self.get_avg_skills(course["to_acquire"], replace_unk, "acquire")
             for skill, level in provided_skills.items():
                 self.courses[index][1][skill] = level
 
             # Process required skills if they exist
             if "required" in course:
-                required_skills = self.get_avg_skills(course["required"], replace_unk)
+                required_skills = self.get_avg_skills(course["required"], replace_unk, "require")
                 for skill, level in required_skills.items():
-                    self.courses[index][0][skill] = level
+                    self.courses[index][0][skill] = level + [0] # Fill with zero to not get inhomogeneous errors on ramps
 
             index += 1
             # update the courses numpy array with the correct number of rows
@@ -303,7 +343,10 @@ class Dataset:
         self.jobs_inverted_index = defaultdict(set)
         for i, job in enumerate(self.jobs):
             for skill, level in enumerate(job):
-                if level > 0:
+                # Special case with Fuzzy 2
+                if self.config.get("fuzzyMode", 0)==2 and level[0]>0:
+                    self.jobs_inverted_index[skill].add(i)
+                elif self.config.get("fuzzyMode", 0)<2 and level > 0:
                     self.jobs_inverted_index[skill].add(i)
 
     def get_nb_applicable_jobs(self, learner, threshold, jobs = None):
