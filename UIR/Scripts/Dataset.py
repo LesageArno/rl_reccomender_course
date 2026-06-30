@@ -168,6 +168,7 @@ class Dataset:
         self.learners_index = dict()
 
         # Initialize skill matrix with zeros
+        # TODO: Add self.confidence_left and self.confidence_right
         self.learners = np.zeros((len(learners), len(self.skills)), dtype=float if self.config.get("fuzzyMode", 0) else int)
         index = 0
 

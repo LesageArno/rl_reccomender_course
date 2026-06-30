@@ -1,5 +1,5 @@
-from .fuzzifier import NeighbourResumeFuzzifier, SimpleFuzzifier, OnTaxonomyFuzzificationMethod, AssociationsMethod
-from ....Taxonomy.taxonomy_explorer import LEVEL_COLS 
+from fuzzifier import NeighbourResumeFuzzifier, SimpleFuzzifier, OnTaxonomyFuzzificationMethod, AssociationsMethod
+from taxonomy_explorer import LEVEL_COLS
 import pandas as pd
 import json
 from typing import Any, overload
@@ -7,7 +7,7 @@ import numpy as np
 from copy import deepcopy
 import time
 
-class fuzzyEvaluator():
+class FuzzyResumeEvaluator():
     def __init__(self, levels:dict[str,float], df_taxonomy:pd.DataFrame, lvlCols:list[str], skillIdCol:str="unique_id"):
         
         # Instantiate a floating fuzzifier and a fixed fuzzifier 
@@ -121,8 +121,45 @@ class fuzzyEvaluator():
         RMSE = MSE**0.5
         
         # Return RMSE
-        return RMSE
+        return RMSE                    
     
+    def customFixedFuzzificationForEvaluation(self, unknownDefault:float, fuzzify=None):
+        fuzzified = deepcopy(self.maskedFuzzyBaseline if fuzzify is None else fuzzify)
+        for key, values in self.maskedFuzzyBaseline.items() if fuzzify is None else fuzzify.items():
+            for listIndex, skillExpertise in enumerate(values):
+                if skillExpertise[1] is None:
+                    fuzzified[key][listIndex][1] = unknownDefault
+        return fuzzified 
+    
+    def evaluateOnFixed(self, P:list[float], seeds:list[int], unknownDefault:float=0.5, outPath:str="out/onFixedEvaluation.csv"):
+        self.loadFuzzyBaseline()
+        count = 1
+        begin = time.time()
+        with open(outPath, "w") as file:
+            file.write("mode,seed,p,RMSE\n")
+            for seed in seeds:
+                for p in P:
+                    # Compute the fuzzy baseline mask (choose to mask some known values). This will be compared onward with our results
+                    self.maskFuzzyBaseline(round(p,5), seed)
+                        
+                    # Take only the one that will changes (the one we masked)  
+                    maskedFilteredBaseline = [self.fuzzyBaselineAsLists[i] for i in self.masked] # That's the y to find again
+                    
+                    fuzzified = self.customFixedFuzzificationForEvaluation(unknownDefault)
+                    fuzzified = self.sortResumes(self.resumesToLists(self.sortResumes(fuzzified)))
+                    
+                    # Retrieve only the one that changed (the masks we want to recapture)
+                    maskedFilteredFuzzified = [fuzzified[i] for i in self.masked]
+                    
+                    file.write(f"fixed,{seed},{round(p,5)},")
+                    # Compute the RMSE, save the results and flush (for some reason, it is necessary here)
+                    file.write(f"{self.computeRMSE(maskedFilteredBaseline, maskedFilteredFuzzified)}\n")
+                    file.flush()
+                    count+=1
+                    
+                    if count % 100 == 0:
+                        print(f"[{count}, {time.time()-begin:.6f}s] mode=fixed, {seed=}, ={round(p,5)}")
+                        
     def evaluateOnTaxonomy(self, 
                    modes:list[OnTaxonomyFuzzificationMethod], 
                    P:list[float], 
@@ -216,6 +253,7 @@ class fuzzyEvaluator():
                    seeds:list[int],
                    thresholds:list[int],
                    outPath:str = "out/onRulesAssociationsEvaluation.csv",
+                   fixedUnknownDefault:float=0.5,
                    lastUnknownFill:dict[OnTaxonomyFuzzificationMethod,None|dict[str,Any]] = {"weightedLog2":{"gamma":1}}):
 
         # Load the baseline
@@ -259,7 +297,9 @@ class fuzzyEvaluator():
                                     print(f"[{count}, {time.time()-begin:.6f}s] {mode=}, {seed=}, {method=}, {k=}, p={round(p,5)}")
 
                                 # Fuzzify with or without parameters
-                                if lastUnknownFill[method] is None:
+                                if method == "Fixed":
+                                    fuzzified = self.customFixedFuzzificationForEvaluation(fixedUnknownDefault, partialFuzzified)
+                                elif lastUnknownFill[method] is None:
                                     fuzzified = self.fuzzifier.fuzzify(partialFuzzified, method)
                                 else:
                                     fuzzified = self.fuzzifier.fuzzify(partialFuzzified, method, **lastUnknownFill[method])
@@ -274,36 +314,97 @@ class fuzzyEvaluator():
                                 file.flush()
                                 count+=1    
         
-            
+def convertCoursesForEvaluation(courses:dict[str,dict[str,list[list[int,float]]]], *fuzzyResumeEvaluatorParam) -> tuple[FuzzyResumeEvaluator, FuzzyResumeEvaluator]:
+    """Transform the courses into two distinct sets in order to be able to use the FuzzyResumeEvaluator on them.
+
+    Args:
+        courses (dict[str,dict[str,list[list[int,float]]]]): The set of courses
+
+    Returns:
+        tuple[FuzzyResumeEvaluator, FuzzyResumeEvaluator]: An evaluator instance for the required component first, then for the acquired component/
+    """
+    # Initialise the independent sets
+    required = {}
+    acquire = {}
+    
+    # For each training, split the required component and the acquired component
+    for trainingID, training in courses.items():
+        required[trainingID] = training["required"]
+        acquire[trainingID] = training["to_acquire"]
+    
+    # Instantiate the operator and load the fuzzy sets
+    reqEval = FuzzyResumeEvaluator(*fuzzyResumeEvaluatorParam)
+    reqEval.loadResume(required)
+    acqEval = FuzzyResumeEvaluator(*fuzzyResumeEvaluatorParam)
+    acqEval.loadResume(acquire)
+    
+    # Return requirement and acquirement Evaluator
+    return (reqEval, acqEval)
+    
+
+        
 if __name__ == "__main__":
     
     # Get the necessary files for evaluations
     with open("fuzzifiedData/fuzzy_mastery_levels.json") as file:
         fuzzyMasteryLevels = json.load(file)
     with open("data/resumes.json") as file: 
-        content = json.load(file)
+        resumes = json.load(file)
+    with open("data/jobs.json") as file:
+        jobs = json.load(file)
+    with open("data/courses.json") as file:
+        courses = json.load(file)
     
+    
+    # Get taxonomy
     taxonomy = pd.read_csv("data/taxonomy.csv")
-    fuzzyEval = fuzzyEvaluator(fuzzyMasteryLevels, taxonomy, LEVEL_COLS, "unique_id")
-    fuzzyEval.loadResume(content)
     
+    # Initialise for resumes
+    fuzzyResumeEval = FuzzyResumeEvaluator(fuzzyMasteryLevels, taxonomy, LEVEL_COLS, "unique_id")
+    fuzzyResumeEval.loadResume(resumes)
     
+    # Initialise for jobs
+    fuzzyJobEval = FuzzyResumeEvaluator(fuzzyMasteryLevels, taxonomy, LEVEL_COLS, "unique_id")
+    fuzzyJobEval.loadResume(jobs)
+    
+    # Initialises for courses
+    fuzzyCoursesRequirementEval, fuzzyCoursesAcquirementsEval = convertCoursesForEvaluation(courses, fuzzyMasteryLevels, taxonomy, LEVEL_COLS, "unique_id") 
+    
+    # Parameters
     modes = ["linear","log2","weighted","weightedLog2"]
     P = np.arange(0.01,1.01,0.01)
     N = 10
     gamma = np.arange(0,1.01,0.01)
     
-    fuzzyEval.evaluateOnTaxonomy(modes=modes, P=P, seeds=list(range(N)), gamma=gamma)
+    #### RESUME EVALUATION
+    # Eval for fixed
+    #fuzzyResumeEval.evaluateOnFixed(P,seeds=list(range(N)))
     
-    fuzzyEval.evaluateOnRulesAssociations(
-        modes=["crisp","min","weighted"],
-        P = np.arange(0.02,1.01,0.02),
-        seeds=list(range(10)),
-        thresholds=list(range(1,16)),
-        lastUnknownFill = {
-            "weightedLog2":{"gamma":1},
-            "log2":None,
-            "linear":None
-        }
-    )
+    # Uncomment for taxonomy
+    #fuzzyResumeEval.evaluateOnTaxonomy(modes=modes, P=P, seeds=list(range(N)), gamma=gamma)
     
+    # Uncomment for association rules
+    #fuzzyResumeEval.evaluateOnRulesAssociations(
+    #    modes=["crisp","min","weighted"],
+    #    P = np.arange(0.02,1.01,0.02),
+    #    seeds=list(range(10)),
+    #    thresholds=list(range(1,16)),
+    #    lastUnknownFill = {
+    #        "Fixed":None
+    #        #"weightedLog2":{"gamma":1},
+    #        #"log2":None,
+    #        #"linear":None
+    #    }
+    #)
+    
+    #### JOB EVALUATION
+    # Fixed only
+    fuzzyJobEval.evaluateOnFixed(P,seeds=list(range(N)), unknownDefault=0.8, outPath="out/onFixedJobEvaluation.csv")
+    
+    #### COURSES EVALUATIONS
+    ## Fixed only
+    # For requirements
+    fuzzyCoursesRequirementEval.evaluateOnFixed(P, seeds=list(range(N)), unknownDefault=0.5, outPath="out/onFixedCoursesRequirements.csv")
+
+    # For Acquirements
+    fuzzyCoursesAcquirementsEval.evaluateOnFixed(P, seeds=list(range(N)), unknownDefault=0.5, outPath="out/onFixedCoursesAcquirements.csv")
