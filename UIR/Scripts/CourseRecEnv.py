@@ -13,6 +13,7 @@ import gymnasium as gym
 from gymnasium import spaces
 from sb3_contrib import MaskablePPO
 from stable_baselines3.common.callbacks import BaseCallback
+from . import Fuzzy2Arithmetics as f2A
 
 from UIR.Scripts import matchings
 #from .Fuzzy.fuzzyExpertiseAwareFramework import Training as FuzzyTraining, Goals as FuzzyGoals, FuzzySkillExpertiseSet as FSES
@@ -103,7 +104,11 @@ class CourseRecEnv(gym.Env):
         self.mastery_levels = [
             elem for elem in list(dataset.mastery_levels.values()) if elem > 0  # mastery level: [1,2,3,-1]
         ]
-        self.max_level = max(self.mastery_levels)
+        
+        if fuzzyMode == 0:
+            self.max_level = max(self.mastery_levels)
+        elif fuzzyMode > 0:
+            self.max_level = 1
         self.nb_courses = dataset.courses.shape[0]  # 3000 courses
         # get the minimum and maximum number of skills of the learners using np.nonzero
         self.min_skills = int(np.min(np.count_nonzero(self.dataset.learners, axis=1)))  # 1
@@ -120,17 +125,35 @@ class CourseRecEnv(gym.Env):
         # The vector contains skill levels, where the minimum level is 0 and the maximum level is 3.
         # We cannot set the lower bound to -1 because negative values are not allowed in this Box space.
         if self.config.get("use_preference", True):
-            high = np.concatenate([
-                np.full(self.nb_skills, self.max_level, dtype=np.int32 if fuzzyMode == 0 else np.float32),  # skills
-                np.ones(self.nb_skills, dtype=np.int32),                  # want
-                np.ones(self.nb_skills, dtype=np.int32),                  # avoid
-                np.array([self.k], dtype=np.int32),                       # step_left
-            ])
+            if fuzzyMode < 2:
+                high = np.concatenate([
+                    np.full(self.nb_skills, self.max_level, dtype=np.int32 if fuzzyMode == 0 else np.float32),  # skills
+                    np.ones(self.nb_skills, dtype=np.int32),                  # want
+                    np.ones(self.nb_skills, dtype=np.int32),                  # avoid
+                    np.array([self.k], dtype=np.int32),                       # step_left
+                ])
+            elif fuzzyMode == 2:
+                high = np.concatenate([
+                    np.full(self.nb_skills, self.max_level, dtype=np.float32),  # skills
+                    np.zeros(self.nb_skills, dtype=np.float32),                 # Left confidence
+                    np.zeros(self.nb_skills, dtype=np.float32),                 # Right confidence
+                    np.ones(self.nb_skills, dtype=np.int32),                  # want
+                    np.ones(self.nb_skills, dtype=np.int32),                  # avoid
+                    np.array([self.k], dtype=np.int32),                       # step_left
+                ])
             low = np.zeros_like(high)
             self.observation_space = gym.spaces.Box(low=low, high=high, dtype=np.int32 if fuzzyMode == 0 else np.float32)
         else: 
-            high = np.concatenate([
-                np.full(self.nb_skills, self.max_level, dtype=np.int32 if fuzzyMode == 0 else np.float32),  # skills
+            if fuzzyMode<2:
+                high = np.concatenate([
+                    np.full(self.nb_skills, self.max_level, dtype=np.int32 if fuzzyMode == 0 else np.float32),  # skills
+                    np.array([self.k], dtype=np.int32),                       # step_left
+                ])
+            elif fuzzyMode == 2:
+                high = np.concatenate([
+                np.full(self.nb_skills, self.max_level, dtype=np.float32),  # skills
+                np.zeros(self.nb_skills, dtype=np.float32),                 # Left confidence
+                np.zeros(self.nb_skills, dtype=np.float32),                 # Right confidence
                 np.array([self.k], dtype=np.int32),                       # step_left
             ])
             low = np.zeros_like(high)
@@ -146,7 +169,11 @@ class CourseRecEnv(gym.Env):
         # This is a discrete space where each action corresponds to recommending a specific course.
         # The total number of possible actions is equal to the number of available courses (nb_courses = 100).
         # The agent will select an integer in [0, nb_courses - 1], representing the index of the recommended course.
-        self.action_space = gym.spaces.Discrete(self.nb_courses)
+        if self.fuzzyMode <2:
+            self.action_space = gym.spaces.Discrete(self.nb_courses)
+        elif self.fuzzyMode == 2:
+            # This is quite bizarre. It should not work this way
+            self.action_space = gym.spaces.Discrete(3*self.nb_courses)
 
     def set_extra_invalid_actions(self, invalid_actions_ids):
         """
@@ -198,43 +225,58 @@ class CourseRecEnv(gym.Env):
         )
 
         # Total skill gap on goal set (sum of missing levels)
+        ## Original Version
         # Aggregate levels across all jobs and cap at 3
-        required_levels = self.jobs_goal.sum(axis=0).clip(0, 3)
-
-        # Calculate covered levels based on the learner's current state
-        covered_levels = np.minimum(required_levels, learner)
-
-        # levels_missing: remaining levels to reach the goal per skill
-        levels_missing = (required_levels - covered_levels)
-
-        # Total gap is the sum of levels still missing to reach the required profile
-        goal_gap_total = int(levels_missing.sum())
+        # required_levels = self.jobs_goal.sum(axis=0).clip(0, 3)
+        ## New Version (I do not know why clipping)
+        if self.fuzzyMode == 0:
+            required_levels = self.jobs_goal.sum(axis=0).clip(0,3)
+        if self.fuzzyMode == 1:
+            required_levels = self.jobs_goal.sum(axis=0).clip(0,1)
         
-        # Total number of skill levels involved in the goal
-        total_skill_levels_required = int(required_levels.sum())
+        if self.fuzzyMode < 2:
+            # Calculate covered levels based on the learner's current state
+            covered_levels = np.minimum(required_levels, learner)
 
-        # Count of unique skills involved in the goal
-        skills_required_unique = int((required_levels > 0).sum())
+            # levels_missing: remaining levels to reach the goal per skill
+            levels_missing = (required_levels - covered_levels)
 
-        # Count of skills where learner level >= required level
-        skills_fully_covered = int(((required_levels > 0) & (learner >= required_levels)).sum())
+            # Total gap is the sum of levels still missing to reach the required profile
+            if self.fuzzyMode == 0:
+                goal_gap_total = int(levels_missing.sum())
+            elif self.fuzzyMode == 1:
+                goal_gap_total = levels_missing.sum()
+            
+            # Total number of skill levels involved in the goal
+            if self.fuzzyMode == 0:
+                total_skill_levels_required = int(required_levels.sum())
+            elif self.fuzzyMode == 1:
+                total_skill_levels_required = required_levels.sum()
+                
+            # Count of unique skills involved in the goal
+            skills_required_unique = int((required_levels > 0).sum())
+            
+            # Count of skills where learner level >= required level
+            skills_fully_covered = int(((required_levels > 0) & (learner >= required_levels)).sum())        
+            
+            # Count of skills that still need at least one level
+            skills_missing_unique = int((levels_missing > 0).sum())
 
-        # Count of skills that still need at least one level
-        skills_missing_unique = int((levels_missing > 0).sum())
+            # Preference coverage (wanted skills improved during episode)
+            want_n = int(self._want.sum())
+            pref_coverage = float(self.covered_want.sum() / want_n) if want_n > 0 else 0.0
 
-        # Preference coverage (wanted skills improved during episode)
-        want_n = int(self._want.sum())
-        pref_coverage = float(self.covered_want.sum() / want_n) if want_n > 0 else 0.0
-
-        return {
-            "nb_applicable_jobs": employability_goal,
-            "goal_gap_total": goal_gap_total,
-            "pref_coverage": pref_coverage,
-            "total_skill_levels_required": total_skill_levels_required,
-            "skills_required_unique": skills_required_unique,
-            "skills_fully_covered": skills_fully_covered,
-            "skills_missing_unique": skills_missing_unique
-        }
+            return {
+                "nb_applicable_jobs": employability_goal,
+                "goal_gap_total": goal_gap_total,
+                "pref_coverage": pref_coverage,
+                "total_skill_levels_required": total_skill_levels_required,
+                "skills_required_unique": skills_required_unique,
+                "skills_fully_covered": skills_fully_covered,
+                "skills_missing_unique": skills_missing_unique
+            }
+        elif self.fuzzyMode == 2:
+            return {"nb_applicable_jobs":employability_goal}
 
     def get_random_learner(self):
         """Generate a random learner profile for environment initialization.
@@ -729,9 +771,18 @@ class CourseRecEnv(gym.Env):
         learner = self._agent_skills
 
         # Skip-expertise case: use new metrics and utility
-        required_matching = matchings.learner_course_required_matching(learner, course)
-        provided_matching = matchings.learner_course_provided_matching(learner, course)
-        if provided_matching == 1.0 or required_matching < self.threshold:
+        if self.fuzzyMode < 2:
+            fuzzyThreshold = None
+            required_matching = matchings.learner_course_required_matching(learner, course)
+            provided_matching = matchings.learner_course_provided_matching(learner, course)
+            inclusionMatching = None
+        elif self.fuzzyMode == 2:
+            fuzzyThreshold = self.config.get("fuzzyInclusionThresholdForCourseRequirements", 1)
+            inclusionMatching = f2A.minimumInclusionDegree(learner, np.array([course[0,:,:2]]))
+            provided_matching = None
+            required_matching = None
+        
+        if (self.fuzzyMode < 2 and (provided_matching == 1.0 or required_matching < self.threshold)) or (self.fuzzyMode==2 and inclusionMatching >= fuzzyThreshold):
             observation = self.get_obs()
             reward = -1
             terminated = True
@@ -748,6 +799,10 @@ class CourseRecEnv(gym.Env):
             observation = self.get_obs()
             info = self.get_info()
             reward = info["nb_applicable_jobs"]
+            
+        #############################################################################################
+        #############################################################################################
+        # WE ARE HERE IN THE NEW CODE
         else:  # UIR-models
             # Calculate Usefulness-of-info-as-Rwd
             utility = self.calculate_utility(learner, course, self.method, self.feature == "MUIR")

@@ -188,8 +188,6 @@ class Dataset:
         self.max_learner_skills = self.config["max_cv_skills"]
         self.learners_index = dict()
 
-        # Initialize skill matrix with zeros
-        # TODO: Add self.confidence_left and self.confidence_right
         if self.config.get("fuzzyMode", 0) == 0:
             self.learners = np.zeros((len(learners), len(self.skills)), dtype=int)
         elif self.config.get("fuzzyMode", 0) == 1:
@@ -286,8 +284,10 @@ class Dataset:
             if "required" in course:
                 required_skills = self.get_avg_skills(course["required"], replace_unk, "require")
                 for skill, level in required_skills.items():
-                    self.courses[index][0][skill] = level + [0] # Fill with zero to not get inhomogeneous errors on ramps
-
+                    if self.config.get("fuzzyMode", 0) == 2:
+                        self.courses[index][0][skill] = level + [0] # Fill with zero to not get inhomogeneous errors on ramps
+                        continue
+                    self.courses[index][0][skill] = level
             index += 1
             # update the courses numpy array with the correct number of rows
         self.courses = self.courses[:index]
@@ -361,9 +361,6 @@ class Dataset:
         Returns:
             int: the number of applicable jobs
         """
-        ##### DEBUG ONLY
-        f2A.minimumInclusionDegree(learner, jobs)
-        ####
         if jobs is None:
             jobs = self.jobs
         if self.config.get("use_numba", True):
@@ -371,16 +368,20 @@ class Dataset:
             return int(nb_applicable_jobs)
 
         # Early exit: no jobs or no required skills anywhere
-        job_required_counts = np.count_nonzero(self.jobs, axis=1)  # denominator per job
-        if job_required_counts.size == 0 or not np.any(job_required_counts):
-            return 0
+        if self.config.get("fuzzyMode", 0) < 2:
+            job_required_counts = np.count_nonzero(self.jobs, axis=1)  # denominator per job
+            if job_required_counts.size == 0 or not np.any(job_required_counts):
+                return 0
         
-        if self.config.get("fuzzyMode", 0):
+        if self.config.get("fuzzyMode", 0) == 1:
             # Get the jobs with all the requirements
             # Then count the number of fulfilled jobs  
             allRequirements = np.all(learner>=self.jobs*threshold, axis=1)
             return int(np.sum(allRequirements))
-
+        elif self.config.get("fuzzyMode", 0) == 2:
+            return f2A.minimumInclusionDegree(learner, jobs)
+        
+        
         # Element-wise fractions for ALL skills (not only learner's nonzeros):
         # - where job requires a skill (job_s > 0): min(learner_s, job_s) / job_s
         # - where job_s == 0: leave 0 (no contribution)

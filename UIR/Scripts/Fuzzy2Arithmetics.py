@@ -1,7 +1,6 @@
 import numpy as np
 
 def InclusionDegree(learner: np.ndarray[float], jobs: np.ndarray[float]) -> np.ndarray[float]:
-        
     # Provider
     ep  = learner[None, :, 0] # Learner expertise (1,#S)
     clp = learner[None, :, 1] # Learner left confidence (1,#S)
@@ -109,54 +108,94 @@ def InclusionDegree(learner: np.ndarray[float], jobs: np.ndarray[float]) -> np.n
 
 def minimumInclusionDegree(learner:np.ndarray[float], jobs:np.ndarray[float]) -> float:
     return InclusionDegree(learner, jobs).min(axis=1).sum()
+
+def DeltaRampTriangle(jobs:np.ndarray[float], learner:np.ndarray[float]) -> np.ndarray[float]:
+    # Provider
+    ep  = learner[None, :, 0] # Learner expertise (1,#S)
+    clp = learner[None, :, 1] # Learner left confidence (1,#S)
+    crp = learner[None, :, 2] # Learner right confidence (1,#S)
+
+    # Requirement
+    er = jobs[:, :, 0] # Requirement expertise for each job and skills (#J,#S)
+    cr = jobs[:, :, 1] # Requirement confidence for each job and skills (#J,#S)
     
-if __name__ == "__main__":
-    # (1st skill) Fully Disjoint [OK] 
-    # (2nd skill) Fully Included [OK]
-    # (3rd skill) Phantom Intersection (left) [OK]
-    # (4th skill) Phantom Intersection (right) [OK]
-    # (5th skill) Phantom Intersection (none) [OK]
-    # (6th skill) Partial Inclusion (Requirement First) [OK]
-    # (7th skill) Partial Inclusion (Provider First) [OK]
-    # (8th skill) Partial Inclusion (Full Step, Provider Max out) [OK]
-    # (9th skill) Partial Inclusion (Full Step, Provider Max in) [OK]
-    # (10th skill) Partial Inclusion (Crisp Provider Max Out) [OK]
-    # (11th job) INCLUSION FOR EVERYTHING
-    learner_expertise = np.array([0.15, 0.70, 0.35, 0.50, 0.50, 0.50, 0.70, 0.55, 0.65, 0.50]) 
-    learner_left =      np.array([0.10, 0.10, 0.10, 0.35, 0.30, 0.10, 0.50, 0.50, 0.50, 0.00])
-    learner_right =     np.array([0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.00])
-   
-    job_expertise =     np.array([
-                                 [0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60],  # (1st skill) Fully Disjoint
-                                 [0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60],  # (2nd skill) Fully Included
-                                 [0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60],  # (3rd skill) Phantom Intersection (left)
-                                 [0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60],  # (4th skill) Phantom Intersection (right)
-                                 [0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60],  # (5th skill) Phantom Intersection (none)
-                                 [0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60],  # (6th skill) Partial Inclusion (Requirement First)
-                                 [0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60],  # (7th skill) Partial Inclusion (Provider First)
-                                 [0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60],  # (8th skill) Partial Inclusion (Full Step, Provider Max Out)
-                                 [0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60],  # (9th skill) Partial Inclusion (Full Step, Provider Max In)
-                                 [1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00],  # (10th skill) Partial Inclusion (Crisp Provider Max Out)
-                                 [0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00]   # (11th job) INCLUSION FOR EVERYTHING        
-    ])
+    # Computation
+    x1 = np.where(er-ep-crp<0, 0, er-ep-crp)
+    x2 = np.where(er-ep<0, 0, er-ep)
+    x3 = np.where(cr-ep+clp<0, 0, er-ep+clp)
     
-    job_confidence =    np.array([
-                                 [0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30],  # (1st skill) Fully Disjoint
-                                 [0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30],  # (2nd skill) Fully Included
-                                 [0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30],  # (3rd skill) Phantom Intersection (left)
-                                 [0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30],  # (4th skill) Phantom Intersection (right)
-                                 [0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30],  # (5th skill) Phantom Intersection (none)
-                                 [0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30],  # (6th skill) Partial Inclusion (Requirement First)
-                                 [0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30],  # (7th skill) Partial Inclusion (Provider First)
-                                 [0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60],  # (8th skill) Partial Inclusion (Full Step, Provider Max Out)
-                                 [0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60],  # (9th skill) Partial Inclusion (Full Step, Provider Max In)
-                                 [0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00],  # (10th skill) Partial Inclusion (Crisp Provider Max Out)
-                                 [0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00]   # (11th job) INCLUSION FOR EVERYTHING
-    ])
+    # Sort
+    X = np.sort(np.stack((x1, x2, x3), axis=2), axis=2)
     
-    learner = np.column_stack((learner_expertise, learner_left, learner_right)) # (S,3)
-    jobs = np.stack((job_expertise, job_confidence), axis=2) # (J,S,2)
+    # Reconstitute triangles
+    return np.stack((X[:,:,1], X[:,:,1]-X[:,:,0], X[:,:,2]-X[:,:,1]), axis=2)
     
-    minimumInclusionDegree(learner, jobs)
+def TrianglesSum(triangles:np.ndarray[float]) -> np.ndarray[float]:
+    return triangles.sum(axis=0)
+
+def ClipTriangle(triangles:np.ndarray[float], ep_clip:list[float] = [0,1]) -> np.ndarray[float]:
+    ep = triangles[:,0].clip(*ep_clip)
+    clp = np.where(triangles[:,1]>ep, ep, triangles[:,1])
+    crp = np.where(triangles[:,2]>1-ep, 1-ep, triangles[:,2])
+    return np.column_stack((ep, clp, crp))
+
+def RampSum(ramps:np.ndarray[float]) -> np.ndarray[float]:
+    er = ramps.sum(axis=0)[:,0]
+    cr = er-(ramps[:,:,0]-ramps[:,:,1]).sum(axis=0)
+    return np.column_stack((er, cr))
+
+def ClipRamp(ramps:np.ndarray[float], clip:list[float] = [0,1]) -> np.ndarray[float]:
+    er = ramps[:,0].clip(*clip)
+    cr = ramps[:,1].clip(*clip)
+    return np.column_stack((er,cr)) 
+
+#if __name__ == "__main__":
+#    # (1st skill) Fully Disjoint [OK] 
+#    # (2nd skill) Fully Included [OK]
+#    (3rd skill) Phantom Intersection (left) [OK]
+#    # (4th skill) Phantom Intersection (right) [OK]
+#    # (5th skill) Phantom Intersection (none) [OK]
+#    # (6th skill) Partial Inclusion (Requirement First) [OK]
+#    # (7th skill) Partial Inclusion (Provider First) [OK]
+#    # (8th skill) Partial Inclusion (Full Step, Provider Max out) [OK]
+#    # (9th skill) Partial Inclusion (Full Step, Provider Max in) [OK]
+#    # (10th skill) Partial Inclusion (Crisp Provider Max Out) [OK]
+#    # (11th job) INCLUSION FOR EVERYTHING
+#    learner_expertise = np.array([0.15, 0.70, 0.35, 0.50, 0.50, 0.50, 0.70, 0.55, 0.65, 0.50]) 
+#    learner_left =      np.array([0.10, 0.10, 0.10, 0.35, 0.30, 0.10, 0.50, 0.50, 0.50, 0.00])
+#    learner_right =     np.array([0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.00])
+#   
+#    job_expertise =     np.array([
+#                                 [0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60],  # (1st skill) Fully Disjoint
+#                                 [0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60],  # (2nd skill) Fully Included
+#                                 [0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60],  # (3rd skill) Phantom Intersection (left)
+#                                 [0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60],  # (4th skill) Phantom Intersection (right)
+#                                 [0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60],  # (5th skill) Phantom Intersection (none)
+#                                 [0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60],  # (6th skill) Partial Inclusion (Requirement First)
+#                                 [0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60],  # (7th skill) Partial Inclusion (Provider First)
+#                                 [0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60],  # (8th skill) Partial Inclusion (Full Step, Provider Max Out)
+#                                 [0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60],  # (9th skill) Partial Inclusion (Full Step, Provider Max In)
+#                                 [1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00],  # (10th skill) Partial Inclusion (Crisp Provider Max Out)
+#                                 [0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00]   # (11th job) INCLUSION FOR EVERYTHING        
+#    ])
+#    
+#    job_confidence =    np.array([
+#                                 [0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30],  # (1st skill) Fully Disjoint
+#                                 [0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30],  # (2nd skill) Fully Included
+#                                 [0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30],  # (3rd skill) Phantom Intersection (left)
+#                                 [0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30],  # (4th skill) Phantom Intersection (right)
+#                                 [0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30],  # (5th skill) Phantom Intersection (none)
+#                                 [0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30],  # (6th skill) Partial Inclusion (Requirement First)
+#                                 [0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30],  # (7th skill) Partial Inclusion (Provider First)
+#                                 [0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60],  # (8th skill) Partial Inclusion (Full Step, Provider Max Out)
+#                                 [0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60],  # (9th skill) Partial Inclusion (Full Step, Provider Max In)
+#                                 [0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00],  # (10th skill) Partial Inclusion (Crisp Provider Max Out)
+#                                 [0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00]   # (11th job) INCLUSION FOR EVERYTHING
+#    ])
+#    
+#    learner = np.column_stack((learner_expertise, learner_left, learner_right)) # (S,3)
+#    jobs = np.stack((job_expertise, job_confidence), axis=2) # (J,S,2)
+#    
+#    minimumInclusionDegree(learner, jobs)
 
 

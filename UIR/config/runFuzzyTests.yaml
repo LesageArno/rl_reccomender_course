@@ -12,7 +12,7 @@ save_model: false                                     # Whether to save the trai
 save_dir: UIR/models_weights/preferences_v2
 
 # Mode for fuzzy logic
-fuzzyMode: 0 #0 Crisp, 1 Fuzzy Set, 2 Fuzzy Set Type II
+fuzzyMode: 1 #0 Crisp, 1 Fuzzy Set, 2 Fuzzy Set Type II
 useMaxOnAggregatedUseful: False
 useMaxOnAggregatedMissing: False
 useMaxOnAggregatedUnnecessary: False
@@ -28,7 +28,7 @@ nb_cvs: -1                                             # Number of learner profi
 max_cv_skills: 15                                      # Maximum number of skills per learner profile
 nb_jobs: 3587                                           # Number of jobs to include in the dataset
 set_dataset_seed: true
-dataset_seed: 42                                       # Set this seed in order not to have a variable dataset
+dataset_seed: 1092                                       # Set this seed in order not to have a variable dataset
 
 # Model Parameters
 threshold: 0.8                                         # Minimum matching threshold for job eligibility
@@ -42,7 +42,7 @@ seed: 1092                                               # Random seed for repro
 use_preference: true                                   # set to true if you want to use environment with preferences, false otherwise
 
 
-feature: "MUIR"                                         # feature to use as reward
+feature: "UIR"                                         # feature to use as reward
 #options: "Employability" or "UIR" or "EUIR" (deprecated) or "MUIR" (monotonic fuzzy usefulness of information)        
 
 method: 1                                              # used only when feature in {"UIR","EUIR", "MUIR"} (0=threshold, 1=gap)
