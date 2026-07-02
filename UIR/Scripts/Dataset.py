@@ -8,6 +8,7 @@ from collections import defaultdict
 
 from . import matchings
 import torch
+from . import Fuzzy2Arithmetics as f2A
 
 from numba import njit
 
@@ -360,6 +361,9 @@ class Dataset:
         Returns:
             int: the number of applicable jobs
         """
+        ##### DEBUG ONLY
+        f2A.minimumInclusionDegree(learner, jobs)
+        ####
         if jobs is None:
             jobs = self.jobs
         if self.config.get("use_numba", True):

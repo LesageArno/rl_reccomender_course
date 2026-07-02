@@ -18,6 +18,16 @@ useMaxOnAggregatedMissing: False
 useMaxOnAggregatedUnnecessary: False
 fuzzyInclusionThresholdForCourseRequirements: 1        # Threshold used to say that a course fit a requirement
 
+# When generating random person, what should we do about confidence if fuzzy II
+default_leftConfidence_courseReq: 0.2797116 # Put dispersion here (it is simpler than absolute position)
+default_leftConfidence_courseProv: 0.2382360
+default_rightConfidence_courseProv: 0.2382360
+
+default_leftConfidence_resumesProv: 0.2247808
+default_rightConfidence_resumeProv: 0.2247808
+
+default_leftConfidence_Job: 0 # Put dispersion here (it is simpler than absolute position)
+
 # Data Processing Parameters
 level_3: true                                          # Use third level of taxonomy (true) or fourth level (false)
                                                        # True: fewer, more general skills (46 total skills)
@@ -53,7 +63,7 @@ method: 1                                              # used only when feature 
 
 use_standard: false                                    # true: use library standard hyperparameters
                                                        # false: use ```hypers``` below
-use_numba: true
+use_numba: false
 hypers: {                                             # Standard hyperparameters used to train all models(not best)
   "device": "cuda",
   "n_steps": 1024, #256

@@ -59,7 +59,7 @@ class CourseRecEnv(gym.Env):
         baseline (bool): Whether to use Employability as reward (True) or ```UIR/EUIR`/MUIR`` as reward (False)
     """
 
-    def __init__(self, dataset, config, k=3, fuzzyMode=False):
+    def __init__(self, dataset, config, k=3, fuzzyMode:int=0):
         """Initialize the course recommendation environment.
 
         Args:
@@ -82,12 +82,18 @@ class CourseRecEnv(gym.Env):
         self.courses = dataset.courses
         ########################### USEFUL FOR ACTION MASKING
         self._req_skills = self.courses[:, 0, :].astype(np.float32)
-        self._req_has = self._req_skills > 0
-        self._req_safe = np.where(self._req_has, self._req_skills, 1.0).astype(np.float32)
-        self._req_count = self._req_has.sum(axis=1).astype(np.int32)
-
+        if fuzzyMode < 2:
+            self._req_has = self._req_skills > 0
+        elif fuzzyMode == 2:
+            self._req_has = np.tile(self._req_skills[:,:,0][..., None]>0, 3) #Filter saying main expertise strictly over 0
+        self._req_safe = np.where(self._req_has, self._req_skills, 1.0).astype(np.float32) # Mask skills that are not required
+        self._req_count = self._req_has.sum(axis=1).astype(np.int32) # Count skills per jobs
+        
         self._prov_skills = self.courses[:, 1, :].astype(np.float32)
-        self._prov_has = self._prov_skills > 0
+        if fuzzyMode < 2:
+            self._prov_has = self._prov_skills > 0
+        elif fuzzyMode == 2:
+            self._prov_has = np.tile(self._prov_skills[:,:,0][..., None]>0, 3)
         self._prov_safe = np.where(self._prov_has, self._prov_skills, 1.0).astype(np.float32)
         self._prov_count = self._prov_has.sum(axis=1).astype(np.int32)
         ############################
@@ -98,10 +104,10 @@ class CourseRecEnv(gym.Env):
             elem for elem in list(dataset.mastery_levels.values()) if elem > 0  # mastery level: [1,2,3,-1]
         ]
         self.max_level = max(self.mastery_levels)
-        self.nb_courses = len(dataset.courses)  # 100 courses
+        self.nb_courses = dataset.courses.shape[0]  # 3000 courses
         # get the minimum and maximum number of skills of the learners using np.nonzero
-        self.min_skills = min(np.count_nonzero(self.dataset.learners, axis=1))  # 1
-        self.max_skills = max(np.count_nonzero(self.dataset.learners, axis=1))  # 15
+        self.min_skills = int(np.min(np.count_nonzero(self.dataset.learners, axis=1)))  # 1
+        self.max_skills = int(np.max(np.count_nonzero(self.dataset.learners, axis=1)))  # 15
         self.k = k
         self.seed = config.get("seed", 42)
         self.rng = np.random.default_rng(seed=self.seed)
@@ -115,20 +121,20 @@ class CourseRecEnv(gym.Env):
         # We cannot set the lower bound to -1 because negative values are not allowed in this Box space.
         if self.config.get("use_preference", True):
             high = np.concatenate([
-                np.full(self.nb_skills, self.max_level, dtype=np.int32),  # skills
+                np.full(self.nb_skills, self.max_level, dtype=np.int32 if fuzzyMode == 0 else np.float32),  # skills
                 np.ones(self.nb_skills, dtype=np.int32),                  # want
                 np.ones(self.nb_skills, dtype=np.int32),                  # avoid
                 np.array([self.k], dtype=np.int32),                       # step_left
             ])
             low = np.zeros_like(high)
-            self.observation_space = gym.spaces.Box(low=low, high=high, dtype=np.int32)
+            self.observation_space = gym.spaces.Box(low=low, high=high, dtype=np.int32 if fuzzyMode == 0 else np.float32)
         else: 
             high = np.concatenate([
-                np.full(self.nb_skills, self.max_level, dtype=np.int32),  # skills
+                np.full(self.nb_skills, self.max_level, dtype=np.int32 if fuzzyMode == 0 else np.float32),  # skills
                 np.array([self.k], dtype=np.int32),                       # step_left
             ])
             low = np.zeros_like(high)
-            self.observation_space = gym.spaces.Box(low=low, high=high, dtype=np.int32)
+            self.observation_space = gym.spaces.Box(low=low, high=high, dtype=np.int32 if fuzzyMode == 0 else np.float32)
 
 
         self._want = np.zeros(self.nb_skills, dtype=np.int32)
@@ -166,9 +172,9 @@ class CourseRecEnv(gym.Env):
         step_left = np.array([self.k - self.nb_recommendations], dtype=np.int32)
         
         if self.config.get("use_preference", True):
-            obs = np.concatenate([self._agent_skills, self._want, self._avoid, step_left])
+            obs = np.concatenate([np.ndarray.flatten(self._agent_skills), self._want, self._avoid, step_left])
         else:
-            obs = np.concatenate([self._agent_skills, step_left])
+            obs = np.concatenate([np.ndarray.flatten(self._agent_skills), step_left])
         return obs
 
     def get_info(self):
@@ -244,15 +250,32 @@ class CourseRecEnv(gym.Env):
         n_skills = random.randint(self.min_skills, self.max_skills)
 
         # Initialize the skills array with zeros
-        initial_skills = np.zeros(self.nb_skills, dtype=np.int32 if not self.config.get("fuzzyMode", 0) else np.float32)
+        if self.fuzzyMode == 0:        
+            initial_skills = np.zeros(self.nb_skills, dtype=np.int32)
+        elif self.fuzzyMode == 1:
+            initial_skills = np.zeros(self.nb_skills, dtype=np.float32)
+        elif self.fuzzyMode == 2:
+            initial_skills = np.zeros((self.nb_skills, 3), dtype=np.float32)
 
         # Choose unique skill indices without replacement
         skill_indices = self.rng.choice(self.nb_skills, size=n_skills, replace=False)
 
         # Assign random mastery levels to these skills, levels can repeat
-        initial_skills[skill_indices] = self.rng.choice(
+        expertise = self.rng.choice(
             self.mastery_levels, size=n_skills, replace=True
         )
+        if self.fuzzyMode < 2:
+            initial_skills[skill_indices] = expertise
+        elif self.fuzzyMode == 2:
+            # Get the default confidence shape, and ensure that the result is between 0 and 1
+            left_confidence = np.full(expertise.shape[0], self.config.get("default_leftConfidence_resumesProv", 0.))
+            left_confidence_array = expertise - np.where(expertise-left_confidence<=0, 0, expertise-left_confidence)
+            right_confidence = np.full(expertise.shape[0], self.config.get("default_rightConfidence_resumeProv", 0.))
+            right_confidence_array = np.where(expertise+right_confidence>=1, 1, expertise+right_confidence) - expertise
+            
+            # Generate the skills
+            initial_skills[skill_indices] = np.column_stack((expertise, left_confidence_array, right_confidence_array))
+            
         return initial_skills
     
     def _eval_want_avoid(self, learner, learner_idx, base_seed=123):
@@ -351,12 +374,16 @@ class CourseRecEnv(gym.Env):
             has_want = np.ones(jobs_req.shape[0], dtype=bool)  # no want => don't filter by want
         else:
             has_want = (jobs_req[:, want_idx] > 0).any(axis=1)
+            if self.fuzzyMode == 2:
+                has_want = has_want[:,0]
 
         # --- AVOID condition: job requires none of the avoided skills ---
         if avoid_idx.size == 0:
             has_avoid = np.zeros(jobs_req.shape[0], dtype=bool)
         else:
             has_avoid = (jobs_req[:, avoid_idx] > 0).any(axis=1)
+            if self.fuzzyMode == 2:
+                has_avoid = has_avoid[:,0]
 
         mask = has_want & (~has_avoid)
 

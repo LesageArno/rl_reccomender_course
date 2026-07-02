@@ -59,6 +59,7 @@ class Reinforce:
         self.use_standard = config.get('use_standard', False)
         self.use_pretrained = use_pretrained or self.config.get("use_pretrained", False)
         self.pretrained_path = pretrained_path or self.config.get("pretrained_model_path")
+        self.fuzzyImplicationThreshold = config.get("fuzzyInclusionThresholdForCourseRequirements", None)
 
         if self.feature in {"UIR", "EUIR"} and self.method not in (0, 1):
             raise ValueError("method must be 0 (threshold) or 1 (gap) when feature is UIR/EUIR")
@@ -70,11 +71,13 @@ class Reinforce:
             dataset,
             config=self.config,
             k=self.k,
+            fuzzyMode=self.config.get("fuzzyMode", 0)
         )
         self.eval_env = CourseRecEnv(
             dataset,
             config=self.config,
             k=self.k,
+            fuzzyMode = self.config.get("fuzzyMode", 0)
         )
 
         # Mask unavailable actions when using maskable PPO
