@@ -104,6 +104,7 @@ class Reinforce:
         self.eval_callback = EvaluateCallback(
             self.eval_env,
             eval_freq=self.eval_freq,
+            fuzzyMode=self.config.get("fuzzyMode", 0),
             all_results_filename=self.all_results_filename,
         )
 

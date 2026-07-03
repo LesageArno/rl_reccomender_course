@@ -14,7 +14,8 @@
                 "UIR/config/runFuzzy2Tests.yaml"
             ],
             "python": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
-            "console": "integratedTerminal"
+            "console": "integratedTerminal",
+            "justMyCode": false
         },
         {
             "name": "Python Debugger: Module Fuzzy 1",

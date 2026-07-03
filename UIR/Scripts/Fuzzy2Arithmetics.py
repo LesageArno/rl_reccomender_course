@@ -107,7 +107,7 @@ def InclusionDegree(learner: np.ndarray[float], jobs: np.ndarray[float]) -> np.n
     return out
 
 def minimumInclusionDegree(learner:np.ndarray[float], jobs:np.ndarray[float]) -> float:
-    return InclusionDegree(learner, jobs).min(axis=1).sum()
+    return InclusionDegree(learner, jobs).min(axis=1)
 
 def DeltaRampTriangle(jobs:np.ndarray[float], learner:np.ndarray[float]) -> np.ndarray[float]:
     # Provider
@@ -129,6 +129,38 @@ def DeltaRampTriangle(jobs:np.ndarray[float], learner:np.ndarray[float]) -> np.n
     
     # Reconstitute triangles
     return np.stack((X[:,:,1], X[:,:,1]-X[:,:,0], X[:,:,2]-X[:,:,1]), axis=2)
+
+def DeltaTriangleTriangle(training:np.ndarray[float], subdelta:np.ndarray[float]) -> np.ndarray[float]:
+    raise NotImplementedError()
+
+def TriangleUnion(courseAcquire:np.ndarray[float], learner:np.ndarray[float]) -> np.ndarray[float]:
+    ep1 = courseAcquire[:,0]
+    l1 = ep1-courseAcquire[:,1]
+    r1 = ep1+courseAcquire[:,2]
+    
+    ep2 = learner[:,0]
+    l2 = ep2-learner[:,1]
+    r2 = ep2+learner[:,2]
+    
+    z = np.sort(np.stack((np.maximum(ep1, ep2), np.maximum(l1,l2), np.maximum(r1,r2)), axis=1), axis=1)
+    epz = z[:,1]
+    clz = epz-z[:,0]
+    crz = z[:,2]-epz
+    
+    return np.column_stack((epz,clz,crz))
+
+def TrianglesToRamps(triangles:np.ndarray[float]) -> np.ndarray[float]:
+    ep  = triangles[None, :, 0] # Triangles expertise (1,#S)
+    clp = triangles[None, :, 1] # Triangles left confidence (1,#S)
+    
+    return np.stack((ep, ep-clp), axis=2) #(1,#S,2)
+
+def TrianglesToRamps2(triangles:np.ndarray[float]) -> np.ndarray[float]:
+    ep = triangles[:,:,0] # Triangle expertise (#J, #S)
+    clp = triangles[:,:,1] # Triangle left confidence (#J, #S)
+    
+    return np.stack((ep, ep-clp), axis=2)
+    
     
 def TrianglesSum(triangles:np.ndarray[float]) -> np.ndarray[float]:
     return triangles.sum(axis=0)
