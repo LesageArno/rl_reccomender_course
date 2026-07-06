@@ -22,7 +22,7 @@ COLS = ["Iteration", "Average jobs", "Average reward", "Average goal gap", "Aver
 EVALUATE_ON = ["Average jobs", "Average reward", "Average goal gap", "Average pref cov", "Average total levels req", "Average skills req unique", "Average skills fully covered", "Average skills missing unique", "Time"]
 
 # Type of metric being maximised
-METRIC = "MUIR" #UIR or Employability or MUIR
+METRIC = "UIR" #UIR or Employability or MUIR
 
 # Get working directory and extraction path
 ROOT_PATH = Path(os.getcwd())
@@ -39,9 +39,9 @@ for path, folder, files in os.walk(EXTRACT_PATH):
     if files == []:
         continue
     # For each file in the subfolder
-    for file in files:
+    for file in files:        
         # If the file start by plot, then continue
-        if file.startswith("plot"):
+        if file.startswith("plot") or file.endswith(".zip"):
             continue
         
         # Get the metric, the method, the length of the sequence and the seed from the file name
