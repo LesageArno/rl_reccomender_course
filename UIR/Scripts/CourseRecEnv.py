@@ -261,7 +261,15 @@ class CourseRecEnv(gym.Env):
                 "skills_missing_unique": skills_missing_unique
             }
         elif self.fuzzyMode == 2:
-            return {"nb_applicable_jobs":employability_goal}
+            return {
+                "nb_applicable_jobs":employability_goal,
+                "goal_gap_total": None,
+                "pref_coverage": None,
+                "total_skill_levels_required": None,
+                "skills_required_unique": None,
+                "skills_fully_covered": None,
+                "skills_missing_unique": None
+            }
 
     def get_random_learner(self):
         """Generate a random learner profile for environment initialization.
@@ -1041,12 +1049,21 @@ class EvaluateCallback(BaseCallback):
 
                 avg_jobs += tmp_avg_jobs  # Add learner's result to total
                 avg_reward += tmp_avg_reward
-                avg_goal_gap += tmp_goal_gap
-                avg_pref_cov += tmp_pref_cov
-                avg_total_levels_req += tmp_total_levels_req
-                avg_skills_req_unique += tmp_skills_req_unique
-                avg_skills_fully_covered += tmp_skills_fully_covered
-                avg_skills_missing_unique += tmp_skills_missing_unique
+                
+                if self.fuzzyMode < 2:
+                    avg_goal_gap += tmp_goal_gap
+                    avg_pref_cov += tmp_pref_cov
+                    avg_total_levels_req += tmp_total_levels_req
+                    avg_skills_req_unique += tmp_skills_req_unique
+                    avg_skills_fully_covered += tmp_skills_fully_covered
+                    avg_skills_missing_unique += tmp_skills_missing_unique
+                elif self.fuzzyMode == 2:
+                    avg_goal_gap = None
+                    avg_pref_cov = None
+                    avg_total_levels_req = None
+                    avg_skills_req_unique = None 
+                    avg_skills_fully_covered = None 
+                    avg_skills_missing_unique = None
 
 
             time_end = time.perf_counter()  # End timing the evaluation
@@ -1054,12 +1071,13 @@ class EvaluateCallback(BaseCallback):
             total_learners = len(self.eval_env.unwrapped.dataset.learners)
             avg = avg_jobs / total_learners
             avg_reward = avg_reward / total_learners
-            avg_goal_gap = avg_goal_gap / total_learners
-            avg_pref_cov = avg_pref_cov / total_learners
-            avg_total_levels_req = avg_total_levels_req / total_learners
-            avg_skills_req_unique = avg_skills_req_unique / total_learners
-            avg_skills_fully_covered = avg_skills_fully_covered / total_learners
-            avg_skills_missing_unique = avg_skills_missing_unique / total_learners
+            if self.fuzzyMode < 2:
+                avg_goal_gap = avg_goal_gap / total_learners
+                avg_pref_cov = avg_pref_cov / total_learners
+                avg_total_levels_req = avg_total_levels_req / total_learners
+                avg_skills_req_unique = avg_skills_req_unique / total_learners
+                avg_skills_fully_covered = avg_skills_fully_covered / total_learners
+                avg_skills_missing_unique = avg_skills_missing_unique / total_learners
 
 
 
