@@ -608,11 +608,12 @@ class CourseRecEnv(gym.Env):
             Nm = NmTg.sum(axis=0)
             
             # Useful component for each skill and jobs + aggregation
-            NrTg = missingBefore.sum(axis=1)-NmTg
+            NrTg = np.maximum(missingBefore.sum(axis=1)-NmTg, 0)
             Nr = NrTg.sum(axis=0)
             
-            overskillAfter = f2A.DeltaTriangleTriangle(course[1], missingBefore)
-            raise NotImplementedError()
+            unnecessaryAfter = f2A.DeltaTriangleTriangle(course[1], missingBefore)
+            NnrTg = unnecessaryAfter.sum(axis=1)
+            Nnr = NnrTg.sum(axis=0)
             
         return Nr, Nm, Nnr
 
@@ -632,7 +633,10 @@ class CourseRecEnv(gym.Env):
         initial_goals = self.dataset.get_nb_applicable_jobs(learner, threshold=self.threshold, jobs=self.jobs_goal)
 
         # Calculate skills after learning the course
-        updated_skills = np.maximum(learner, course[1])
+        if self.fuzzyMode < 2:
+            updated_skills = np.maximum(learner, course[1])
+        elif self.fuzzyMode == 2:
+            updated_skills = f2A.TriangleUnion(learner, course[1])
 
         # Calculate new goals (jobs applicable after learning the course)
         new_goals = self.dataset.get_nb_applicable_jobs(updated_skills, threshold=self.threshold, jobs=self.jobs_goal)
@@ -679,18 +683,27 @@ class CourseRecEnv(gym.Env):
 
         # Calculate denominator for Nr fraction with MUIR or without
         if not MUIR:
-            denominator = Nr + Nm + (Nnr / (Nnr + 1))
+            if self.fuzzyMode < 2:
+                denominator = Nr + Nm + (Nnr / (Nnr + 1))
+            elif self.fuzzyMode == 2:
+                denominator = Nr + Nm + f2A.TriangleDivision(Nnr, f2A.TriangleScalarAddition(Nnr, 1))
         else:
             denominator = Nr + Nm
             
-        if denominator == 0:  # Avoid division by zero
+        if self.fuzzyMode < 2 and denominator == 0:  # Avoid division by zero
             Nr_fraction = 0
-        else:
+        elif self.fuzzyMode < 2:
             Nr_fraction = Nr / denominator
-
+        elif self.fuzzyMode == 2:
+            Nr_fraction = f2A.TriangleDivision(Nr, denominator)
+        
         # Calculate U(φ)
-        utility = (1 / (Ga + 1)) * (E_phi + Nr_fraction)
-
+        if self.fuzzyMode < 2:
+            utility = (1 / (Ga + 1)) * (E_phi + Nr_fraction)
+        elif self.fuzzyMode == 2:
+            utility = f2A.TriangleScalarMultiplication(f2A.TriangleScalarAddition(Nr_fraction, E_phi), (1 / (Ga + 1)))
+            utility = f2A.TriangleCentroidDefuzzification(utility)
+            
         return utility
 
     def get_action_mask(self) -> np.ndarray:
@@ -809,25 +822,34 @@ class CourseRecEnv(gym.Env):
 
         # Skip-expertise case: use new metrics and utility
         if self.fuzzyMode < 2:
-            fuzzyThreshold = None
             required_matching = matchings.learner_course_required_matching(learner, course)
             provided_matching = matchings.learner_course_provided_matching(learner, course)
-            provided_inclusionMatching = None
-            required_inclusionMatching = None
-        elif self.fuzzyMode == 2:
-            fuzzyThreshold = self.fuzzyThreshold
-            required_inclusionMatching = f2A.minimumInclusionDegree(learner, np.array([course[0,:,:2]])).sum()
-            provided_inclusionMatching = f2A.minimumInclusionDegree(learner, f2A.TrianglesToRamps(course[1,:,:], inverted=True), inverted=True).sum()
-            provided_matching = None
-            required_matching = None
+        elif self.fuzzyMode == 2:        
+            # See Get Action Masks for details on this part of the code
+            ## Provided
+            provided_fraction = f2A.InvertedInclusionDegree(learner, f2A.TrianglesToRamps(course[1], inverted=True))[0]
+            provided_fraction[~self._prov_has[action,:,0]] = 0.0
+            provided_matching = np.divide(provided_fraction, self._prov_count[action,0], out=np.zeros_like(provided_fraction), where=(self._prov_count[action,0] > 0))
+            provided_matching[self._prov_count[action,0] == 0] = 0.0
+            provided_matching = provided_matching.sum()
+            
+            ## Required
+            required_fraction = f2A.InclusionDegree(learner, np.expand_dims(course[0,:,:2], axis=0))[0]
+            required_fraction[~self._req_has[action,:,0]] = 0.0
+            required_matching = np.divide(required_fraction, self._req_count[action,0], out=np.ones_like(required_fraction), where=(self._req_count[action,0] > 0))
+            required_matching[self._req_count[action,0] == 0] = 1.0
+            required_matching = required_matching.sum()
         
-        if (self.fuzzyMode < 2 and (provided_matching == 1.0 or required_matching < self.threshold)) or (self.fuzzyMode==2 and (required_inclusionMatching < fuzzyThreshold or provided_inclusionMatching == 1.0)):
+        if (
+            (self.fuzzyMode < 2 and (provided_matching == 1.0 or required_matching < self.threshold)) or
+            (self.fuzzyMode == 2 and (provided_matching == 1.0 or required_matching < self.fuzzyThreshold))
+        ):
             observation = self.get_obs()
             reward = -1
             terminated = True
             info = self.get_info()
             return observation, reward, terminated, False, info
-
+        
         if self.baseline:  # Employability as rwd model
             self._agent_skills = np.maximum(self._agent_skills, course[1])
             
@@ -846,10 +868,16 @@ class CourseRecEnv(gym.Env):
             # Calculate Usefulness-of-info-as-Rwd
             utility = self.calculate_utility(learner, course, self.method, self.feature == "MUIR")
 
-            self._agent_skills = np.maximum(self._agent_skills, course[1])  # learned_course)
-            
+            if self.fuzzyMode < 2:
+                self._agent_skills = np.maximum(self._agent_skills, course[1])  # learned_course)
+            elif self.fuzzyMode == 2:
+                self._agent_skills = f2A.TriangleUnion(self._agent_skills, course[1])
+                
             # Update preferences covered skills if any
-            improved = (self._agent_skills > learner)
+            if self.fuzzyMode < 2:
+                improved = (self._agent_skills > learner)
+            elif self.fuzzyMode == 2:
+               improved = f2A.InvertedInclusionDegree(learner,f2A.TrianglesToRamps(self._agent_skills, inverted=True))[0] >= self.fuzzyThreshold
             self.covered_want |= improved & (self._want.astype(bool))
 
             observation = self.get_obs()

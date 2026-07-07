@@ -251,8 +251,26 @@ def DeltaRampTriangle(jobs:np.ndarray[float], learner:np.ndarray[float]) -> np.n
     return np.stack((X[:,:,1], X[:,:,1]-X[:,:,0], X[:,:,2]-X[:,:,1]), axis=2)
 
 def DeltaTriangleTriangle(training:np.ndarray[float], subdelta:np.ndarray[float]) -> np.ndarray[float]:
-    raise NotImplementedError()
-
+    # Training Provider
+    et  = training[None, :, 0] # Training expertise (1,#S)
+    clt = training[None, :, 1] # Training left confidence (1,#S)
+    crt = training[None, :, 2] # Training right confidence (1,#S)
+    
+    # SubDelta Provider
+    ed  = subdelta[:, :, 0] # Sub Delta expertise (#J, #S)
+    cld = subdelta[:, : ,1] # Sub Delta left confidence (#J, #S)
+    crd = subdelta[:, :, 2] # Sub Delta right confidence (#J, #S)
+    
+    x1 = np.maximum(0, et+crt-ed-crd)
+    x2 = np.maximum(0, et-ed)
+    x3 = np.maximum(0, et-clt-ed+cld)
+    
+    # Sort
+    X = np.sort(np.stack((x1, x2, x3), axis=2), axis=2)
+    
+    # Reconstitute triangles
+    return np.stack((X[:,:,1], X[:,:,1]-X[:,:,0], X[:,:,2]-X[:,:,1]), axis=2)
+    
 def TriangleUnion(courseAcquire:np.ndarray[float], learner:np.ndarray[float]) -> np.ndarray[float]:
     ep1 = courseAcquire[:,0]
     l1 = ep1-courseAcquire[:,1]
@@ -284,16 +302,45 @@ def TrianglesToRamps2(triangles:np.ndarray[float], inverted:bool = False) -> np.
         return np.stack((ep, ep-clp), axis=2)
     crp = triangles[:,:,2]
     return np.stack((ep, ep+crp), axis=2)
-    
-    
+      
 def TrianglesSum(triangles:np.ndarray[float]) -> np.ndarray[float]:
     return triangles.sum(axis=0)
+
+def TriangleDivision(t1:np.ndarray[float], t2:np.ndarray[float]) -> np.ndarray[float]:
+    if t2[1] == 0 and t2[2] == 0:
+        return np.array([t1[0]/t2[0], 0, 0])
+    elif t2[1] == 0:
+        return np.array([t1[0]/t2[0], 0, max(t1[1]/t2[2], t1[2]/t2[2])])
+    elif t2[2] == 0:
+        return np.array([t1[0]/t2[0], min(t1[1]/t2[1], t1[2]/t2[1]), 0])
+    else:
+        vals = {t1[1]/t2[1], t1[1]/t2[2], t1[2]/t2[1], t1[2]/t2[2]}
+        return np.array([t1[0]/t2[0], min(vals), max(vals)])
+
+def TriangleScalarAddition(t1:np.ndarray[float], t2:float) -> np.ndarray[float]:
+    return np.array([t1[0]+t2, t1[1], t1[2]])
+
+def TriangleScalarMultiplication(t1:np.ndarray[float], m:float) -> np.ndarray[float]:
+    x = t1[0]
+    ul = x-t1[1]
+    ur = x+t1[2]
+    mx = m*x
+    vals = {m*ul, m*ur}
+    
+    return np.array([mx, mx-min(vals), max(vals)-mx])
 
 def ClipTriangle(triangles:np.ndarray[float], ep_clip:list[float] = [0,1]) -> np.ndarray[float]:
     ep = triangles[:,0].clip(*ep_clip)
     clp = np.where(triangles[:,1]>ep, ep, triangles[:,1])
     crp = np.where(triangles[:,2]>1-ep, 1-ep, triangles[:,2])
     return np.column_stack((ep, clp, crp))
+
+def TriangleCentroidDefuzzification(triangle:np.ndarray[float]) -> np.ndarray[float]:
+    et = triangle[0]
+    L = et - triangle[1]
+    R = et + triangle[2]
+    
+    return (et + L + R)/3
 
 def RampSum(ramps:np.ndarray[float]) -> np.ndarray[float]:
     er = ramps.sum(axis=0)[:,0]
