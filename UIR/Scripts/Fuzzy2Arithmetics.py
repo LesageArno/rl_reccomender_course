@@ -32,7 +32,7 @@ def InclusionDegree(learner: np.ndarray[float], jobs: np.ndarray[float]) -> np.n
         return out
 
     ##### HELPER FUNCTIONS (error environment to handle division by zero error)
-    with np.errstate(divide='ignore', invalid='ignore'):
+    with np.errstate(divide="ignore", invalid="ignore"):
         R = lambda x: (x - cr) / (er - cr) # Requirement Ramp function
         P1 = lambda x: 1 + (x - ep) / clp # Provider triangle left function
         P2 = lambda x: 1 - (x - ep) / crp # Provider triangle right function
@@ -46,7 +46,8 @@ def InclusionDegree(learner: np.ndarray[float], jobs: np.ndarray[float]) -> np.n
 
     ##### DEGENERATE TRIANGLE CASE (no width)
     degenerateTriMask = remaining & (Xp == 0)
-    out[degenerateTriMask] = R(ep)[degenerateTriMask]
+    with np.errstate(divide="ignore", invalid="ignore"):
+        out[degenerateTriMask] = R(ep)[degenerateTriMask]
 
     # Remove degenerate case from remaining
     remaining &= ~(Xp == 0)
@@ -64,11 +65,13 @@ def InclusionDegree(learner: np.ndarray[float], jobs: np.ndarray[float]) -> np.n
         integral = np.zeros_like(out)
 
         # OUT case, then IN case
-        integral[outProviderMask] = ((ep + crp - ix2) * P2(ix2) / 2)[outProviderMask]
-        integral[inProviderMask] = ((P1(ix1) * (ep - ix1) + ep - ix1 + crp) / 2)[inProviderMask]
+        with np.errstate(divide="ignore", invalid="ignore"):
+            integral[outProviderMask] = ((ep + crp - ix2) * P2(ix2) / 2)[outProviderMask]
+            integral[inProviderMask] = ((P1(ix1) * (ep - ix1) + ep - ix1 + crp) / 2)[inProviderMask]
 
         # Compute the inclusion
-        out[fullStepMask] = (integral / Xp)[fullStepMask]
+        with np.errstate(divide="ignore", invalid="ignore"):
+            out[fullStepMask] = (integral / Xp)[fullStepMask]
 
     # Remove full step from remaining
     remaining &= ~(cr == er)
@@ -78,8 +81,9 @@ def InclusionDegree(learner: np.ndarray[float], jobs: np.ndarray[float]) -> np.n
 
     # Compute the results only if phantoms cases exists
     if np.any(phantomMask):
-        integral = R(ix2) * (ep + crp - cr) / 2
-        out[phantomMask] = (integral / Xp)[phantomMask]
+        with np.errstate(divide="ignore", invalid="ignore"):
+            integral = R(ix2) * (ep + crp - cr) / 2
+            out[phantomMask] = (integral / Xp)[phantomMask]
 
     # Remove phantoms from remaining
     remaining &= ~phantomMask
@@ -89,8 +93,9 @@ def InclusionDegree(learner: np.ndarray[float], jobs: np.ndarray[float]) -> np.n
         
     # Computation iff this case exists
     if np.any(reqFirstMask):
-        integral = (R(ix1) * (clp - ep + ix2) + R(ix2) * (crp + ep - ix1)) / 2
-        out[reqFirstMask] = (integral / Xp)[reqFirstMask]
+        with np.errstate(divide="ignore", invalid="ignore"):
+            integral = (R(ix1) * (clp - ep + ix2) + R(ix2) * (crp + ep - ix1)) / 2
+            out[reqFirstMask] = (integral / Xp)[reqFirstMask]
 
     # Remove non phantom requirement first from remaining
     remaining &= ~reqFirstMask
@@ -100,14 +105,129 @@ def InclusionDegree(learner: np.ndarray[float], jobs: np.ndarray[float]) -> np.n
 
     # Computation iff this case exists
     if np.any(provFirstMask):
-        integral = (R(ix1) * (ep - cr) + ep - ix1 + crp) / 2
-        out[provFirstMask] = (integral / Xp)[provFirstMask]
+        with np.errstate(divide="ignore", invalid="ignore"):
+            integral = (R(ix1) * (ep - cr) + ep - ix1 + crp) / 2
+            out[provFirstMask] = (integral / Xp)[provFirstMask]
 
     # Return the matrix of inclusions for each corresponding pair of skills requirement and provide
     return out
 
-def minimumInclusionDegree(learner:np.ndarray[float], jobs:np.ndarray[float]) -> float:
-    return InclusionDegree(learner, jobs).min(axis=1)
+def minimumInclusionDegree(learner:np.ndarray[float], jobs:np.ndarray[float], inverted:bool = False) -> float:
+    if not inverted:
+        return InclusionDegree(learner, jobs).min(axis=1)
+    return InvertedInclusionDegree(learner, jobs).min(axis=1)
+
+def InvertedInclusionDegree(learner: np.ndarray[float], providers: np.ndarray[float]) -> np.ndarray[float]:
+    # Provider
+    ep  = learner[None, :, 0] # Learner expertise (1,#S)
+    clp = learner[None, :, 1] # Learner left confidence (1,#S)
+    crp = learner[None, :, 2] # Learner right confidence (1,#S)
+
+    # Requirement
+    er = providers[:, :, 0] # Requirement expertise for each job and skills (#J,#S)
+    cr = providers[:, :, 1] # Requirement confidence for each job and skills (#J,#S)
+
+    # Areas of the learner expertise [OK]
+    Xp = (clp + crp) / 2
+
+    # Initialise the object to return [OK]
+    out = np.empty_like(er, dtype=float)
+
+    ##### FULL DISJUNCTION CASE (put disjunction to 0) [TRANSFORMED]
+    fullDisjunctionMask = ep - clp > cr
+    out[fullDisjunctionMask] = 0
+
+    ##### FULL INCLUSION CASE (put inclusion to 1) [TRANSFORMED]
+    fullInclusionMask = (ep + crp <= cr) & (ep <= er)
+    out[fullInclusionMask] = 1
+
+    # Remaining is the mask to avoid modifying twice the same area [OK]
+    remaining = ~(fullDisjunctionMask | fullInclusionMask)
+
+    # Early Exit if not any job was found [OK]
+    if not np.any(remaining):
+        return out
+
+    ##### HELPER FUNCTIONS (error environment to handle division by zero error) [OK]
+    with np.errstate(divide="ignore", invalid="ignore"):
+        R = lambda x: (x - er) / (cr - er) # Requirement Ramp function [TRANSFORMED]
+        P1 = lambda x: 1 + (x - ep) / clp # Provider triangle left function [OK]
+        P2 = lambda x: 1 - (x - ep) / crp # Provider triangle right function [OK]
+
+        # Compute intersection
+        ix1 = (clp*er + cr*ep - er*ep) / (cr + clp - er) # [OK]
+        ix2 = (crp*er - cr*ep + ep*er) / (crp - cr + er) # [OK]
+
+    # Mask to handle ix2 undefined behaviour [TRANSFORMED]
+    undef = (crp - cr + er) == 0
+
+    ##### DEGENERATE TRIANGLE CASE (no width) [OK]
+    degenerateTriMask = remaining & (Xp == 0)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        out[degenerateTriMask] = R(ep)[degenerateTriMask]
+
+    # Remove degenerate case from remaining [OK]
+    remaining &= ~(Xp == 0)
+
+    ##### FULL STEP CASE [OK]
+    fullStepMask = remaining & (cr == er)
+
+    # Do not perform computation if no step case exists
+    if np.any(fullStepMask):
+        ## Compute provider OUT and provider IN subcase masks [TRANSFORMED]
+        outProviderMask = fullStepMask & (ep >= er)
+        inProviderMask = fullStepMask & (ep < er)
+
+        # Initialise the results [OK]
+        integral = np.zeros_like(out)
+
+        # OUT case, then IN case [OK]
+        with np.errstate(divide="ignore", invalid="ignore"):
+            integral[outProviderMask] = ((cr - ep + clp) * P1(cr) / 2)[outProviderMask] # [TRANSFORMED]
+            integral[inProviderMask] = ((clp + cr - ep + P2(cr)*(cr-ep)) / 2)[inProviderMask] # [TRANSFORMED]
+
+        # Compute the inclusion [OK]
+        with np.errstate(divide="ignore", invalid="ignore"):
+            out[fullStepMask] = (integral / Xp)[fullStepMask]
+
+    # Remove full step from remaining [OK]
+    remaining &= ~(cr == er)
+
+    ##### PHANTOM CASE (Right, Left and Parallel) [TRANSFORMED]
+    phantomMask = (remaining & (undef | (ix2 >= np.maximum(ep + crp, cr)) | (ix2 <= er))) 
+
+    # Compute the results only if phantoms cases exists [OK]
+    if np.any(phantomMask):
+        with np.errstate(divide="ignore", invalid="ignore"):
+            integral = R(ix1) * (cr-ep+clp) / 2 # [TRANSFORMED]
+            out[phantomMask] = (integral / Xp)[phantomMask] # [OK]
+
+    # Remove phantoms from remaining {OK}
+    remaining &= ~phantomMask
+
+    ##### NON PHANTOM REQUIREMENT LAST
+    reqLastMask = remaining & (cr >= ep + crp)
+        
+    # Computation iff this case exists [OK]
+    if np.any(reqLastMask):
+        with np.errstate(divide="ignore", invalid="ignore"):
+            integral = (R(ix1) * (clp - ep + ix2) + R(ix2) * (ep - ix1 + crp)) / 2 # [TRANSFORMED]
+            out[reqLastMask] = (integral / Xp)[reqLastMask]
+
+    # Remove non phantom requirement first from remaining [OK]
+    remaining &= ~reqLastMask
+
+    ##### NON PHANTOM PROVIDER LAST
+    provLastMask = remaining
+
+    # Computation iff this case exists
+    if np.any(provLastMask):
+        with np.errstate(divide="ignore", invalid="ignore"):
+            integral = (clp + ix2 - ep + R(ix2)*(cr-ep)) / 2
+            out[provLastMask] = (integral / Xp)[provLastMask]
+
+    # Return the matrix of inclusions for each corresponding pair of skills requirement and provide
+    return out
 
 def DeltaRampTriangle(jobs:np.ndarray[float], learner:np.ndarray[float]) -> np.ndarray[float]:
     # Provider
@@ -149,17 +269,21 @@ def TriangleUnion(courseAcquire:np.ndarray[float], learner:np.ndarray[float]) ->
     
     return np.column_stack((epz,clz,crz))
 
-def TrianglesToRamps(triangles:np.ndarray[float]) -> np.ndarray[float]:
+def TrianglesToRamps(triangles:np.ndarray[float], inverted:bool = False) -> np.ndarray[float]:
     ep  = triangles[None, :, 0] # Triangles expertise (1,#S)
-    clp = triangles[None, :, 1] # Triangles left confidence (1,#S)
-    
-    return np.stack((ep, ep-clp), axis=2) #(1,#S,2)
+    if not inverted:
+        clp = triangles[None, :, 1] # Triangles left confidence (1,#S)
+        return np.stack((ep, ep-clp), axis=2) #(1,#S,2)
+    crp = triangles[None, :, 2]
+    return np.stack((ep, ep+crp), axis=2)
 
-def TrianglesToRamps2(triangles:np.ndarray[float]) -> np.ndarray[float]:
+def TrianglesToRamps2(triangles:np.ndarray[float], inverted:bool = False) -> np.ndarray[float]:
     ep = triangles[:,:,0] # Triangle expertise (#J, #S)
-    clp = triangles[:,:,1] # Triangle left confidence (#J, #S)
-    
-    return np.stack((ep, ep-clp), axis=2)
+    if not inverted:
+        clp = triangles[:,:,1] # Triangle left confidence (#J, #S)
+        return np.stack((ep, ep-clp), axis=2)
+    crp = triangles[:,:,2]
+    return np.stack((ep, ep+crp), axis=2)
     
     
 def TrianglesSum(triangles:np.ndarray[float]) -> np.ndarray[float]:
@@ -184,7 +308,7 @@ def ClipRamp(ramps:np.ndarray[float], clip:list[float] = [0,1]) -> np.ndarray[fl
 #if __name__ == "__main__":
 #    # (1st skill) Fully Disjoint [OK] 
 #    # (2nd skill) Fully Included [OK]
-#    (3rd skill) Phantom Intersection (left) [OK]
+#    # (3rd skill) Phantom Intersection (left) [OK]
 #    # (4th skill) Phantom Intersection (right) [OK]
 #    # (5th skill) Phantom Intersection (none) [OK]
 #    # (6th skill) Partial Inclusion (Requirement First) [OK]

@@ -344,7 +344,7 @@ class Dataset:
         self.jobs_inverted_index = defaultdict(set)
         for i, job in enumerate(self.jobs):
             for skill, level in enumerate(job):
-                # Special case with Fuzzy 2
+                # Special case with Fuzzy 2, level[0] correspond to er, since cr < er, then if er = 0 => cr = 0 and that job has no requirements for the given skill
                 if self.config.get("fuzzyMode", 0)==2 and level[0]>0:
                     self.jobs_inverted_index[skill].add(i)
                 elif self.config.get("fuzzyMode", 0)<2 and level > 0:
@@ -379,7 +379,7 @@ class Dataset:
             allRequirements = np.all(learner>=self.jobs*threshold, axis=1)
             return int(np.sum(allRequirements))
         elif self.config.get("fuzzyMode", 0) == 2:
-            return f2A.minimumInclusionDegree(learner, jobs)
+            return f2A.minimumInclusionDegree(learner, jobs).sum()
         
         
         # Element-wise fractions for ALL skills (not only learner's nonzeros):

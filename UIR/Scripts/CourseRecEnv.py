@@ -73,7 +73,8 @@ class CourseRecEnv(gym.Env):
         self.feature = config.get("feature", "UIR")
         self.baseline = self.feature == "Employability"
         self.method = config.get("method", 1)
-        self.threshold = config.get("threshold", 0.8)
+        self.threshold = config.get("threshold", 1)
+        self.fuzzyThreshold = config.get("fuzzyThreshold", 1)
 
         
         
@@ -86,7 +87,7 @@ class CourseRecEnv(gym.Env):
         if fuzzyMode < 2:
             self._req_has = self._req_skills > 0
         elif fuzzyMode == 2:
-            self._req_has = np.tile(self._req_skills[:,:,0][..., None]>0, 3) #Filter saying main expertise strictly over 0
+            self._req_has = np.tile(self._req_skills[:,:,0][..., None]>0, 3) #Filter saying main expertise strictly over 0, otherwise it would imply er=cr=0=noo required expertise
         self._req_safe = np.where(self._req_has, self._req_skills, 1.0).astype(np.float32) # Mask skills that are not required
         self._req_count = self._req_has.sum(axis=1).astype(np.int32) # Count skills per jobs
         
@@ -716,7 +717,7 @@ class CourseRecEnv(gym.Env):
             required_fraction[~self._req_has] = 0.0  # ignore non-required skills
         elif self.fuzzyMode == 2:
             required_fraction = f2A.InclusionDegree(learner,self._req_skills[:,:,:2])
-            required_fraction[~self._req_has[:,0,0]] = 0.0
+            required_fraction[~self._req_has[:,:,0]] = 0.0
         
         # Aggregate to average matching per course
         required_sum = required_fraction.sum(axis=1)
@@ -744,8 +745,8 @@ class CourseRecEnv(gym.Env):
             provided_fraction = np.minimum(learner, self._prov_skills) / self._prov_safe
             provided_fraction[~self._prov_has] = 0.0
         elif self.fuzzyMode == 2:
-            provided_fraction = f2A.InclusionDegree(learner, f2A.TrianglesToRamps2(self._prov_skills))
-            provided_fraction[~self._prov_has[:,0,0]] = 0.0
+            provided_fraction = f2A.InvertedInclusionDegree(learner, f2A.TrianglesToRamps2(self._prov_skills, inverted=True))
+            provided_fraction[~self._prov_has[:,:,0]] = 0.0
             
         provided_sum = provided_fraction.sum(axis=1)
         #provided_count = has_provided.sum(axis=1)
@@ -762,9 +763,11 @@ class CourseRecEnv(gym.Env):
             # If no provided skills, treat as 0.0
             provided_matching[self._prov_count[:,0] == 0] = 0.0
             
-
         # === VALIDITY RULE ===
-        valid_courses = (required_matching >= self.threshold) & (provided_matching < 1.0)
+        if self.fuzzyMode < 2:
+            valid_courses = (required_matching >= self.threshold) & (provided_matching < 1.0)
+        elif self.fuzzyMode == 2:
+            valid_courses = (required_matching >= self.fuzzyThreshold) & (provided_matching < 1.0)
         
         if self.extra_invalid_actions is not None:
             valid_courses = valid_courses & (~self.extra_invalid_actions)
@@ -774,7 +777,7 @@ class CourseRecEnv(gym.Env):
             # pick one deterministic action to keep distribution valid
             valid_courses[:] = False
             valid_courses[0] = True
-
+            
         return valid_courses
 
     def step(self, action):
@@ -812,9 +815,9 @@ class CourseRecEnv(gym.Env):
             provided_inclusionMatching = None
             required_inclusionMatching = None
         elif self.fuzzyMode == 2:
-            fuzzyThreshold = self.config.get("fuzzyInclusionThresholdForCourseRequirements", 1)
+            fuzzyThreshold = self.fuzzyThreshold
             required_inclusionMatching = f2A.minimumInclusionDegree(learner, np.array([course[0,:,:2]])).sum()
-            provided_inclusionMatching = f2A.minimumInclusionDegree(learner, f2A.TrianglesToRamps(course[1,:,:])).sum()
+            provided_inclusionMatching = f2A.minimumInclusionDegree(learner, f2A.TrianglesToRamps(course[1,:,:], inverted=True), inverted=True).sum()
             provided_matching = None
             required_matching = None
         

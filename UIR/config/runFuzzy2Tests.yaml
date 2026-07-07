@@ -16,7 +16,7 @@ fuzzyMode: 2 #0 Crisp, 1 Fuzzy Set, 2 Fuzzy Set Type II
 useMaxOnAggregatedUseful: False
 useMaxOnAggregatedMissing: False
 useMaxOnAggregatedUnnecessary: False
-fuzzyInclusionThresholdForCourseRequirements: 1        # Threshold used to say that a course fit a requirement
+fuzzyThreshold: 1        # Threshold used to say that a course fit a requirement
 
 # When generating random person, what should we do about confidence if fuzzy II
 default_leftConfidence_courseReq: 0.2797116 # Put dispersion here (it is simpler than absolute position)
