@@ -10,7 +10,7 @@ from . import matchings
 import torch
 from . import Fuzzy2Arithmetics as f2A
 
-from numba import njit
+from numba import njit, prange
 
 
 class Dataset:
@@ -519,18 +519,13 @@ def _P1_numba(x:np.ndarray, ep:float, clp:float) -> float:
 def _P2_numba(x:np.ndarray, ep:float, crp:float) -> float:
     return 1-(x-ep)/crp
 
-@njit(cache=True)
+@njit(cache=True, parallel=True)
 def _nb_fuzzyII_applicable_jobs_numba(learner: np.ndarray, jobs: np.ndarray) -> float:
     J, S, _ = jobs.shape
-    count = 0
-    for j in range(J):  # loop over jobs
+    counts = np.empty(J, dtype=np.float64)
+    for j in prange(J):  # loop over jobs
         inc = 1
         for s in range(S):  # loop over skills
-            # If the inclusion is already minimum, then continue to next job
-            if inc == 0:
-                break
-            
-            # Else get the requirements
             req = jobs[j, s]
             if req[0] > 0:  # required skill
                 lv = learner[s]
@@ -543,6 +538,7 @@ def _nb_fuzzyII_applicable_jobs_numba(learner: np.ndarray, jobs: np.ndarray) -> 
                 ## Trivial cases
                 # Full disjunction case
                 if ep + crp < cr:
+                    inc = 0
                     continue
                 # Full inclusion case
                 if ep - clp >= cr and ep >= er:
@@ -570,8 +566,9 @@ def _nb_fuzzyII_applicable_jobs_numba(learner: np.ndarray, jobs: np.ndarray) -> 
                     # Provider OUT case
                     if ep <= er:
                         integral = (ep+crp-ix2)*_P2_numba(ix2, ep, crp)/2
+                    # Provider IN case
                     elif ep > er:
-                        integral = (_P2_numba(ix2, ep, crp)*(ep-ix2)+ep-ix2+crp)/2
+                        integral = (_P1_numba(ix1, ep, clp) * (ep - ix1) + ep - ix1 + crp)/2
                     inc = min(inc, integral/Xp)
                     continue
                 # Phantom Intersection Case
@@ -587,6 +584,7 @@ def _nb_fuzzyII_applicable_jobs_numba(learner: np.ndarray, jobs: np.ndarray) -> 
                     inc = min(inc, ((_R_numba(ix1, cr, er)*(ep-cr)+ep-ix1+crp)/2)/Xp)
                     continue
                 #####
+            counts[j] = inc
         # Update the number of jobs opened to application
-        count += inc
-    return count
+    
+    return counts.sum()
