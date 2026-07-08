@@ -112,7 +112,7 @@ def InclusionDegree(learner: np.ndarray[float], jobs: np.ndarray[float]) -> np.n
     # Return the matrix of inclusions for each corresponding pair of skills requirement and provide
     return out
 
-def minimumInclusionDegree(learner:np.ndarray[float], jobs:np.ndarray[float], inverted:bool = False) -> float:
+def minimumInclusionDegree(learner:np.ndarray[float], jobs:np.ndarray[float], inverted:bool = False) -> np.ndarray[float]:
     if not inverted:
         return InclusionDegree(learner, jobs).min(axis=1)
     return InvertedInclusionDegree(learner, jobs).min(axis=1)

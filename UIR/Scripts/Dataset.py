@@ -364,20 +364,19 @@ class Dataset:
         if jobs is None:
             jobs = self.jobs
         if self.config.get("use_numba", True):
-            nb_applicable_jobs = _nb_applicable_jobs_numba(learner, jobs, threshold)
-            return int(nb_applicable_jobs)
+            if self.config.get("fuzzyMode", 0) < 2:
+                nb_applicable_jobs = int(_nb_applicable_jobs_numba(learner, jobs, threshold))
+            elif self.config.get("fuzzyMode", 0) == 2:
+                nb_applicable_jobs = _nb_fuzzyII_applicable_jobs_numba(learner, jobs)
+            return nb_applicable_jobs
 
         # Early exit: no jobs or no required skills anywhere
         if self.config.get("fuzzyMode", 0) < 2:
             job_required_counts = np.count_nonzero(self.jobs, axis=1)  # denominator per job
             if job_required_counts.size == 0 or not np.any(job_required_counts):
                 return 0
-        
-        if self.config.get("fuzzyMode", 0) == 1:
-            # Get the jobs with all the requirements
-            # Then count the number of fulfilled jobs  
-            allRequirements = np.all(learner>=self.jobs*threshold, axis=1)
-            return int(np.sum(allRequirements))
+
+        # If Fuzzy II, then it is just the sum of the inclusion degree, then it is just the 
         elif self.config.get("fuzzyMode", 0) == 2:
             return f2A.minimumInclusionDegree(learner, jobs).sum()
         
@@ -506,4 +505,88 @@ def _nb_applicable_jobs_numba(learner: np.ndarray, jobs: np.ndarray, threshold: 
             score = acc / denom  # average matching
             if score >= threshold:
                 count += 1
+    return count
+
+@njit(cache=True)
+def _R_numba(x:np.ndarray, cr:float, er:float) -> float:
+    return (x-cr)/(er-cr)
+
+@njit(cache=True)
+def _P1_numba(x:np.ndarray, ep:float, clp:float) -> float:
+    return 1+(x-ep)/clp
+
+@njit(cache=True)
+def _P2_numba(x:np.ndarray, ep:float, crp:float) -> float:
+    return 1-(x-ep)/crp
+
+@njit(cache=True)
+def _nb_fuzzyII_applicable_jobs_numba(learner: np.ndarray, jobs: np.ndarray) -> float:
+    J, S, _ = jobs.shape
+    count = 0
+    for j in range(J):  # loop over jobs
+        inc = 1
+        for s in range(S):  # loop over skills
+            # If the inclusion is already minimum, then continue to next job
+            if inc == 0:
+                break
+            
+            # Else get the requirements
+            req = jobs[j, s]
+            if req[0] > 0:  # required skill
+                lv = learner[s]
+                ##### MINIMUM INCLUSION DEGREE (RAW FOR NUMBA)
+                ## Data
+                ep, clp, crp = lv
+                er, cr = req
+                Xp = (crp+clp)/2
+                
+                ## Trivial cases
+                # Full disjunction case
+                if ep + crp < cr:
+                    continue
+                # Full inclusion case
+                if ep - clp >= cr and ep >= er:
+                    inc = min(inc, 1)
+                    continue
+                # No Width Case
+                if Xp == 0:
+                    inc = min(inc, _R_numba(ep, cr, er))
+                    continue
+                
+                ## Intersection and zero division handling
+                if cr + clp - er == 0:
+                    undef = True
+                else:
+                    undef = False
+                    ix1 = (clp*er+cr*ep-er*ep)/(cr+clp-er)
+                if crp - cr + er == 0:
+                    pass
+                else:
+                    ix2 = (crp*er-cr*ep+ep*er)/(crp-cr+er)
+                
+                ## Other cases
+                # Full Step Case
+                if cr == er:
+                    # Provider OUT case
+                    if ep <= er:
+                        integral = (ep+crp-ix2)*_P2_numba(ix2, ep, crp)/2
+                    elif ep > er:
+                        integral = (_P2_numba(ix2, ep, crp)*(ep-ix2)+ep-ix2+crp)/2
+                    inc = min(inc, integral/Xp)
+                    continue
+                # Phantom Intersection Case
+                if undef or ix1 <= min(ep-clp, cr) or ix1 >= er:
+                    inc = min(inc, (_R_numba(ix2, cr, er)*(ep+crp-cr)/2)/Xp)
+                    continue
+                # Requirement FIRST case
+                if cr <= ep - clp:
+                    inc = min(inc, ((_R_numba(ix1, cr, er)*(clp-ep+ix2) + _R_numba(ix2, cr, er)*(crp+ep-ix1))/2)/Xp)
+                    continue
+                # Provider FIRST case
+                if ep-clp <= cr:
+                    inc = min(inc, ((_R_numba(ix1, cr, er)*(ep-cr)+ep-ix1+crp)/2)/Xp)
+                    continue
+                #####
+        # Update the number of jobs opened to application
+        count += inc
     return count

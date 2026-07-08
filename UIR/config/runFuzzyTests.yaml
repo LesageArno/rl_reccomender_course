@@ -31,7 +31,7 @@ set_dataset_seed: true
 dataset_seed: 1092                                       # Set this seed in order not to have a variable dataset
 
 # Model Parameters
-threshold: 0.8                                         # Minimum matching threshold for job eligibility
+threshold: 1                                         # Minimum matching threshold for job eligibility
 k: 3                                                   # Number of course recommendations to generate
 model: ppo_mask                                        # Reinforcement learning algorithm (dqn, ppo, a2c, ppo_mask) only ppo and ppo_mask are implemented well
 total_steps: 5000                                    # Total training steps (normal to 500_000)

@@ -1258,3 +1258,77 @@ def _calc_metrics_threshold_mastery_numba(
             Nnr += 1
 
     return Nr, Nm, Nnr
+
+@njit(cache=True, debug=True)
+def _fuzzyII_calc_metrics_deficit_numba(learner: np.ndarray,
+                                course_provided: np.ndarray,
+                                jobs: np.ndarray) -> tuple:
+    J, S, R = jobs.shape
+
+    #### CONS SKILLS, RAW UNION FOR NUMBA
+    cons_skills = np.empty_like(learner)
+    for s in range(S): # For each skills
+        # Get the data
+        ep, clp, crp = learner[s]
+        et, clt, crt = course_provided[s]
+        
+        # Make the union and update cons_skills
+        ex = max(ep, et)
+        clx = ex-max(ep-clp, et-clt)
+        crx = max(ep+crp, et+crt)-ex
+        cons_skills[s] = [ex, clx, crx]
+    ####
+    
+    Nr = np.empty(3) # Cu
+    Nm = np.empty(3) # Cm
+
+    Nr = 0.0  # total deficit reduction
+    Nm = 0.0  # remaining deficits
+    needed = np.zeros(S, dtype=np.bool_)
+
+    raise NotImplementedError("It has to be finished")
+    #### MANUAL DELTA
+    
+    # --- iterate over all jobs ---
+    for j in range(J):
+        denom_before = 0.0
+        denom_after = 0.0
+        missing_before = np.zeros(S)
+        missing_after = np.zeros(S)
+        has_deficit = False
+
+        for s in range(S):
+            job_req = jobs[j, s]
+            if job_req > 0.0:
+                lv = learner[s]
+                cs = cons_skills[s]
+                diff_before = job_req - lv
+                diff_after = job_req - cs
+
+                if diff_before > 0.0:
+                    has_deficit = True
+                    needed[s] = True
+
+                # clamp negative values to 0
+                if diff_before < 0.0:
+                    diff_before = 0.0
+                if diff_after < 0.0:
+                    diff_after = 0.0
+
+                missing_before[s] = diff_before
+                missing_after[s] = diff_after
+
+        if has_deficit:
+            # Nr: total deficit reduction
+            for s in range(S):
+                Nr += (missing_before[s] - missing_after[s])
+                Nm += missing_after[s]
+
+    # --- Nnr: total gains on irrelevant skills ---
+    Nnr = 0.0
+    for s in range(S):
+        gain = cons_skills[s] - learner[s]
+        if gain > 0.0 and not needed[s]:
+            Nnr += gain
+
+    return Nr, Nm, Nnr
