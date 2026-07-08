@@ -3,7 +3,7 @@ import random
 
 from typing import Callable, Optional
 
-from numba import njit
+from numba import njit, prange
 import math
 
 import time
@@ -1262,9 +1262,9 @@ def _calc_metrics_threshold_mastery_numba(
 
     return Nr, Nm, Nnr
 
-@njit(cache=True, debug=True)
+@njit(cache=True)
 def _fuzzyII_RampTriangle_Delta_numba(ramp:np.ndarray, triangle:np.ndarray) -> np.ndarray:
-    toReturn = np.empty_like(triangle)
+    out = np.empty(3)
     ep, clp, crp = triangle
     er, cr = ramp
     
@@ -1272,13 +1272,21 @@ def _fuzzyII_RampTriangle_Delta_numba(ramp:np.ndarray, triangle:np.ndarray) -> n
     x2 = max(er-ep, 0)
     x3 = max(cr-ep+clp, 0)
     
-    X = np.sort([x1, x2, x3])
-    toReturn[:] = [X[1], X[1]-X[0], X[2]-X[1]]
-    return toReturn
+    # Manual sort
+    if x1 > x2:
+        x1, x2 = x2, x1
+    if x2 > x3:
+        x2, x3 = x3, x2
+    if x1 > x2:
+        x1, x2 = x2, x1
+    
+    # Reconstruct Triangle
+    out[0], out[1], out[2]  = x2, x2-x1, x3-x2
+    return out
 
-@njit(cache=True, debug=True)
+@njit(cache=True)
 def _fuzzyII_TriangleTriangle_Delta_numba(t1:np.ndarray, t2:np.ndarray) -> np.ndarray:
-    toReturn = np.empty_like(t1)
+    out = np.empty(3)
     ep1, clp1, crp1 = t1
     ep2, clp2, crp2 = t2
     
@@ -1286,19 +1294,27 @@ def _fuzzyII_TriangleTriangle_Delta_numba(t1:np.ndarray, t2:np.ndarray) -> np.nd
     x2 = max(0, ep1-ep2)
     x3 = max(0, ep1-clp1-ep2+clp2)
     
-    X = np.sort([x1, x2, x3])
-    toReturn[:] = [X[1], X[1]-X[0], X[2]-X[1]]
-    return toReturn
+    # Manual sort
+    if x1 > x2:
+        x1, x2 = x2, x1
+    if x2 > x3:
+        x2, x3 = x3, x2
+    if x1 > x2:
+        x1, x2 = x2, x1
+    
+    # Reconstruct Triangle
+    out[0], out[1], out[2]  = x2, x2-x1, x3-x2
+    return out
 
-@njit(cache=True, debug=True)
+@njit(cache=True, parallel=True)
 def _fuzzyII_calc_metrics_deficit_numba(learner: np.ndarray,
                                 course_provided: np.ndarray,
                                 jobs: np.ndarray) -> tuple:
     J, S, R = jobs.shape
-
+    
     #### CONS SKILLS, RAW UNION FOR NUMBA
     cons_skills = np.empty_like(learner)
-    for s in range(S): # For each skills
+    for s in prange(S): # For each skills
         # Get the data
         ep, clp, crp = learner[s]
         et, clt, crt = course_provided[s]
@@ -1314,31 +1330,30 @@ def _fuzzyII_calc_metrics_deficit_numba(learner: np.ndarray,
     Nm = np.zeros(3) # Cm
     Nnr = np.zeros(3) # Cun
     
+    missing_before = np.zeros(3)
+    missing_after = np.zeros(3)
+    missing_unnecessary = np.zeros(3)
     #### MANUAL DELTA
-    for j in range(J):
-        missing_before = np.zeros(3)
-        missing_after = np.zeros(3)
-        missing_unnecessary = np.zeros(3)
-        NmTg = np.zeros_like(Nm)
-        NrTg = np.zeros_like(Nr) 
-        NnrTg = np.zeros_like(Nnr)
+    for j in prange(J):
         for s in range(S):
             job_req = jobs[j, s] # (1,2)
             if job_req[0] > 0:
                 lv = learner[s]
                 cs = cons_skills[s]
                 diff_before = _fuzzyII_RampTriangle_Delta_numba(job_req, lv)
-                diff_after = _fuzzyII_RampTriangle_Delta_numba(job_req, cs)           
-                diff_unnecessary = _fuzzyII_TriangleTriangle_Delta_numba(course_provided[s], diff_before)
                 missing_before += diff_before
-                missing_after += diff_after
-                missing_unnecessary += diff_unnecessary
+                missing_after += _fuzzyII_RampTriangle_Delta_numba(job_req, cs)   
+                missing_unnecessary += _fuzzyII_TriangleTriangle_Delta_numba(course_provided[s], diff_before) 
         
-            NmTg += missing_after
-            NrTg += np.maximum(missing_before - missing_after, 0)
-            NnrTg += missing_unnecessary
-        Nr += NrTg
-        Nm += NmTg
-        Nnr += NnrTg
+        for i in range(3):
+            d = missing_before[i] - missing_after[i]
+            if d > 0:        
+                Nr[i] += d
+        Nm += missing_after
+        Nnr += missing_unnecessary
+        
+        missing_before[:] = 0
+        missing_after[:] = 0
+        missing_unnecessary[:] = 0
     
     return Nr, Nm, Nnr        
