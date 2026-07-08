@@ -559,7 +559,10 @@ class CourseRecEnv(gym.Env):
         """
         #############################################################################################
         if self.config.get("use_numba", True):
-            return _calc_metrics_deficit_numba(learner, course[1], self.jobs_goal)
+            if self.fuzzyMode < 2:
+                return _calc_metrics_deficit_numba(learner, course[1], self.jobs_goal)
+            elif self.fuzzyMode == 2:
+                return _fuzzyII_calc_metrics_deficit_numba(learner, course[1], self.jobs_goal)
         ##############################################################################################
 
         # Skills after taking the course (target-level model)
@@ -1260,6 +1263,34 @@ def _calc_metrics_threshold_mastery_numba(
     return Nr, Nm, Nnr
 
 @njit(cache=True, debug=True)
+def _fuzzyII_RampTriangle_Delta_numba(ramp:np.ndarray, triangle:np.ndarray) -> np.ndarray:
+    toReturn = np.empty_like(triangle)
+    ep, clp, crp = triangle
+    er, cr = ramp
+    
+    x1 = max(er-ep-crp, 0)
+    x2 = max(er-ep, 0)
+    x3 = max(cr-ep+clp, 0)
+    
+    X = np.sort([x1, x2, x3])
+    toReturn[:] = [X[1], X[1]-X[0], X[2]-X[1]]
+    return toReturn
+
+@njit(cache=True, debug=True)
+def _fuzzyII_TriangleTriangle_Delta_numba(t1:np.ndarray, t2:np.ndarray) -> np.ndarray:
+    toReturn = np.empty_like(t1)
+    ep1, clp1, crp1 = t1
+    ep2, clp2, crp2 = t2
+    
+    x1 = max(0, ep1+crp1-ep2-crp2)
+    x2 = max(0, ep1-ep2)
+    x3 = max(0, ep1-clp1-ep2+clp2)
+    
+    X = np.sort([x1, x2, x3])
+    toReturn[:] = [X[1], X[1]-X[0], X[2]-X[1]]
+    return toReturn
+
+@njit(cache=True, debug=True)
 def _fuzzyII_calc_metrics_deficit_numba(learner: np.ndarray,
                                 course_provided: np.ndarray,
                                 jobs: np.ndarray) -> tuple:
@@ -1279,56 +1310,35 @@ def _fuzzyII_calc_metrics_deficit_numba(learner: np.ndarray,
         cons_skills[s] = [ex, clx, crx]
     ####
     
-    Nr = np.empty(3) # Cu
-    Nm = np.empty(3) # Cm
-
-    Nr = 0.0  # total deficit reduction
-    Nm = 0.0  # remaining deficits
-    needed = np.zeros(S, dtype=np.bool_)
-
-    raise NotImplementedError("It has to be finished")
-    #### MANUAL DELTA
+    Nr = np.zeros(3) # Cu
+    Nm = np.zeros(3) # Cm
+    Nnr = np.zeros(3) # Cun
     
-    # --- iterate over all jobs ---
+    #### MANUAL DELTA
     for j in range(J):
-        denom_before = 0.0
-        denom_after = 0.0
-        missing_before = np.zeros(S)
-        missing_after = np.zeros(S)
-        has_deficit = False
-
+        missing_before = np.zeros(3)
+        missing_after = np.zeros(3)
+        missing_unnecessary = np.zeros(3)
+        NmTg = np.zeros_like(Nm)
+        NrTg = np.zeros_like(Nr) 
+        NnrTg = np.zeros_like(Nnr)
         for s in range(S):
-            job_req = jobs[j, s]
-            if job_req > 0.0:
+            job_req = jobs[j, s] # (1,2)
+            if job_req[0] > 0:
                 lv = learner[s]
                 cs = cons_skills[s]
-                diff_before = job_req - lv
-                diff_after = job_req - cs
-
-                if diff_before > 0.0:
-                    has_deficit = True
-                    needed[s] = True
-
-                # clamp negative values to 0
-                if diff_before < 0.0:
-                    diff_before = 0.0
-                if diff_after < 0.0:
-                    diff_after = 0.0
-
-                missing_before[s] = diff_before
-                missing_after[s] = diff_after
-
-        if has_deficit:
-            # Nr: total deficit reduction
-            for s in range(S):
-                Nr += (missing_before[s] - missing_after[s])
-                Nm += missing_after[s]
-
-    # --- Nnr: total gains on irrelevant skills ---
-    Nnr = 0.0
-    for s in range(S):
-        gain = cons_skills[s] - learner[s]
-        if gain > 0.0 and not needed[s]:
-            Nnr += gain
-
-    return Nr, Nm, Nnr
+                diff_before = _fuzzyII_RampTriangle_Delta_numba(job_req, lv)
+                diff_after = _fuzzyII_RampTriangle_Delta_numba(job_req, cs)           
+                diff_unnecessary = _fuzzyII_TriangleTriangle_Delta_numba(course_provided[s], diff_before)
+                missing_before += diff_before
+                missing_after += diff_after
+                missing_unnecessary += diff_unnecessary
+        
+            NmTg += missing_after
+            NrTg += np.maximum(missing_before - missing_after, 0)
+            NnrTg += missing_unnecessary
+        Nr += NrTg
+        Nm += NmTg
+        Nnr += NnrTg
+    
+    return Nr, Nm, Nnr        
