@@ -14,6 +14,7 @@ from gymnasium import spaces
 from sb3_contrib import MaskablePPO
 from stable_baselines3.common.callbacks import BaseCallback
 from . import Fuzzy2Arithmetics as f2A
+from . import helperBenchmark as hb
 
 from UIR.Scripts import matchings
 #from .Fuzzy.fuzzyExpertiseAwareFramework import Training as FuzzyTraining, Goals as FuzzyGoals, FuzzySkillExpertiseSet as FSES
@@ -835,7 +836,7 @@ class CourseRecEnv(gym.Env):
         if self.fuzzyMode < 2:
             required_matching = matchings.learner_course_required_matching(learner, course)
             provided_matching = matchings.learner_course_provided_matching(learner, course)
-        elif self.fuzzyMode == 2:        
+        elif self.fuzzyMode == 2:
             # See Get Action Masks for details on this part of the code
             ## Provided
             provided_fraction = f2A.InvertedInclusionDegree(learner, f2A.TrianglesToRamps(course[1], inverted=True))[0]
@@ -888,7 +889,7 @@ class CourseRecEnv(gym.Env):
             if self.fuzzyMode < 2:
                 improved = (self._agent_skills > learner)
             elif self.fuzzyMode == 2:
-               improved = f2A.InvertedInclusionDegree(learner,f2A.TrianglesToRamps(self._agent_skills, inverted=True))[0] >= self.fuzzyThreshold
+                improved = f2A.InvertedInclusionDegree(learner,f2A.TrianglesToRamps(self._agent_skills, inverted=True))[0] >= self.fuzzyThreshold
             self.covered_want |= improved & (self._want.astype(bool))
 
             observation = self.get_obs()
@@ -1262,6 +1263,7 @@ def _calc_metrics_threshold_mastery_numba(
 
     return Nr, Nm, Nnr
 
+"""
 @njit(cache=True)
 def _fuzzyII_RampTriangle_Delta_numba(ramp:np.ndarray, triangle:np.ndarray) -> np.ndarray:
     out = np.empty(3)
@@ -1283,7 +1285,32 @@ def _fuzzyII_RampTriangle_Delta_numba(ramp:np.ndarray, triangle:np.ndarray) -> n
     # Reconstruct Triangle
     out[0], out[1], out[2]  = x2, x2-x1, x3-x2
     return out
+"""
 
+@njit(inline="always")
+def _fuzzyII_RampTriangle_Delta_numba(ramp:np.ndarray, triangle:np.ndarray, out:np.ndarray) -> None:
+    ep, clp, crp = triangle
+    er, cr = ramp
+
+    # Computation
+    x1 = max(er-ep-crp, 0.0)
+    x2 = max(er-ep, 0.0)
+    x3 = max(cr-ep+clp, 0.0)
+
+    # Sort
+    if x1 > x2:
+        x1, x2 = x2, x1
+    if x2 > x3:
+        x2, x3 = x3, x2
+    if x1 > x2:
+        x1, x2 = x2, x1
+
+    # Allocation
+    out[0] = x2
+    out[1] = x2-x1
+    out[2] = x3-x2
+
+"""
 @njit(cache=True)
 def _fuzzyII_TriangleTriangle_Delta_numba(t1:np.ndarray, t2:np.ndarray) -> np.ndarray:
     out = np.empty(3)
@@ -1305,6 +1332,27 @@ def _fuzzyII_TriangleTriangle_Delta_numba(t1:np.ndarray, t2:np.ndarray) -> np.nd
     # Reconstruct Triangle
     out[0], out[1], out[2]  = x2, x2-x1, x3-x2
     return out
+"""
+
+@njit(cache=True, inline="always")
+def _fuzzyII_TriangleTriangle_Delta_numba(t1:np.ndarray, t2:np.ndarray, out:np.ndarray) -> np.ndarray:
+    ep1, clp1, crp1 = t1
+    ep2, clp2, crp2 = t2
+    
+    x1 = max(0, ep1+crp1-ep2-crp2)
+    x2 = max(0, ep1-ep2)
+    x3 = max(0, ep1-clp1-ep2+clp2)
+    
+    # Manual sort
+    if x1 > x2:
+        x1, x2 = x2, x1
+    if x2 > x3:
+        x2, x3 = x3, x2
+    if x1 > x2:
+        x1, x2 = x2, x1
+    
+    # Reconstruct Triangle
+    out[0], out[1], out[2]  = x2, x2-x1, x3-x2
 
 @njit(cache=True)
 def _fuzzyII_calc_metrics_deficit_numba(learner: np.ndarray,
@@ -1326,13 +1374,20 @@ def _fuzzyII_calc_metrics_deficit_numba(learner: np.ndarray,
         cons_skills[s] = [ex, clx, crx]
     ####
     
-    Nr = np.zeros(3) # Cu
-    Nm = np.zeros(3) # Cm
-    Nnr = np.zeros(3) # Cun
+    out_diff_before = np.empty(3)
+    out_diff_after = np.empty(3)
+    out_diff_unnecessary = np.empty(3)
+    Nr = np.empty(3) # Cu
+    nr0 = nr1 = nr2 = 0
+    Nm = np.empty(3) # Cm
+    nm0 = nm1 = nm2 = 0
+    Nnr = np.empty(3) # Cun
+    nnr0 = nnr1 = nnr2 =0
     
-    missing_before = np.zeros(3)
-    missing_after = np.zeros(3)
-    missing_unnecessary = np.zeros(3)
+    mb0 = mb1 = mb2 = 0 # Missing before
+    ma0 = ma1= ma2 = 0 # Missing after
+    mun0 = mun1 = mun2 = 0 # Missing unnecessary 
+
     #### MANUAL DELTA
     for j in range(J):
         for s in range(S):
@@ -1340,20 +1395,40 @@ def _fuzzyII_calc_metrics_deficit_numba(learner: np.ndarray,
             if job_req[0] > 0:
                 lv = learner[s]
                 cs = cons_skills[s]
-                diff_before = _fuzzyII_RampTriangle_Delta_numba(job_req, lv)
-                missing_before += diff_before
-                missing_after += _fuzzyII_RampTriangle_Delta_numba(job_req, cs)   
-                missing_unnecessary += _fuzzyII_TriangleTriangle_Delta_numba(course_provided[s], diff_before) 
+                _fuzzyII_RampTriangle_Delta_numba(job_req, lv, out_diff_before)
+                mb0 += out_diff_before[0]
+                mb1 += out_diff_before[1]
+                mb2 += out_diff_before[2]
+                _fuzzyII_RampTriangle_Delta_numba(job_req, cs, out_diff_after)
+                ma0 += out_diff_after[0]
+                ma1 += out_diff_after[1]
+                ma2 += out_diff_after[2]
+                _fuzzyII_TriangleTriangle_Delta_numba(course_provided[s], out_diff_before, out_diff_unnecessary)
+                mun0 += out_diff_unnecessary[0]
+                mun1 += out_diff_unnecessary[1]
+                mun2 += out_diff_unnecessary[2]
         
-        for i in range(3):
-            d = missing_before[i] - missing_after[i]
-            if d > 0:        
-                Nr[i] += d
-        Nm += missing_after
-        Nnr += missing_unnecessary
+        d = mb0 - ma0
+        if d > 0:
+            nr0 += d
         
-        missing_before[:] = 0
-        missing_after[:] = 0
-        missing_unnecessary[:] = 0
+        d = mb1 - ma1
+        if d > 0:
+            nr1 += d
+        
+        d = mb2 - ma2
+        if d > 0:
+            nr2 += d
+        
+        nm0 += ma0; nm1 += ma1; nm2 += ma2
+        nnr0 += mun0; nnr1 += mun1; nnr2 += mun2
+        
+        mb0 = mb1 = mb2 = 0
+        ma0 = ma1 = ma2 = 0
+        mun0 = mun1 = mun2 = 0
     
+    Nr[0] = nr0; Nr[1] = nr1; Nr[2] = nr2
+    Nm[0] = nm0; Nm[1] = nm1; Nm[2] = nm2
+    Nnr[0] = nnr0; Nnr[1] = nnr1; Nnr[2] = nnr2
+      
     return Nr, Nm, Nnr        
