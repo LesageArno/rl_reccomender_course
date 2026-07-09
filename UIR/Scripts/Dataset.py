@@ -10,7 +10,7 @@ from . import matchings
 import torch
 from . import Fuzzy2Arithmetics as f2A
 
-from numba import njit, prange
+from numba import njit
 
 
 class Dataset:
@@ -519,11 +519,11 @@ def _P1_numba(x:np.ndarray, ep:float, clp:float) -> float:
 def _P2_numba(x:np.ndarray, ep:float, crp:float) -> float:
     return 1-(x-ep)/crp
 
-@njit(cache=True, parallel=True)
+@njit(cache=True)
 def _nb_fuzzyII_applicable_jobs_numba(learner: np.ndarray, jobs: np.ndarray) -> float:
     J, S, _ = jobs.shape
     counts = np.empty(J, dtype=np.float64)
-    for j in prange(J):  # loop over jobs
+    for j in range(J):  # loop over jobs
         inc = 1
         for s in range(S):  # loop over skills
             req = jobs[j, s]

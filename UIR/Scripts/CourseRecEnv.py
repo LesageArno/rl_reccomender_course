@@ -3,7 +3,7 @@ import random
 
 from typing import Callable, Optional
 
-from numba import njit, prange
+from numba import njit
 import math
 
 import time
@@ -1306,7 +1306,7 @@ def _fuzzyII_TriangleTriangle_Delta_numba(t1:np.ndarray, t2:np.ndarray) -> np.nd
     out[0], out[1], out[2]  = x2, x2-x1, x3-x2
     return out
 
-@njit(cache=True, parallel=True)
+@njit(cache=True)
 def _fuzzyII_calc_metrics_deficit_numba(learner: np.ndarray,
                                 course_provided: np.ndarray,
                                 jobs: np.ndarray) -> tuple:
@@ -1314,7 +1314,7 @@ def _fuzzyII_calc_metrics_deficit_numba(learner: np.ndarray,
     
     #### CONS SKILLS, RAW UNION FOR NUMBA
     cons_skills = np.empty_like(learner)
-    for s in prange(S): # For each skills
+    for s in range(S): # For each skills
         # Get the data
         ep, clp, crp = learner[s]
         et, clt, crt = course_provided[s]
@@ -1334,7 +1334,7 @@ def _fuzzyII_calc_metrics_deficit_numba(learner: np.ndarray,
     missing_after = np.zeros(3)
     missing_unnecessary = np.zeros(3)
     #### MANUAL DELTA
-    for j in prange(J):
+    for j in range(J):
         for s in range(S):
             job_req = jobs[j, s] # (1,2)
             if job_req[0] > 0:
