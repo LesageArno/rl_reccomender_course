@@ -8,6 +8,8 @@ from sb3_contrib import MaskablePPO
 
 from .CourseRecEnv import CourseRecEnv, EvaluateCallback
 
+from . import helperBenchmark as hb
+
 
 class Reinforce:
     """Reinforcement Learning-based Course Recommendation System.

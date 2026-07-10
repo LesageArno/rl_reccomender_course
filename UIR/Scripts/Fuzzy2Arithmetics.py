@@ -1,5 +1,6 @@
 import numpy as np
 from numba import njit
+from . import helperBenchmark as hb
 
 def InclusionDegree(learner: np.ndarray[float], jobs: np.ndarray[float]) -> np.ndarray[float]:
     # Provider

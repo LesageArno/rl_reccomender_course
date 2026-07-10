@@ -1,0 +1,4 @@
+Just as a warning. In UIR\Scripts\CourseRecEnv.py
+
+- f2A.InvertedInclusionDegree(learner, f2A.TrianglesToRamps(course[1], inverted=True))[0] should be f2A.InvertedInclusionDegree(course[1], f2A.TrianglesToRamps(learner, inverted=True))[0]
+- f2A.InvertedInclusionDegree(learner, f2A.TrianglesToRamps2(self._prov_skills, inverted=True)) should be f2A.InvertedInclusionDegree(self._prov_skills, f2A.TrianglesToRamps2(learner, inverted=True))

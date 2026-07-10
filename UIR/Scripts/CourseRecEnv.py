@@ -1013,7 +1013,7 @@ class EvaluateCallback(BaseCallback):
             avg_skills_missing_unique = 0                        # Accumulator for total number of SKILLS missing
 
             use_preference = self.eval_env.unwrapped.config.get("use_preference", True)
-
+            
             # Loop through each learner in the evaluation dataset
             for learner_idx, learner in enumerate(self.eval_env.unwrapped.dataset.learners):
                 if use_preference:
