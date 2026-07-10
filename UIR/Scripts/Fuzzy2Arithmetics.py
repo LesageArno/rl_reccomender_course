@@ -1,4 +1,5 @@
 import numpy as np
+from numba import njit
 
 def InclusionDegree(learner: np.ndarray[float], jobs: np.ndarray[float]) -> np.ndarray[float]:
     # Provider
@@ -15,13 +16,18 @@ def InclusionDegree(learner: np.ndarray[float], jobs: np.ndarray[float]) -> np.n
 
     # Initialise the object to return
     out = np.empty_like(er, dtype=float)
+    
+    # Initialise some operations to avoid recomputing
+    left = ep - clp
+    right = ep + crp
+    
 
     ##### FULL DISJUNCTION CASE (put disjunction to 0)
-    fullDisjunctionMask = ep + crp < cr
+    fullDisjunctionMask = right < cr
     out[fullDisjunctionMask] = 0
 
     ##### FULL INCLUSION CASE (put inclusion to 1)
-    fullInclusionMask = (ep - clp >= cr) & (ep >= er)
+    fullInclusionMask = (left >= cr) & (ep >= er)
     out[fullInclusionMask] = 1
 
     # Remaining is the mask to avoid modifying twice the same area
@@ -66,8 +72,8 @@ def InclusionDegree(learner: np.ndarray[float], jobs: np.ndarray[float]) -> np.n
 
         # OUT case, then IN case
         with np.errstate(divide="ignore", invalid="ignore"):
-            integral[outProviderMask] = ((ep + crp - ix2) * P2(ix2) / 2)[outProviderMask]
-            integral[inProviderMask] = ((P1(ix1) * (ep - ix1) + ep - ix1 + crp) / 2)[inProviderMask]
+            integral[outProviderMask] = ((right - ix2) * P2(ix2) / 2)[outProviderMask]
+            integral[inProviderMask] = ((P1(ix1) * (ep - ix1) + right - ix1) / 2)[inProviderMask]
 
         # Compute the inclusion
         with np.errstate(divide="ignore", invalid="ignore"):
@@ -77,24 +83,24 @@ def InclusionDegree(learner: np.ndarray[float], jobs: np.ndarray[float]) -> np.n
     remaining &= ~(cr == er)
 
     ##### PHANTOM CASE (Right, Left and Parallel)
-    phantomMask = (remaining & (undef | (ix1 <= np.minimum(ep - clp, cr)) | (ix1 >= er)))
+    phantomMask = (remaining & (undef | (ix1 <= np.minimum(left, cr)) | (ix1 >= er)))
 
     # Compute the results only if phantoms cases exists
     if np.any(phantomMask):
         with np.errstate(divide="ignore", invalid="ignore"):
-            integral = R(ix2) * (ep + crp - cr) / 2
+            integral = R(ix2) * (right - cr) / 2
             out[phantomMask] = (integral / Xp)[phantomMask]
 
     # Remove phantoms from remaining
     remaining &= ~phantomMask
 
     ##### NON PHANTOM REQUIREMENT FIRST
-    reqFirstMask = remaining & (cr <= ep - clp)
+    reqFirstMask = remaining & (cr <= left)
         
     # Computation iff this case exists
     if np.any(reqFirstMask):
         with np.errstate(divide="ignore", invalid="ignore"):
-            integral = (R(ix1) * (clp - ep + ix2) + R(ix2) * (crp + ep - ix1)) / 2
+            integral = (R(ix1) * (clp - ep + ix2) + R(ix2) * (right - ix1)) / 2
             out[reqFirstMask] = (integral / Xp)[reqFirstMask]
 
     # Remove non phantom requirement first from remaining
@@ -106,7 +112,7 @@ def InclusionDegree(learner: np.ndarray[float], jobs: np.ndarray[float]) -> np.n
     # Computation iff this case exists
     if np.any(provFirstMask):
         with np.errstate(divide="ignore", invalid="ignore"):
-            integral = (R(ix1) * (ep - cr) + ep - ix1 + crp) / 2
+            integral = (R(ix1) * (ep - cr) + right - ix1) / 2
             out[provFirstMask] = (integral / Xp)[provFirstMask]
 
     # Return the matrix of inclusions for each corresponding pair of skills requirement and provide
@@ -351,6 +357,180 @@ def ClipRamp(ramps:np.ndarray[float], clip:list[float] = [0,1]) -> np.ndarray[fl
     er = ramps[:,0].clip(*clip)
     cr = ramps[:,1].clip(*clip)
     return np.column_stack((er,cr)) 
+
+@njit(inline="always")
+def _nb_R(x:float, er:float, cr:float) -> float:
+    return (x - cr) / (er - cr)
+
+@njit(inline="always")
+def _nb_RInverted(x:float, er:float, cr:float) -> float:
+    return (x - er) / (cr - er)
+
+@njit(inline="always")
+def _nb_P1(x:float, ep:float, clp:float) -> float:
+    return 1.0 + (x - ep) / clp
+
+@njit(inline="always")
+def _nb_P2(x:float, ep:float, crp:float) -> float:
+    return 1.0 - (x - ep) / crp
+
+@njit(cache=True)
+def _nb_InclusionDegree(learner:np.ndarray[float], jobs:np.ndarray[float]) -> np.ndarray[float]:
+    # Retrieve shapes
+    J = jobs.shape[0]
+    S = jobs.shape[1]
+
+    # Initialise out
+    out = np.empty((J, S), dtype=np.float64)
+
+    # For each job and subsequent skill
+    for j in range(J):
+        for s in range(S):
+            # Retrieve the skill expertise state
+            ep  = learner[s, 0]
+            clp = learner[s, 1]
+            crp = learner[s, 2]
+
+            # Retrieve the job expertise state
+            er = jobs[j, s, 0]
+            cr = jobs[j, s, 1]
+
+            # Compute area of main triangle
+            Xp = (clp + crp) / 2
+
+            # Variables to avoid recomputation
+            left  = ep - clp
+            right = ep + crp
+
+            # Full disjunction
+            if right < cr:
+                out[j, s] = 0.0
+                continue
+
+            # Full inclusion
+            if left >= cr and ep >= er:
+                out[j, s] = 1.0
+                continue
+
+            # Degenerate triangle
+            if Xp == 0.0:
+                out[j, s] = _nb_R(ep, er, cr)
+                continue
+
+            # Step case
+            if cr == er:
+                # OUT CASE
+                if ep <= er:
+                    ix2 = (crp*er - cr*ep + ep*er) / (crp - cr + er)
+                    integral = ((right - ix2) * _nb_P2(ix2, ep, crp)) / 2
+                # IN CASE
+                else:
+                    ix1 = (clp*er + cr*ep - er*ep) / (cr + clp - er)
+                    integral = (_nb_P1(ix1, ep, clp) * (ep - ix1) + right - ix1) / 2
+
+                out[j, s] = integral / Xp
+                continue
+            
+            # Phantom Case
+            undef = (cr + clp - er) == 0
+            if not undef:
+                ix1 = (clp*er + cr*ep - er*ep) / (cr + clp - er)
+            ix2 = (crp*er - cr*ep + ep*er) / (crp - cr + er)
+            if undef or ix1 <= min(left, cr) or ix1 >= er:
+                integral = _nb_R(ix2, er, cr) * (right - cr) / 2
+                out[j, s] = integral / Xp
+                continue
+            
+            # Non Phantom Requirement First
+            if cr <= left:
+                integral = (_nb_R(ix1, er, cr) * (clp - ep + ix2) + _nb_R(ix2, er, cr) * (right - ix1)) / 2
+                out[j, s] = integral / Xp
+                continue
+            
+            # Non Phantom Provider First
+            if cr >= left:
+                integral = ((_nb_R(ix1, er, cr) * ep - cr) + right - ix1) / 2
+                out[j, s] = integral / Xp
+                continue
+    return out
+
+@njit(cache=True)
+def _nb_InvertedInclusionDegree(learner:np.ndarray[float], jobs:np.ndarray[float]) -> np.ndarray[float]:
+    # Retrieve shapes
+    J = jobs.shape[0]
+    S = jobs.shape[1]
+
+    # Initialise out
+    out = np.empty((J, S), dtype=np.float64)
+
+    # For each job and subsequent skill
+    for j in range(J):
+        for s in range(S):
+            # Retrieve the skill expertise state
+            ep  = learner[s, 0]
+            clp = learner[s, 1]
+            crp = learner[s, 2]
+
+            # Retrieve the job expertise state
+            er = jobs[j, s, 0]
+            cr = jobs[j, s, 1]
+
+            # Compute area of main triangle
+            Xp = (clp + crp) / 2
+
+            # Variables to avoid recomputation
+            left  = ep - clp
+            right = ep + crp
+
+            # Full disjunction [TRANSFORMED]
+            if left > cr:
+                out[j, s] = 0.0
+                continue
+
+            # Full inclusion [TRANSFORMED]
+            if (right <= cr) and (ep <= er):
+                out[j, s] = 1.0
+                continue
+
+            # Degenerate triangle [OK]
+            if Xp == 0.0:
+                out[j, s] = _nb_RInverted(ep, er, cr)
+                continue
+
+            # Step case
+            if cr == er:
+                # OUT CASE
+                if ep >= er:
+                    integral = ((cr - ep + clp) * _nb_P1(cr, ep, clp) / 2)
+                # IN CASE
+                else:
+                    integral = ((clp + cr - ep + _nb_P2(cr, ep, crp)*(cr-ep)) / 2)
+                out[j, s] = integral / Xp
+                continue
+            
+            # Phantom Case
+            undef = (crp - cr + er) == 0
+            if not undef:
+                ix2 = (crp*er - cr*ep + ep*er) / (crp - cr + er)
+            if undef or ix2 <= max(right, cr) or ix2 <= er:
+                integral = _nb_RInverted(ix2, er, cr) * (cr-ep+clp) / 2
+                out[j, s] = integral / Xp
+                continue
+            
+            # Non Phantom Requirement Last
+            if cr >= right:
+                ix1 = (clp*er + cr*ep - er*ep) / (cr + clp - er)
+                integral = (_nb_RInverted(ix1, er, cr) * (clp - ep + ix2) + _nb_RInverted(ix2, er, cr) * (right - ix1)) / 2
+                out[j, s] = integral / Xp
+                continue
+            
+            if cr <= right:
+                integral = (clp + ix2 - ep + _nb_RInverted(ix2, er, cr)*(cr-ep)) / 2
+                out[j, s] = integral / Xp
+                continue
+    return out
+
+
 
 #if __name__ == "__main__":
 #    # (1st skill) Fully Disjoint [OK] 

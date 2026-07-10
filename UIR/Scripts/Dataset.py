@@ -508,22 +508,22 @@ def _nb_applicable_jobs_numba(learner: np.ndarray, jobs: np.ndarray, threshold: 
                 count += 1
     return count
 
-@njit(cache=True)
+@njit(cache=True, inline="always")
 def _R_numba(x:np.ndarray, cr:float, er:float) -> float:
     return (x-cr)/(er-cr)
 
-@njit(cache=True)
+@njit(cache=True, inline="always")
 def _P1_numba(x:np.ndarray, ep:float, clp:float) -> float:
     return 1+(x-ep)/clp
 
-@njit(cache=True)
+@njit(cache=True, inline="always")
 def _P2_numba(x:np.ndarray, ep:float, crp:float) -> float:
     return 1-(x-ep)/crp
 
 @njit(cache=True)
 def _nb_fuzzyII_applicable_jobs_numba(learner: np.ndarray, jobs: np.ndarray) -> float:
     J, S, _ = jobs.shape
-    counts = np.empty(J, dtype=np.float64)
+    count = 0
     for j in range(J):  # loop over jobs
         inc = 1
         for s in range(S):  # loop over skills
@@ -533,17 +533,18 @@ def _nb_fuzzyII_applicable_jobs_numba(learner: np.ndarray, jobs: np.ndarray) -> 
                 ##### MINIMUM INCLUSION DEGREE (RAW FOR NUMBA)
                 ## Data
                 ep, clp, crp = lv
+                left = ep - clp
+                right = ep + crp
                 er, cr = req
                 Xp = (crp+clp)/2
                 
                 ## Trivial cases
                 # Full disjunction case
-                if ep + crp < cr:
+                if right < cr:
                     inc = 0
-                    continue
+                    break
                 # Full inclusion case
-                if ep - clp >= cr and ep >= er:
-                    inc = min(inc, 1)
+                if left >= cr and ep >= er:
                     continue
                 # No Width Case
                 if Xp == 0:
@@ -556,10 +557,8 @@ def _nb_fuzzyII_applicable_jobs_numba(learner: np.ndarray, jobs: np.ndarray) -> 
                 else:
                     undef = False
                     ix1 = (clp*er+cr*ep-er*ep)/(cr+clp-er)
-                if crp - cr + er == 0:
-                    pass
-                else:
-                    ix2 = (crp*er-cr*ep+ep*er)/(crp-cr+er)
+                if crp - cr + er != 0:
+                    ix2 = (crp*er-cr*ep+ep*er)/(crp-cr+er)                    
                 
                 ## Other cases
                 # Full Step Case
@@ -573,19 +572,18 @@ def _nb_fuzzyII_applicable_jobs_numba(learner: np.ndarray, jobs: np.ndarray) -> 
                     inc = min(inc, integral/Xp)
                     continue
                 # Phantom Intersection Case
-                if undef or ix1 <= min(ep-clp, cr) or ix1 >= er:
-                    inc = min(inc, (_R_numba(ix2, cr, er)*(ep+crp-cr)/2)/Xp)
+                if undef or ix1 <= min(left, cr) or ix1 >= er:
+                    inc = min(inc, (_R_numba(ix2, cr, er)*(right-cr)/2)/Xp)
                     continue
                 # Requirement FIRST case
-                if cr <= ep - clp:
-                    inc = min(inc, ((_R_numba(ix1, cr, er)*(clp-ep+ix2) + _R_numba(ix2, cr, er)*(crp+ep-ix1))/2)/Xp)
+                if cr <= left:
+                    inc = min(inc, ((_R_numba(ix1, cr, er)*(clp-ep+ix2) + _R_numba(ix2, cr, er)*(right-ix1))/2)/Xp)
                     continue
                 # Provider FIRST case
-                if ep-clp <= cr:
+                if left <= cr:
                     inc = min(inc, ((_R_numba(ix1, cr, er)*(ep-cr)+ep-ix1+crp)/2)/Xp)
                     continue
                 #####
-            counts[j] = inc
-        # Update the number of jobs opened to application
-    
-    return counts.sum()
+        # Update for every jobs
+        count += inc
+    return count

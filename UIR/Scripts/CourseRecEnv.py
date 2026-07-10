@@ -741,7 +741,10 @@ class CourseRecEnv(gym.Env):
             required_fraction = np.minimum(learner, self._req_skills) / self._req_safe
             required_fraction[~self._req_has] = 0.0  # ignore non-required skills
         elif self.fuzzyMode == 2:
-            required_fraction = f2A.InclusionDegree(learner,self._req_skills[:,:,:2])
+            if self.config.get("use_numba", True):
+                required_fraction = f2A._nb_InclusionDegree(learner, self._req_skills[:,:,:2])
+            else:
+                required_fraction = f2A.InclusionDegree(learner, self._req_skills[:,:,:2])
             required_fraction[~self._req_has[:,:,0]] = 0.0
         
         # Aggregate to average matching per course
@@ -770,7 +773,10 @@ class CourseRecEnv(gym.Env):
             provided_fraction = np.minimum(learner, self._prov_skills) / self._prov_safe
             provided_fraction[~self._prov_has] = 0.0
         elif self.fuzzyMode == 2:
-            provided_fraction = f2A.InvertedInclusionDegree(learner, f2A.TrianglesToRamps2(self._prov_skills, inverted=True))
+            if self.config.get("use_numba", True):
+                provided_fraction = f2A._nb_InvertedInclusionDegree(learner, f2A.TrianglesToRamps2(self._prov_skills, inverted=True))
+            else:
+                provided_fraction = f2A.InvertedInclusionDegree(learner, f2A.TrianglesToRamps2(self._prov_skills, inverted=True))
             provided_fraction[~self._prov_has[:,:,0]] = 0.0
             
         provided_sum = provided_fraction.sum(axis=1)
@@ -839,13 +845,17 @@ class CourseRecEnv(gym.Env):
         elif self.fuzzyMode == 2:
             # See Get Action Masks for details on this part of the code
             ## Provided
-            provided_fraction = f2A.InvertedInclusionDegree(learner, f2A.TrianglesToRamps(course[1], inverted=True))[0]
+            if self.config.get("use_numba", True):
+                provided_fraction = f2A._nb_InvertedInclusionDegree(learner, f2A.TrianglesToRamps(course[1], inverted=True))[0]
+            else:
+                provided_fraction = f2A.InvertedInclusionDegree(learner, f2A.TrianglesToRamps(course[1], inverted=True))[0]
             provided_fraction[~self._prov_has[action,:,0]] = 0.0
             provided_matching = np.divide(provided_fraction, self._prov_count[action,0], out=np.zeros_like(provided_fraction), where=(self._prov_count[action,0] > 0))
             provided_matching[self._prov_count[action,0] == 0] = 0.0
             provided_matching = provided_matching.sum()
             
             ## Required
+            # Actually, using numba here is slower
             required_fraction = f2A.InclusionDegree(learner, np.expand_dims(course[0,:,:2], axis=0))[0]
             required_fraction[~self._req_has[action,:,0]] = 0.0
             required_matching = np.divide(required_fraction, self._req_count[action,0], out=np.ones_like(required_fraction), where=(self._req_count[action,0] > 0))
@@ -889,7 +899,7 @@ class CourseRecEnv(gym.Env):
             if self.fuzzyMode < 2:
                 improved = (self._agent_skills > learner)
             elif self.fuzzyMode == 2:
-                improved = f2A.InvertedInclusionDegree(learner,f2A.TrianglesToRamps(self._agent_skills, inverted=True))[0] >= self.fuzzyThreshold
+                improved = f2A.InvertedInclusionDegree(learner, f2A.TrianglesToRamps(self._agent_skills, inverted=True))[0] >= self.fuzzyThreshold
             self.covered_want |= improved & (self._want.astype(bool))
 
             observation = self.get_obs()
