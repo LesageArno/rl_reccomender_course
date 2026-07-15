@@ -4,9 +4,9 @@ from . import helperBenchmark as hb
 
 def InclusionDegree(learner: np.ndarray[float], jobs: np.ndarray[float]) -> np.ndarray[float]:
     # Provider
-    ep  = learner[None, :, 0] # Learner expertise (1,#S)
-    clp = learner[None, :, 1] # Learner left confidence (1,#S)
-    crp = learner[None, :, 2] # Learner right confidence (1,#S)
+    ep  = learner[:, :, 0] # Learner expertise (1,#S)
+    clp = learner[:, :, 1] # Learner left confidence (1,#S)
+    crp = learner[:, :, 2] # Learner right confidence (1,#S)
 
     # Requirement
     er = jobs[:, :, 0] # Requirement expertise for each job and skills (#J,#S)
@@ -16,7 +16,7 @@ def InclusionDegree(learner: np.ndarray[float], jobs: np.ndarray[float]) -> np.n
     Xp = (clp + crp) / 2
 
     # Initialise the object to return
-    out = np.empty_like(er, dtype=float)
+    out = np.empty((max(ep.shape[0], er.shape[0]), er.shape[1]), dtype=float)
     
     # Initialise some operations to avoid recomputing
     left = ep - clp
@@ -124,117 +124,25 @@ def minimumInclusionDegree(learner:np.ndarray[float], jobs:np.ndarray[float], in
         return InclusionDegree(learner, jobs).min(axis=1)
     return InvertedInclusionDegree(learner, jobs).min(axis=1)
 
-def InvertedInclusionDegree(learner: np.ndarray[float], providers: np.ndarray[float]) -> np.ndarray[float]:
-    # Provider
-    ep  = learner[None, :, 0] # Learner expertise (1,#S)
-    clp = learner[None, :, 1] # Learner left confidence (1,#S)
-    crp = learner[None, :, 2] # Learner right confidence (1,#S)
-
-    # Requirement
-    er = providers[:, :, 0] # Requirement expertise for each job and skills (#J,#S)
-    cr = providers[:, :, 1] # Requirement confidence for each job and skills (#J,#S)
-
-    # Areas of the learner expertise [OK]
-    Xp = (clp + crp) / 2
-
-    # Initialise the object to return [OK]
-    out = np.empty_like(er, dtype=float)
-
-    ##### FULL DISJUNCTION CASE (put disjunction to 0) [TRANSFORMED]
-    fullDisjunctionMask = ep - clp > cr
-    out[fullDisjunctionMask] = 0
-
-    ##### FULL INCLUSION CASE (put inclusion to 1) [TRANSFORMED]
-    fullInclusionMask = (ep + crp <= cr) & (ep <= er)
-    out[fullInclusionMask] = 1
-
-    # Remaining is the mask to avoid modifying twice the same area [OK]
-    remaining = ~(fullDisjunctionMask | fullInclusionMask)
-
-    # Early Exit if not any job was found [OK]
-    if not np.any(remaining):
-        return out
-
-    ##### HELPER FUNCTIONS (error environment to handle division by zero error) [OK]
-    with np.errstate(divide="ignore", invalid="ignore"):
-        R = lambda x: (x - er) / (cr - er) # Requirement Ramp function [TRANSFORMED]
-        P1 = lambda x: 1 + (x - ep) / clp # Provider triangle left function [OK]
-        P2 = lambda x: 1 - (x - ep) / crp # Provider triangle right function [OK]
-
-        # Compute intersection
-        ix1 = (clp*er + cr*ep - er*ep) / (cr + clp - er) # [OK]
-        ix2 = (crp*er - cr*ep + ep*er) / (crp - cr + er) # [OK]
-
-    # Mask to handle ix2 undefined behaviour [TRANSFORMED]
-    undef = (crp - cr + er) == 0
-
-    ##### DEGENERATE TRIANGLE CASE (no width) [OK]
-    degenerateTriMask = remaining & (Xp == 0)
-    with np.errstate(divide="ignore", invalid="ignore"):
-        out[degenerateTriMask] = R(ep)[degenerateTriMask]
-
-    # Remove degenerate case from remaining [OK]
-    remaining &= ~(Xp == 0)
-
-    ##### FULL STEP CASE [OK]
-    fullStepMask = remaining & (cr == er)
-
-    # Do not perform computation if no step case exists
-    if np.any(fullStepMask):
-        ## Compute provider OUT and provider IN subcase masks [TRANSFORMED]
-        outProviderMask = fullStepMask & (ep >= er)
-        inProviderMask = fullStepMask & (ep < er)
-
-        # Initialise the results [OK]
-        integral = np.zeros_like(out)
-
-        # OUT case, then IN case [OK]
-        with np.errstate(divide="ignore", invalid="ignore"):
-            integral[outProviderMask] = ((cr - ep + clp) * P1(cr) / 2)[outProviderMask] # [TRANSFORMED]
-            integral[inProviderMask] = ((clp + cr - ep + P2(cr)*(cr-ep)) / 2)[inProviderMask] # [TRANSFORMED]
-
-        # Compute the inclusion [OK]
-        with np.errstate(divide="ignore", invalid="ignore"):
-            out[fullStepMask] = (integral / Xp)[fullStepMask]
-
-    # Remove full step from remaining [OK]
-    remaining &= ~(cr == er)
-
-    ##### PHANTOM CASE (Right, Left and Parallel) [TRANSFORMED]
-    phantomMask = (remaining & (undef | (ix2 >= np.maximum(ep + crp, cr)) | (ix2 <= er))) 
-
-    # Compute the results only if phantoms cases exists [OK]
-    if np.any(phantomMask):
-        with np.errstate(divide="ignore", invalid="ignore"):
-            integral = R(ix1) * (cr-ep+clp) / 2 # [TRANSFORMED]
-            out[phantomMask] = (integral / Xp)[phantomMask] # [OK]
-
-    # Remove phantoms from remaining {OK}
-    remaining &= ~phantomMask
-
-    ##### NON PHANTOM REQUIREMENT LAST
-    reqLastMask = remaining & (cr >= ep + crp)
-        
-    # Computation iff this case exists [OK]
-    if np.any(reqLastMask):
-        with np.errstate(divide="ignore", invalid="ignore"):
-            integral = (R(ix1) * (clp - ep + ix2) + R(ix2) * (ep - ix1 + crp)) / 2 # [TRANSFORMED]
-            out[reqLastMask] = (integral / Xp)[reqLastMask]
-
-    # Remove non phantom requirement first from remaining [OK]
-    remaining &= ~reqLastMask
-
-    ##### NON PHANTOM PROVIDER LAST
-    provLastMask = remaining
-
-    # Computation iff this case exists
-    if np.any(provLastMask):
-        with np.errstate(divide="ignore", invalid="ignore"):
-            integral = (clp + ix2 - ep + R(ix2)*(cr-ep)) / 2
-            out[provLastMask] = (integral / Xp)[provLastMask]
-
-    # Return the matrix of inclusions for each corresponding pair of skills requirement and provide
+def mirrorTriangle(triangle:np.ndarray[float]) -> np.ndarray[float]:
+    out = np.empty_like(triangle)
+    out[0] = 1 - triangle[0]
+    out[1] = triangle[2]
+    out[2] = triangle[1]
     return out
+
+def mirrorTriangle2(triangles:np.ndarray[float]) -> np.ndarray[float]:
+    out = np.empty_like(triangles)
+    out[:,:,0] = 1 - triangles[:,:,0]
+    out[:,:,1] = triangles[:,:,2]
+    out[:,:,2] = triangles[:,:,1]
+    return out
+
+def mirrorRamp(ramp:np.ndarray[float]) -> np.ndarray[float]:
+    return 1 - ramp
+
+def InvertedInclusionDegree(learner: np.ndarray[float], providers: np.ndarray[float]) -> np.ndarray[float]:
+    return InclusionDegree(mirrorTriangle2(learner), mirrorRamp(providers))
 
 def DeltaRampTriangle(jobs:np.ndarray[float], learner:np.ndarray[float]) -> np.ndarray[float]:
     # Provider
@@ -364,10 +272,6 @@ def _nb_R(x:float, er:float, cr:float) -> float:
     return (x - cr) / (er - cr)
 
 @njit(inline="always")
-def _nb_RInverted(x:float, er:float, cr:float) -> float:
-    return (x - er) / (cr - er)
-
-@njit(inline="always")
 def _nb_P1(x:float, ep:float, clp:float) -> float:
     return 1.0 + (x - ep) / clp
 
@@ -379,18 +283,23 @@ def _nb_P2(x:float, ep:float, crp:float) -> float:
 def _nb_InclusionDegree(learner:np.ndarray[float], jobs:np.ndarray[float]) -> np.ndarray[float]:
     # Retrieve shapes
     J = jobs.shape[0]
+    L = learner.shape[0]
     S = jobs.shape[1]
-
+    N = L if L > J else J
+    
     # Initialise out
-    out = np.empty((J, S), dtype=np.float64)
+    out = np.empty((N, S), dtype=np.float64)
 
     # For each job and subsequent skill
-    for j in range(J):
+    for n in range(N):
+        # Manage index to avoid out of range
+        l = 0 if L == 1 else n
+        j = 0 if J == 1 else n
         for s in range(S):
             # Retrieve the skill expertise state
-            ep  = learner[s, 0]
-            clp = learner[s, 1]
-            crp = learner[s, 2]
+            ep  = learner[l, s, 0]
+            clp = learner[l, s, 1]
+            crp = learner[l, s, 2]
 
             # Retrieve the job expertise state
             er = jobs[j, s, 0]
@@ -405,17 +314,17 @@ def _nb_InclusionDegree(learner:np.ndarray[float], jobs:np.ndarray[float]) -> np
 
             # Full disjunction
             if right < cr:
-                out[j, s] = 0.0
+                out[n, s] = 0.0
                 continue
 
             # Full inclusion
             if left >= cr and ep >= er:
-                out[j, s] = 1.0
+                out[n, s] = 1.0
                 continue
 
             # Degenerate triangle
             if Xp == 0.0:
-                out[j, s] = _nb_R(ep, er, cr)
+                out[n, s] = _nb_R(ep, er, cr)
                 continue
 
             # Step case
@@ -429,7 +338,7 @@ def _nb_InclusionDegree(learner:np.ndarray[float], jobs:np.ndarray[float]) -> np
                     ix1 = (clp*er + cr*ep - er*ep) / (cr + clp - er)
                     integral = (_nb_P1(ix1, ep, clp) * (ep - ix1) + right - ix1) / 2
 
-                out[j, s] = integral / Xp
+                out[n, s] = integral / Xp
                 continue
             
             # Phantom Case
@@ -439,98 +348,27 @@ def _nb_InclusionDegree(learner:np.ndarray[float], jobs:np.ndarray[float]) -> np
             ix2 = (crp*er - cr*ep + ep*er) / (crp - cr + er)
             if undef or ix1 <= min(left, cr) or ix1 >= er:
                 integral = _nb_R(ix2, er, cr) * (right - cr) / 2
-                out[j, s] = integral / Xp
+                out[n, s] = integral / Xp
                 continue
             
             # Non Phantom Requirement First
             if cr <= left:
                 integral = (_nb_R(ix1, er, cr) * (clp - ep + ix2) + _nb_R(ix2, er, cr) * (right - ix1)) / 2
-                out[j, s] = integral / Xp
+                out[n, s] = integral / Xp
                 continue
             
             # Non Phantom Provider First
-            if cr >= left:
-                integral = ((_nb_R(ix1, er, cr) * ep - cr) + right - ix1) / 2
-                out[j, s] = integral / Xp
-                continue
+            integral = ((_nb_R(ix1, er, cr) * (ep - cr)) + right - ix1) / 2
+            out[n, s] = integral / Xp
     return out
 
 @njit(cache=True)
 def _nb_InvertedInclusionDegree(learner:np.ndarray[float], jobs:np.ndarray[float]) -> np.ndarray[float]:
-    # Retrieve shapes
-    J = jobs.shape[0]
-    S = jobs.shape[1]
-
-    # Initialise out
-    out = np.empty((J, S), dtype=np.float64)
-
-    # For each job and subsequent skill
-    for j in range(J):
-        for s in range(S):
-            # Retrieve the skill expertise state
-            ep  = learner[s, 0]
-            clp = learner[s, 1]
-            crp = learner[s, 2]
-
-            # Retrieve the job expertise state
-            er = jobs[j, s, 0]
-            cr = jobs[j, s, 1]
-
-            # Compute area of main triangle
-            Xp = (clp + crp) / 2
-
-            # Variables to avoid recomputation
-            left  = ep - clp
-            right = ep + crp
-
-            # Full disjunction [TRANSFORMED]
-            if left > cr:
-                out[j, s] = 0.0
-                continue
-
-            # Full inclusion [TRANSFORMED]
-            if (right <= cr) and (ep <= er):
-                out[j, s] = 1.0
-                continue
-
-            # Degenerate triangle [OK]
-            if Xp == 0.0:
-                out[j, s] = _nb_RInverted(ep, er, cr)
-                continue
-
-            # Step case
-            if cr == er:
-                # OUT CASE
-                if ep >= er:
-                    integral = ((cr - ep + clp) * _nb_P1(cr, ep, clp) / 2)
-                # IN CASE
-                else:
-                    integral = ((clp + cr - ep + _nb_P2(cr, ep, crp)*(cr-ep)) / 2)
-                out[j, s] = integral / Xp
-                continue
-            
-            # Phantom Case
-            undef = (crp - cr + er) == 0
-            if not undef:
-                ix2 = (crp*er - cr*ep + ep*er) / (crp - cr + er)
-            if undef or ix2 <= max(right, cr) or ix2 <= er:
-                integral = _nb_RInverted(ix2, er, cr) * (cr-ep+clp) / 2
-                out[j, s] = integral / Xp
-                continue
-            
-            # Non Phantom Requirement Last
-            if cr >= right:
-                ix1 = (clp*er + cr*ep - er*ep) / (cr + clp - er)
-                integral = (_nb_RInverted(ix1, er, cr) * (clp - ep + ix2) + _nb_RInverted(ix2, er, cr) * (right - ix1)) / 2
-                out[j, s] = integral / Xp
-                continue
-            
-            if cr <= right:
-                integral = (clp + ix2 - ep + _nb_RInverted(ix2, er, cr)*(cr-ep)) / 2
-                out[j, s] = integral / Xp
-                continue
-    return out
-
+    invertedLearner = np.empty_like(learner)
+    invertedLearner[:,:,0] = 1 - learner[:,:,0]
+    invertedLearner[:,:,1] = learner[:,:,2]
+    invertedLearner[:,:,2] = learner[:,:,1]
+    return _nb_InclusionDegree(invertedLearner, 1-jobs)
 
 
 #if __name__ == "__main__":

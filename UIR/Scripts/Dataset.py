@@ -379,7 +379,7 @@ class Dataset:
 
         # If Fuzzy II, then it is just the sum of the inclusion degree, then it is just the 
         elif self.config.get("fuzzyMode", 0) == 2:
-            return f2A.minimumInclusionDegree(learner, jobs).sum()
+            return f2A.minimumInclusionDegree(np.expand_dims(learner, axis=0), jobs).sum()
         
         
         # Element-wise fractions for ALL skills (not only learner's nonzeros):
