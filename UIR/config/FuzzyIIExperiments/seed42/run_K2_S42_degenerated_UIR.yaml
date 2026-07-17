@@ -32,6 +32,19 @@ useMaxOnAggregatedUseful: False
 useMaxOnAggregatedMissing: False
 useMaxOnAggregatedUnnecessary: False
 
+## FUZZY II SECTION
+fuzzyThreshold: 0.8        # Threshold used to say that a course fit a requirement
+
+# When generating random person, what should we do about confidence if fuzzy II
+default_leftConfidence_courseReq: 0 # Put dispersion here (it is simpler than absolute position)
+default_leftConfidence_courseProv: 0
+default_rightConfidence_courseProv: 0
+
+default_leftConfidence_resumesProv: 0
+default_rightConfidence_resumeProv: 0
+
+default_leftConfidence_Job: 0 # Put dispersion here (it is simpler than absolute position)
+
 # Data Processing Parameters
 level_3: true                                          # Use third level of taxonomy (true) or fourth level (false)
                                                        # True: fewer, more general skills (46 total skills)
