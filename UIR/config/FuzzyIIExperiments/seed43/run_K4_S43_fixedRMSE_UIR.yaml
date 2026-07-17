@@ -5,7 +5,7 @@ job_path: Data - Collection/FuzzyII/fixedRMSE_fuzzyII_jobs.json             # Pa
 
 # To change
 cv_path: Data - Collection/FuzzyII/fixedRMSE_fuzzyII_resumes.json           # Path to learner profiles
-k: 3                                                   # Number of course recommendations to generate
+k: 4                                                   # Number of course recommendations to generate
 seed: 43                                               # Random seed for reproducibility of experiments
 name_exp: UIR_fixedRMSE                             # Branch name for organizing results
 feature: "UIR"                                         # feature to use as reward

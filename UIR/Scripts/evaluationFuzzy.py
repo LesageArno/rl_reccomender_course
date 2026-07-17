@@ -13,22 +13,28 @@ import seaborn as sns
 import time
 
 # Should we display the plot at runtime
-SHOW = False
+SHOW = True
 
 # Headers of the "headerless" txt (tsv) files  
 COLS = ["Iteration", "Average jobs", "Average reward", "Average goal gap", "Average pref cov", "Average total levels req", "Average skills req unique", "Average skills fully covered", "Average skills missing unique", "Time"]
 
 # Metric on which we want to evaluate versus iteration
-EVALUATE_ON = ["Average jobs", "Average reward", "Average goal gap", "Average pref cov", "Average total levels req", "Average skills req unique", "Average skills fully covered", "Average skills missing unique", "Time"]
+# FUZZY I: ["Average jobs", "Average reward", "Average goal gap", "Average pref cov", "Average total levels req", "Average skills req unique", "Average skills fully covered", "Average skills missing unique", "Time"]
+# FUZZY II: ["Average jobs", "Average reward", "Time"]
+EVALUATE_ON = ["Average jobs", "Average reward", "Time"]
 
 # Type of metric being maximised
 METRIC = "UIR" #UIR or Employability or MUIR
 
 # Get working directory and extraction path
 ROOT_PATH = Path(os.getcwd())
-RESULTS_PATH = Path("UIR/resultsFuzzy")
+RESULTS_PATH = Path("UIR/resultsFuzzyII") # FUZZY I: "UIR/resultsFuzzy", FUZZY II: "UIR/resultsFuzzyII"
 EXTRACT_PATH = ROOT_PATH / RESULTS_PATH
+RESULTS_FOLDER_NAME = "saved_fuzzyII_results" # FUZZY I: "saved_fuzzy_results", FU22Y II: "saved_fuzzyII_results"
 
+# FILTER
+IGNORE_START = ["plot", "UIR_degenerated"] # IF FUZZY I: ["plot"], IF FUZZY II add "UIR_degenerated" (incomplete results)
+IGNORE_END = [".zip"]
 
 ## Gather the files into one big dataframe
 df_list = []
@@ -41,7 +47,7 @@ for path, folder, files in os.walk(EXTRACT_PATH):
     # For each file in the subfolder
     for file in files:        
         # If the file start by plot, then continue
-        if file.startswith("plot") or file.endswith(".zip"):
+        if any(file.startswith(start) for start in IGNORE_START) or any(file.endswith(end) for end in IGNORE_END):
             continue
         
         # Get the metric, the method, the length of the sequence and the seed from the file name
@@ -83,7 +89,7 @@ for i, evaluation in enumerate(EVALUATE_ON, start=1):
     fig.set_size_inches(15.6, 8.7)
     
     # Save the figures
-    plt.savefig(EXTRACT_PATH / "saved_fuzzy_results" / f"plot_{METRIC.lower()}_{'_'.join(evaluation.lower().split(' '))}.png", dpi=600)
+    plt.savefig(EXTRACT_PATH / RESULTS_FOLDER_NAME / f"plot_{METRIC.lower()}_{'_'.join(evaluation.lower().split(' '))}.png", dpi=600)
     
     # Show advacement
     print(f"[{i}/{len(EVALUATE_ON)}] Iteration VS {evaluation}. Time from start: {time.time()-begin:.4f}s")
