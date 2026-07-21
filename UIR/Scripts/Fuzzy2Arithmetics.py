@@ -267,6 +267,46 @@ def ClipRamp(ramps:np.ndarray[float], clip:list[float] = [0,1]) -> np.ndarray[fl
     cr = ramps[:,1].clip(*clip)
     return np.column_stack((er,cr)) 
 
+def fuzzyRequirementFractionalMatch(learner:np.ndarray[float], requirements:np.ndarray[float]) -> np.ndarray[float]:
+    # Provider
+    ep  = learner[:, :, 0] # Learner expertise (1,#S)
+    elp = ep - learner[:, :, 1] # Learner left expertise (1,#S)
+    erp = ep + learner[:, :, 2] # Learner right expertise (1,#S)
+    
+    # Requirement
+    er = requirements[:, :, 0] # Requirement expertise for each courses and skills (#C,#S)
+    cr = requirements[:, :, 1] # Requirement confidence for each courses and skills (#C,#S)
+    
+    # Initialise the object to return
+    out = np.empty((max(ep.shape[0], er.shape[0]), er.shape[1], 3), dtype=float)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        out[:,:,0] = np.where(er!=0, np.minimum(1,ep/er), 1)
+        out[:,:,1] = np.where(cr!=0, np.minimum(1,elp/cr), 1)
+        out[:,:,2] = np.where(er!=0, np.minimum(1,erp/er), 1)
+    
+    # Return centroid Defuzzification
+    return out.sum(axis=2)/3
+    
+def fuzzyProvideFractionalMatch(learnerRamp:np.ndarray[float], prov:np.ndarray[float]) -> np.ndarray[float]:
+    # Learner as ramp
+    er = learnerRamp[:,:,0]
+    cr = learnerRamp[:,:,1]
+    
+    # Provider as triangle
+    ep = prov[:,:,0]
+    elp = ep - prov[:,:,1]
+    erp = ep + prov[:,:,2]
+    
+    # Initialise the object to return
+    out = np.empty((max(ep.shape[0], er.shape[0]), er.shape[1], 3), dtype=float)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        out[:,:,0] = np.where(ep!=0, np.minimum(1,er/ep), 1)
+        out[:,:,1] = np.where(elp!=0, np.minimum(1,er/elp), 1)
+        out[:,:,2] = np.where(erp!=0, np.minimum(1,cr/erp), 1)
+    
+    # Return centroid Defuzzification
+    return out.sum(axis=2)/3
+
 @njit(inline="always")
 def _nb_R(x:float, er:float, cr:float) -> float:
     return (x - cr) / (er - cr)

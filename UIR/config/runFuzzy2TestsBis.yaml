@@ -63,7 +63,7 @@ method: 1                                              # used only when feature 
 
 use_standard: false                                    # true: use library standard hyperparameters
                                                        # false: use ```hypers``` below
-use_numba: true
+use_numba: false
 hypers: {                                             # Standard hyperparameters used to train all models(not best)
   "device": "cuda",
   "n_steps": 1024, #256

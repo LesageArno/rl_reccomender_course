@@ -61,7 +61,6 @@ class Reinforce:
         self.use_standard = config.get('use_standard', False)
         self.use_pretrained = use_pretrained or self.config.get("use_pretrained", False)
         self.pretrained_path = pretrained_path or self.config.get("pretrained_model_path")
-        self.fuzzyImplicationThreshold = config.get("fuzzyInclusionThresholdForCourseRequirements", None)
 
         if self.feature in {"UIR", "EUIR"} and self.method not in (0, 1):
             raise ValueError("method must be 0 (threshold) or 1 (gap) when feature is UIR/EUIR")
@@ -94,14 +93,7 @@ class Reinforce:
 
         self.get_model()
 
-        self.all_results_filename = (
-            self.save_name
-            + "_k"
-            + str(self.k)
-            + "_seed"
-            + str(self.config["seed"])
-            + ".txt"
-        )
+        self.all_results_filename = f"{self.save_name}_k{self.k}_seed{self.config['seed']}.txt"
 
         self.eval_callback = EvaluateCallback(
             self.eval_env,

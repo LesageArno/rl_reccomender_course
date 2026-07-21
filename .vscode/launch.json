@@ -11,7 +11,7 @@
             "module": "UIR.Scripts.pipeline",
             "args": [
                 "--config",
-                "UIR/config/runFuzzy2Tests.yaml"
+                "UIR/config/runFuzzy2TestsBis.yaml"
             ],
             "python": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
             "console": "integratedTerminal",
@@ -25,6 +25,18 @@
             "args": [
                 "--config",
                 "UIR/config/runFuzzyTests.yaml"
+            ],
+            "python": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python Debugger: Module Fuzzy 0",
+            "type": "python",
+            "request": "launch",
+            "module": "UIR.Scripts.pipeline",
+            "args": [
+                "--config",
+                "UIR/config/run.yaml"
             ],
             "python": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
             "console": "integratedTerminal"

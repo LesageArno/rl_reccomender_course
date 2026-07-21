@@ -30,13 +30,13 @@ k: 3                                                   # Number of course recomm
 model: ppo_mask                                        # Reinforcement learning algorithm (dqn, ppo, a2c, ppo_mask) only ppo and ppo_mask are implemented well
 total_steps: 500000                                    # Total training steps
 eval_freq: 2000                                        # Evaluation frequency during training
-seed: 55                                               # Random seed for reproducibility of experiments
+seed: 1092                                             # Random seed for reproducibility of experiments
 
 # Model Configuration
 use_preference: true                                   # set to true if you want to use environment with preferences, false otherwise
 
 
-feature: "Employability"                                         # feature to use as reward
+feature: "UIR"                                         # feature to use as reward
 #options: "Employability" or "UIR" or "EUIR"         
 
 method: 1                                              # used only when feature in {"UIR","EUIR"} (0=threshold, 1=gap)

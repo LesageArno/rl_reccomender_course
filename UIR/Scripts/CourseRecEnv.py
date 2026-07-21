@@ -69,6 +69,7 @@ class CourseRecEnv(gym.Env):
             config (dict): Configuration parameters for the environment
             k (int, optional): Maximum number of course recommendations. Defaults to 3.
         """
+        # Get configurations
         self.config = config
         self.fuzzyMode = fuzzyMode
         self.feature = config.get("feature", "UIR")
@@ -77,40 +78,60 @@ class CourseRecEnv(gym.Env):
         self.threshold = config.get("threshold", 1)
         self.fuzzyThreshold = config.get("fuzzyThreshold", 1)
 
-        
-        
+        # Get datasets, jobs and courses
         self.dataset = dataset
         self.jobs = self.dataset.jobs  # None = usa tutti i job, altrimenti solo un sottoinsieme
-        
         self.courses = dataset.courses
+        
         ########################### USEFUL FOR ACTION MASKING
+        ##### Required part
+        # Get the required expertise for every skills
         self._req_skills = self.courses[:, 0, :].astype(np.float32)
+        
+        # Get the mask of skills having any expertises attached to it
         if fuzzyMode < 2:
             self._req_has = self._req_skills > 0
         elif fuzzyMode == 2:
-            self._req_has = np.tile(self._req_skills[:,:,0][..., None]>0, 3) #Filter saying main expertise strictly over 0, otherwise it would imply er=cr=0=noo required expertise
-        self._req_safe = np.where(self._req_has, self._req_skills, 1.0).astype(np.float32) # Mask skills that are not required
+            self._req_has = np.tile(self._req_skills[:,:,0][..., None]>0, 3) #Filter saying main expertise strictly over 0, otherwise it would imply er=cr=0=no required expertise
+        
+        # Req safe keep expertise where required, and put 1 where not
+        self._req_safe = np.where(self._req_has, self._req_skills, 1.0).astype(np.float32)
+        
+        # Count how many skills are required
         self._req_count = self._req_has.sum(axis=1).astype(np.int32) # Count skills per jobs
         
+        ##### Provider part
+        # Get the provided expertise for every skills
         self._prov_skills = self.courses[:, 1, :].astype(np.float32)
+        
+        # Get the mask of skills being provided
         if fuzzyMode < 2:
             self._prov_has = self._prov_skills > 0
         elif fuzzyMode == 2:
             self._prov_has = np.tile(self._prov_skills[:,:,0][..., None]>0, 3)
+        
+        # Prov safe keep expertise where provided, and put 1 where not
         self._prov_safe = np.where(self._prov_has, self._prov_skills, 1.0).astype(np.float32)
+        
+        # Count the number of skills being provided
         self._prov_count = self._prov_has.sum(axis=1).astype(np.int32)
         ############################
 
         self.extra_invalid_actions = None
         self.nb_skills = len(dataset.skills)  # 46 skills
+        
+        # Retrieve the mastery levels
         self.mastery_levels = [
             elem for elem in list(dataset.mastery_levels.values()) if elem > 0  # mastery level: [1,2,3,-1]
         ]
         
+        # If crisp, then highest expertise correspond to highest mastery. If fuzzy, then it is 1.
         if fuzzyMode == 0:
             self.max_level = max(self.mastery_levels)
         elif fuzzyMode > 0:
             self.max_level = 1
+        
+        # Get additional informations
         self.nb_courses = dataset.courses.shape[0]  # 3000 courses
         # get the minimum and maximum number of skills of the learners using np.nonzero
         self.min_skills = int(np.min(np.count_nonzero(self.dataset.learners, axis=1)))  # 1
@@ -368,7 +389,7 @@ class CourseRecEnv(gym.Env):
         """
         avoid = np.zeros(self.nb_skills, dtype=np.int32)
 
-        # biased distribution: mostly no avoid preferences
+        # biased distribution: mostly no avoid preferences # Number of avoided skills
         n_avoid = self.rng.choice([0, 1, 2], p=[0.6, 0.25, 0.15])           #change to 0 1 2
         if n_avoid == 0:
             return avoid
@@ -421,6 +442,7 @@ class CourseRecEnv(gym.Env):
             if self.fuzzyMode == 2:
                 has_avoid = has_avoid[:,0]
 
+        # Have any wanted and not any avoided skill
         mask = has_want & (~has_avoid)
 
         # Defensive fallback: if empty, relax avoid (still goal-conditioned by want)
@@ -623,9 +645,13 @@ class CourseRecEnv(gym.Env):
             Nm = NmTg.sum(axis=0)
             
             # Useful component for each skill and jobs + aggregation
-            NrTg = np.maximum(missingBefore.sum(axis=1)-NmTg, 0)
+            NrTg = np.empty_like(NmTg)
+            mba1 = missingBefore.sum(axis=1)
+            NrTg[:,0] = mba1[:,0] - NmTg[:,0]
+            NrTg[:,1:] = NmTg[:,1:] + mba1[:,1:]
             Nr = NrTg.sum(axis=0)
             
+            # Compute unnecessary content
             unnecessaryAfter = f2A.DeltaTriangleTriangle(course[1], missingBefore)
             NnrTg = unnecessaryAfter.sum(axis=1)
             Nnr = NnrTg.sum(axis=0)
@@ -717,7 +743,7 @@ class CourseRecEnv(gym.Env):
             utility = (1 / (Ga + 1)) * (E_phi + Nr_fraction)
         elif self.fuzzyMode == 2:
             utility = f2A.TriangleScalarMultiplication(f2A.TriangleScalarAddition(Nr_fraction, E_phi), (1 / (Ga + 1)))
-            utility = f2A.TriangleCentroidDefuzzification(utility)
+            utility = min(1,max(0,f2A.TriangleCentroidDefuzzification(utility)))
             
         return utility
 
@@ -747,7 +773,8 @@ class CourseRecEnv(gym.Env):
             if self.config.get("use_numba", True):
                 required_fraction = f2A._nb_InclusionDegree(np.expand_dims(learner, axis=0), self._req_skills[:,:,:2])
             else:
-                required_fraction = f2A.InclusionDegree(np.expand_dims(learner, axis=0), self._req_skills[:,:,:2])
+                #required_fraction = f2A.InclusionDegree(np.expand_dims(learner, axis=0), self._req_skills[:,:,:2])
+                required_fraction = f2A.fuzzyRequirementFractionalMatch(np.expand_dims(learner, axis=0), self._req_skills[:,:,:2])
             required_fraction[~self._req_has[:,:,0]] = 0.0
         
         # Aggregate to average matching per course
@@ -779,7 +806,8 @@ class CourseRecEnv(gym.Env):
             if self.config.get("use_numba", True):
                 provided_fraction = f2A._nb_InvertedInclusionDegree(self._prov_skills, f2A.TrianglesToRamps(learner, inverted=True))
             else:
-                provided_fraction = f2A.InvertedInclusionDegree(self._prov_skills, f2A.TrianglesToRamps(learner, inverted=True))
+                #provided_fraction = f2A.InvertedInclusionDegree(self._prov_skills, f2A.TrianglesToRamps(learner, inverted=True))
+                provided_fraction = f2A.fuzzyProvideFractionalMatch(f2A.TrianglesToRamps(learner, inverted=True), self._prov_skills)
             provided_fraction[~self._prov_has[:,:,0]] = 0.0            
         provided_sum = provided_fraction.sum(axis=1)
         #provided_count = has_provided.sum(axis=1)
@@ -848,21 +876,25 @@ class CourseRecEnv(gym.Env):
             # See Get Action Masks for details on this part of the code
             ## Provided
             if self.config.get("use_numba", True):
-                provided_fraction = f2A._nb_InvertedInclusionDegree(np.expand_dims(course[1], axis=0), f2A.TrianglesToRamps(learner, inverted=True))[0]
+                provided_fraction = f2A._nb_InvertedInclusionDegree(np.expand_dims(course[1], axis=0), f2A.TrianglesToRamps(learner, inverted=True))
             else:
-                provided_fraction = f2A.InvertedInclusionDegree(np.expand_dims(course[1], axis=0), f2A.TrianglesToRamps(learner, inverted=True))[0]
-            provided_fraction[~self._prov_has[action,:,0]] = 0.0
-            provided_matching = np.divide(provided_fraction, self._prov_count[action,0], out=np.zeros_like(provided_fraction), where=(self._prov_count[action,0] > 0))
+                #provided_fraction = f2A.InvertedInclusionDegree(np.expand_dims(course[1], axis=0), f2A.TrianglesToRamps(learner, inverted=True))[0]
+                provided_fraction = f2A.fuzzyProvideFractionalMatch(f2A.TrianglesToRamps(learner, inverted=True), np.expand_dims(course[1], axis=0))
+            provided_fraction[0, ~self._prov_has[action,:,0]] = 0.0
+            provided_sum = provided_fraction.sum(axis=1)
+            provided_matching = np.divide(provided_sum, self._prov_count[action,0], out=np.zeros_like(provided_sum), where=(self._prov_count[action,0] > 0))            
             provided_matching[self._prov_count[action,0] == 0] = 0.0
-            provided_matching = provided_matching.sum()
+            provided_matching = provided_matching[0]
             
             ## Required
             # Actually, using numba here is slower
-            required_fraction = f2A.InclusionDegree(np.expand_dims(learner, axis=0), np.expand_dims(course[0,:,:2], axis=0))[0]
-            required_fraction[~self._req_has[action,:,0]] = 0.0
-            required_matching = np.divide(required_fraction, self._req_count[action,0], out=np.ones_like(required_fraction), where=(self._req_count[action,0] > 0))
+            #required_fraction = f2A.InclusionDegree(np.expand_dims(learner, axis=0), np.expand_dims(course[0,:,:2], axis=0))[0]
+            required_fraction = f2A.fuzzyRequirementFractionalMatch(np.expand_dims(learner, axis=0), np.expand_dims(course[0,:,:2], axis=0))
+            required_fraction[0, ~self._req_has[action,:,0]] = 0
+            required_sum = required_fraction.sum(axis=1)
+            required_matching = np.divide(required_sum, self._req_count[action,0], out=np.ones_like(required_sum), where=(self._req_count[action,0] > 0))
             required_matching[self._req_count[action,0] == 0] = 1.0
-            required_matching = required_matching.sum()
+            required_matching = required_matching[0]
         
         if (
             (self.fuzzyMode < 2 and (provided_matching == 1.0 or required_matching < self.threshold)) or
@@ -1395,10 +1427,10 @@ def _fuzzyII_calc_metrics_deficit_numba(learner: np.ndarray,
     Nm = np.empty(3) # Cm
     nm0 = nm1 = nm2 = 0
     Nnr = np.empty(3) # Cun
-    nnr0 = nnr1 = nnr2 =0
+    nnr0 = nnr1 = nnr2 = 0
     
     mb0 = mb1 = mb2 = 0 # Missing before
-    ma0 = ma1= ma2 = 0 # Missing after
+    ma0 = ma1 = ma2 = 0 # Missing after
     mun0 = mun1 = mun2 = 0 # Missing unnecessary 
 
     #### MANUAL DELTA
@@ -1421,17 +1453,8 @@ def _fuzzyII_calc_metrics_deficit_numba(learner: np.ndarray,
                 mun1 += out_diff_unnecessary[1]
                 mun2 += out_diff_unnecessary[2]
         
-        d = mb0 - ma0
-        if d > 0:
-            nr0 += d
-        
-        d = mb1 - ma1
-        if d > 0:
-            nr1 += d
-        
-        d = mb2 - ma2
-        if d > 0:
-            nr2 += d
+        nr0 += mb0 - ma0
+        nr2 += mb2 + ma2
         
         nm0 += ma0; nm1 += ma1; nm2 += ma2
         nnr0 += mun0; nnr1 += mun1; nnr2 += mun2

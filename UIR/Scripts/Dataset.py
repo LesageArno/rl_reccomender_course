@@ -42,6 +42,7 @@ class Dataset:
         self.config = config
         if self.config.get("set_dataset_seed", False):
             self.seed = self.config.get("dataset_seed", 42)
+        self.fuzzyMode = self.config.get("fuzzyMode", 0)
 
         self.load_data()
         self.get_jobs_inverted_index()
@@ -64,7 +65,7 @@ class Dataset:
         self.load_jobs()
         self.load_courses()
         self.get_subsample()
-        if self.config.get("fuzzyMode", 0) == 0:
+        if self.fuzzyMode == 0:
             self.make_course_consistent()
 
     def load_skills(self):
@@ -118,43 +119,53 @@ class Dataset:
 
     def get_avg_skills(self, skill_list, replace_unk, mode:str):
         """Compute averaged (rounded) mastery per skill, mapping unknown (-1) to replace_unk.
-        mode can be acquire or require. If acquire, work with triangle, otherwise, work with ramps (Apply only if fuzzy mode II).
+        mode can be acquire or require. If acquire, work with triangle, otherwise, work with ramps [require] (Apply only if fuzzy mode II).
         """
         avg_skills = defaultdict(list)
         for skill, mastery_level in skill_list:
             # If the mastery level is a string and is in the mastery levels, we replace it with the corresponding value
             # Alternatively, we do the same if fuzzy
-            if isinstance(mastery_level, (float, list)) and self.config.get("fuzzyMode", 0): # This is for fuzzy I and II
+            
+            # Fuzzy I and Fuzzy II
+            if self.fuzzyMode > 0:
                 skill = self.skills2int[skill]
                 avg_skills[skill].append(mastery_level)
-            elif isinstance(mastery_level, str) and mastery_level in self.mastery_levels:
+            elif self.fuzzyMode == 0 and isinstance(mastery_level, str) and mastery_level in self.mastery_levels:
                 mastery_level = self.mastery_levels[mastery_level]
                 if mastery_level == -1:
                     mastery_level = replace_unk
                 skill = self.skills2int[skill]
                 avg_skills[skill].append(mastery_level)
-        # We take the average of the mastery levels for each skill because on our dataset we can have multiple mastery levels for the same skill
+                
+        # We take the average of the mastery levels for each skill because on our dataset we can have multiple mastery levels for the same skill (basically tier 4 to tier 3 mapping)
         for skill in avg_skills.keys():
             
             # If we are working with Fuzzy II, then use fuzzy arithmetics
-            if self.config.get("fuzzyMode", 0) == 2 and mode=="acquire":
+            if self.fuzzyMode == 2 and mode=="acquire":
+                # This is fuzzy II average for TFN
                 m = len(avg_skills[skill])
                 e = sum(i[0] for i in avg_skills[skill])
                 el = sum(i[0]-i[1] for i in avg_skills[skill])
                 er = sum(i[0]+i[2] for i in avg_skills[skill])
                 nu = {el/m, er/m}
+                
+                # No need to add bound during retransfer into TFN because 0 <= min(nu) <= e/m <= max(nu) <=1
                 avg_skills[skill] = [round(e/m,6), round(e/m - min(nu), 6), round(max(nu) - e/m,6)]
                 continue
-            elif self.config.get("fuzzyMode", 0) == 2 and mode=="require":
+            elif self.fuzzyMode == 2 and mode=="require":
+                # Reminder el >= e
                 m = len(avg_skills[skill])
                 e = sum(i[0] for i in avg_skills[skill])
-                er = sum(i[1] for i in avg_skills[skill])
-                avg_skills[skill] = [round(e/m,6), round(er/m,6)]
+                el = sum(i[1] for i in avg_skills[skill])
+                avg_skills[skill] = [round(e/m,6), round(el/m,6)]
                 continue
             
             # Else continue with normal arithmetics
             avg_skills[skill] = sum(avg_skills[skill]) / len(avg_skills[skill])
-            avg_skills[skill] = round(avg_skills[skill]) if not self.config.get("fuzzyMode", 0) else round(avg_skills[skill], 6)
+            if self.fuzzyMode == 0:
+                avg_skills[skill] = round(avg_skills[skill])
+            elif self.fuzzyMode == 1 :
+                avg_skills[skill] = round(avg_skills[skill], 6)
 
         return avg_skills
 
@@ -183,17 +194,17 @@ class Dataset:
 
         return base_skills
 
-    def load_learners(self, replace_unk=1):
+    def load_learners(self, replace_unk=2):
         """Load and process learner profiles from the CV data."""
         learners = json.load(open(self.config["cv_path"]))
         self.max_learner_skills = self.config["max_cv_skills"]
         self.learners_index = dict()
 
-        if self.config.get("fuzzyMode", 0) == 0:
+        if self.fuzzyMode == 0:
             self.learners = np.zeros((len(learners), len(self.skills)), dtype=int)
-        elif self.config.get("fuzzyMode", 0) == 1:
+        elif self.fuzzyMode == 1:
             self.learners = np.zeros((len(learners), len(self.skills)), dtype=float)
-        elif self.config.get("fuzzyMode",0)==2:
+        elif self.fuzzyMode == 2:
             self.learners = np.zeros((len(learners), len(self.skills), 3), dtype=float)
         index = 0
 
@@ -228,11 +239,11 @@ class Dataset:
         jobs = json.load(open(self.config["job_path"]))
         
         # Select the right version depending on fuzzification mode
-        if self.config.get("fuzzyMode", 0) == 0:
+        if self.fuzzyMode == 0:
             self.jobs = np.zeros((len(jobs), len(self.skills)), dtype=int)
-        elif self.config.get("fuzzyMode", 0) == 1:
+        elif self.fuzzyMode == 1:
             self.jobs = np.zeros((len(jobs), len(self.skills)), dtype=float)
-        elif self.config.get("fuzzyMode", 0) == 2:
+        elif self.fuzzyMode == 2:
             self.jobs = np.zeros((len(jobs), len(self.skills), 2), dtype=float)
         
         self.jobs_index = dict()
@@ -259,11 +270,11 @@ class Dataset:
         """
         courses = json.load(open(self.config["course_path"]))
         
-        if self.config.get("fuzzyMode", 0) == 0:
+        if self.fuzzyMode == 0:
             self.courses = np.zeros((len(courses), 2, len(self.skills)), dtype=int)
-        elif self.config.get("fuzzyMode", 0) == 1:
+        elif self.fuzzyMode == 1:
             self.courses = np.zeros((len(courses), 2, len(self.skills)), dtype=float)
-        elif self.config.get("fuzzyMode", 0) == 2:
+        elif self.fuzzyMode == 2:
             self.courses = np.zeros((len(courses), 2, len(self.skills), 3), dtype=float)
 
         self.courses_index = dict()
@@ -279,16 +290,16 @@ class Dataset:
             # Get average skill levels for provided skills
             provided_skills = self.get_avg_skills(course["to_acquire"], replace_unk, "acquire")
             for skill, level in provided_skills.items():
-                self.courses[index][1][skill] = level
+                self.courses[index,1,skill] = level
 
             # Process required skills if they exist
             if "required" in course:
                 required_skills = self.get_avg_skills(course["required"], replace_unk, "require")
                 for skill, level in required_skills.items():
-                    if self.config.get("fuzzyMode", 0) == 2:
-                        self.courses[index][0][skill] = level + [0] # Fill with zero to not get inhomogeneous errors on ramps
+                    if self.fuzzyMode == 2:
+                        self.courses[index,0,skill,:2] = level
                         continue
-                    self.courses[index][0][skill] = level
+                    self.courses[index,0,skill] = level
             index += 1
             # update the courses numpy array with the correct number of rows
         self.courses = self.courses[:index]
@@ -333,7 +344,8 @@ class Dataset:
             for skill_id in range(len(self.skills)):
                 required_level = course[0][skill_id]
                 provided_level = course[1][skill_id]
-
+                
+                # Case where provided are below the requirements
                 if provided_level != 0 and provided_level <= required_level:
                     if provided_level == 1:
                         course[0][skill_id] = 0
@@ -346,9 +358,9 @@ class Dataset:
         for i, job in enumerate(self.jobs):
             for skill, level in enumerate(job):
                 # Special case with Fuzzy 2, level[0] correspond to er, since cr < er, then if er = 0 => cr = 0 and that job has no requirements for the given skill
-                if self.config.get("fuzzyMode", 0)==2 and level[0]>0:
+                if self.fuzzyMode == 2 and level[0] > 0:
                     self.jobs_inverted_index[skill].add(i)
-                elif self.config.get("fuzzyMode", 0)<2 and level > 0:
+                elif self.fuzzyMode < 2 and level > 0:
                     self.jobs_inverted_index[skill].add(i)
 
     def get_nb_applicable_jobs(self, learner, threshold, jobs = None):
@@ -365,20 +377,20 @@ class Dataset:
         if jobs is None:
             jobs = self.jobs
         if self.config.get("use_numba", True):
-            if self.config.get("fuzzyMode", 0) < 2:
+            if self.fuzzyMode < 2:
                 nb_applicable_jobs = int(_nb_applicable_jobs_numba(learner, jobs, threshold))
-            elif self.config.get("fuzzyMode", 0) == 2:
+            elif self.fuzzyMode == 2:
                 nb_applicable_jobs = _nb_fuzzyII_applicable_jobs_numba(learner, jobs)
             return nb_applicable_jobs
 
         # Early exit: no jobs or no required skills anywhere
-        if self.config.get("fuzzyMode", 0) < 2:
+        if self.fuzzyMode < 2:
             job_required_counts = np.count_nonzero(self.jobs, axis=1)  # denominator per job
             if job_required_counts.size == 0 or not np.any(job_required_counts):
                 return 0
 
         # If Fuzzy II, then it is just the sum of the inclusion degree, then it is just the 
-        elif self.config.get("fuzzyMode", 0) == 2:
+        elif self.fuzzyMode == 2:
             return f2A.minimumInclusionDegree(np.expand_dims(learner, axis=0), jobs).sum()
         
         
