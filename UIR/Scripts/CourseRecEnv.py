@@ -771,7 +771,8 @@ class CourseRecEnv(gym.Env):
             required_fraction[~self._req_has] = 0.0  # ignore non-required skills
         elif self.fuzzyMode == 2:
             if self.config.get("use_numba", True):
-                required_fraction = f2A._nb_InclusionDegree(np.expand_dims(learner, axis=0), self._req_skills[:,:,:2])
+                #required_fraction = f2A._nb_InclusionDegree(np.expand_dims(learner, axis=0), self._req_skills[:,:,:2])
+                required_fraction = f2A._nb_fuzzyRequirementFractionalMatch(np.expand_dims(learner, axis=0), self._req_skills[:,:,:2])
             else:
                 #required_fraction = f2A.InclusionDegree(np.expand_dims(learner, axis=0), self._req_skills[:,:,:2])
                 required_fraction = f2A.fuzzyRequirementFractionalMatch(np.expand_dims(learner, axis=0), self._req_skills[:,:,:2])
@@ -804,7 +805,8 @@ class CourseRecEnv(gym.Env):
             provided_fraction[~self._prov_has] = 0.0
         elif self.fuzzyMode == 2:
             if self.config.get("use_numba", True):
-                provided_fraction = f2A._nb_InvertedInclusionDegree(self._prov_skills, f2A.TrianglesToRamps(learner, inverted=True))
+                #provided_fraction = f2A._nb_InvertedInclusionDegree(self._prov_skills, f2A.TrianglesToRamps(learner, inverted=True))
+                provided_fraction = f2A._nb_fuzzyProvideFractionalMatch(f2A.TrianglesToRamps(learner, inverted=True), self._prov_skills)
             else:
                 #provided_fraction = f2A.InvertedInclusionDegree(self._prov_skills, f2A.TrianglesToRamps(learner, inverted=True))
                 provided_fraction = f2A.fuzzyProvideFractionalMatch(f2A.TrianglesToRamps(learner, inverted=True), self._prov_skills)
@@ -876,7 +878,8 @@ class CourseRecEnv(gym.Env):
             # See Get Action Masks for details on this part of the code
             ## Provided
             if self.config.get("use_numba", True):
-                provided_fraction = f2A._nb_InvertedInclusionDegree(np.expand_dims(course[1], axis=0), f2A.TrianglesToRamps(learner, inverted=True))
+                #provided_fraction = f2A._nb_InvertedInclusionDegree(np.expand_dims(course[1], axis=0), f2A.TrianglesToRamps(learner, inverted=True))
+                provided_fraction = f2A.fuzzyProvideFractionalMatch(f2A.TrianglesToRamps(learner, inverted=True), np.expand_dims(course[1], axis=0))
             else:
                 #provided_fraction = f2A.InvertedInclusionDegree(np.expand_dims(course[1], axis=0), f2A.TrianglesToRamps(learner, inverted=True))[0]
                 provided_fraction = f2A.fuzzyProvideFractionalMatch(f2A.TrianglesToRamps(learner, inverted=True), np.expand_dims(course[1], axis=0))
@@ -889,7 +892,10 @@ class CourseRecEnv(gym.Env):
             ## Required
             # Actually, using numba here is slower
             #required_fraction = f2A.InclusionDegree(np.expand_dims(learner, axis=0), np.expand_dims(course[0,:,:2], axis=0))[0]
-            required_fraction = f2A.fuzzyRequirementFractionalMatch(np.expand_dims(learner, axis=0), np.expand_dims(course[0,:,:2], axis=0))
+            if self.config.get("use_numba", True):
+                required_fraction = f2A._nb_fuzzyRequirementFractionalMatch(np.expand_dims(learner, axis=0), np.expand_dims(course[0,:,:2], axis=0))
+            else:
+                required_fraction = f2A.fuzzyRequirementFractionalMatch(np.expand_dims(learner, axis=0), np.expand_dims(course[0,:,:2], axis=0))
             required_fraction[0, ~self._req_has[action,:,0]] = 0
             required_sum = required_fraction.sum(axis=1)
             required_matching = np.divide(required_sum, self._req_count[action,0], out=np.ones_like(required_sum), where=(self._req_count[action,0] > 0))
@@ -934,6 +940,7 @@ class CourseRecEnv(gym.Env):
                 improved = (self._agent_skills > learner)
                 self.covered_want |= improved & (self._want.astype(bool))
             elif self.fuzzyMode == 2:
+                # DO NOT REMOVE INVERTED INCLUSION DEGREE HERE. IT IS CORRECT USE
                 improved = f2A.InvertedInclusionDegree(np.expand_dims(learner, axis=0), f2A.TrianglesToRamps(self._agent_skills, inverted=True))[0] >= self.fuzzyThreshold
                 self.covered_want = np.maximum(self.covered_want, np.minimum(improved, self._want))
 
@@ -1308,30 +1315,6 @@ def _calc_metrics_threshold_mastery_numba(
 
     return Nr, Nm, Nnr
 
-"""
-@njit(cache=True)
-def _fuzzyII_RampTriangle_Delta_numba(ramp:np.ndarray, triangle:np.ndarray) -> np.ndarray:
-    out = np.empty(3)
-    ep, clp, crp = triangle
-    er, cr = ramp
-    
-    x1 = max(er-ep-crp, 0)
-    x2 = max(er-ep, 0)
-    x3 = max(cr-ep+clp, 0)
-    
-    # Manual sort
-    if x1 > x2:
-        x1, x2 = x2, x1
-    if x2 > x3:
-        x2, x3 = x3, x2
-    if x1 > x2:
-        x1, x2 = x2, x1
-    
-    # Reconstruct Triangle
-    out[0], out[1], out[2]  = x2, x2-x1, x3-x2
-    return out
-"""
-
 @njit(inline="always")
 def _fuzzyII_RampTriangle_Delta_numba(ramp:np.ndarray, triangle:np.ndarray, out:np.ndarray) -> None:
     ep, clp, crp = triangle
@@ -1354,30 +1337,6 @@ def _fuzzyII_RampTriangle_Delta_numba(ramp:np.ndarray, triangle:np.ndarray, out:
     out[0] = x2
     out[1] = x2-x1
     out[2] = x3-x2
-
-"""
-@njit(cache=True)
-def _fuzzyII_TriangleTriangle_Delta_numba(t1:np.ndarray, t2:np.ndarray) -> np.ndarray:
-    out = np.empty(3)
-    ep1, clp1, crp1 = t1
-    ep2, clp2, crp2 = t2
-    
-    x1 = max(0, ep1+crp1-ep2-crp2)
-    x2 = max(0, ep1-ep2)
-    x3 = max(0, ep1-clp1-ep2+clp2)
-    
-    # Manual sort
-    if x1 > x2:
-        x1, x2 = x2, x1
-    if x2 > x3:
-        x2, x3 = x3, x2
-    if x1 > x2:
-        x1, x2 = x2, x1
-    
-    # Reconstruct Triangle
-    out[0], out[1], out[2]  = x2, x2-x1, x3-x2
-    return out
-"""
 
 @njit(cache=True, inline="always")
 def _fuzzyII_TriangleTriangle_Delta_numba(t1:np.ndarray, t2:np.ndarray, out:np.ndarray) -> np.ndarray:
@@ -1467,4 +1426,4 @@ def _fuzzyII_calc_metrics_deficit_numba(learner: np.ndarray,
     Nm[0] = nm0; Nm[1] = nm1; Nm[2] = nm2
     Nnr[0] = nnr0; Nnr[1] = nnr1; Nnr[2] = nnr2
       
-    return Nr, Nm, Nnr        
+    return Nr, Nm, Nnr

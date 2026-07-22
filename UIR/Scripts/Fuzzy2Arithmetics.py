@@ -307,6 +307,69 @@ def fuzzyProvideFractionalMatch(learnerRamp:np.ndarray[float], prov:np.ndarray[f
     # Return centroid Defuzzification
     return out.sum(axis=2)/3
 
+@njit(cache=True)
+def _nb_fuzzyRequirementFractionalMatch(learner:np.ndarray[float], requirements:np.ndarray[float]) -> np.ndarray[float]:
+    # Retrieve shapes
+    L = learner.shape[0]
+    S = learner.shape[1]
+    R = requirements.shape[0]
+    N = L if L > R else R
+    
+    out = np.empty((N,S), dtype=float)
+    
+    for n in range(N):
+        # Manage index to avoid out of range
+        l = 0 if L == 1 else n
+        r = 0 if R == 1 else n
+        for s in range(S):
+            # Retrieve the skill expertise state
+            ep  = learner[l, s, 0]
+            elp = ep - learner[l, s, 1]
+            erp = ep + learner[l, s, 2]
+
+            # Retrieve the requirements expertise state
+            er = requirements[r, s, 0]
+            cr = requirements[r, s, 1]
+            
+            # For the fractional match delta
+            ed = ep/er if ep < er and er != 0 else 1
+            edl = elp/cr if elp < cr and cr != 0 else 1
+            edr = erp/er if erp < er and er != 0 else 1
+            out[n,s] = (ed+edl+edr)/3
+        
+    return out
+
+@njit(cache=True)
+def _nb_fuzzyProvideFractionalMatch(learnerRamp:np.ndarray[float], prov:np.ndarray[float]) -> np.ndarray[float]:
+    # Retrieve shapes
+    L = learnerRamp.shape[0]
+    S = learnerRamp.shape[1]
+    P = prov.shape[0]
+    N = L if L > P else P
+    
+    out = np.empty((N,S), dtype=float)
+    
+    for n in range(N):
+        # Manage index to avoid out of range
+        l = 0 if L == 1 else n
+        p = 0 if P == 1 else n
+        for s in range(S):
+            # Retrieve the skill expertise state
+            ep  = prov[p, s, 0]
+            elp = ep - prov[p, s, 1]
+            erp = ep + prov[p, s, 2]
+
+            # Retrieve the requirements expertise state
+            er = learnerRamp[l, s, 0]
+            cr = learnerRamp[l, s, 1]
+            
+            # For the fractional match delta
+            ed = er/ep if er < ep and ep != 0 else 1
+            edl = er/elp if er < elp and elp != 0 else 1
+            edr = cr/erp if cr < erp and erp != 0 else 1
+            out[n,s] = (ed+edl+edr)/3
+    return out
+
 @njit(inline="always")
 def _nb_R(x:float, er:float, cr:float) -> float:
     return (x - cr) / (er - cr)
@@ -328,7 +391,7 @@ def _nb_InclusionDegree(learner:np.ndarray[float], jobs:np.ndarray[float]) -> np
     N = L if L > J else J
     
     # Initialise out
-    out = np.empty((N, S), dtype=np.float64)
+    out = np.empty((N, S), dtype=float)
 
     # For each job and subsequent skill
     for n in range(N):
