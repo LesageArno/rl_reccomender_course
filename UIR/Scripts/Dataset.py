@@ -29,6 +29,7 @@ class Dataset:
     with different levels of proficiency (1-3) instead of binary values.
     """
 
+    # VERIFIED (dependencies: load_data, get_jobs_inverted_index)
     def __init__(self, config):
         """Initialize the Dataset with configuration parameters.
 
@@ -47,6 +48,8 @@ class Dataset:
         self.load_data()
         self.get_jobs_inverted_index()
 
+    # VERIFIED
+    # ATTRIBUTE DEPENDENCIES: learners, jobs, courses, skills
     def __str__(self):
         """Return a concise human-readable summary of dataset sizes."""
         return (
@@ -56,6 +59,9 @@ class Dataset:
             f"{len(self.skills)} skills."
         )
 
+    # VERIFIED (dependencies: load_skills, load_mastery_levels, load_learners, load_jobs, load_courses, get_subsample, make_course_consistent [fuzzy 0])
+    # NON CRITICAL TO CHECK: extend make_course_consistent with fuzzy I and fuzzy II
+    # ATTRIBUTE DEPENDENCIES: seed, fuzzyMode
     def load_data(self):
         """Load the data from the files specified in the config and store it in the class attributes"""
         self.rng = random.Random(self.seed)
@@ -67,7 +73,9 @@ class Dataset:
         self.get_subsample()
         if self.fuzzyMode == 0:
             self.make_course_consistent()
-
+    
+    # VERIFIED (dependencies: None)
+    # ATTRIBUTES DEPENDENCIES: config [taxonomy_path, level_3], skills
     def load_skills(self):
         """
         Loads skills from a taxonomy file into the instance, processes them based on configuration,
@@ -113,10 +121,15 @@ class Dataset:
             self.skills = set(self.skills["unique_id"])
             self.skills2int = {skill: i for i, skill in enumerate(self.skills)}
 
+    # VERIFIED (dependencies: None)
+    # ATTRIBUTES DEPENDENCIES: config [mastery_levels_path]
     def load_mastery_levels(self):
         """Load the mastery levels from the file specified in the config and store it in the class attribute"""
         self.mastery_levels = json.load(open(self.config["mastery_levels_path"]))
 
+    # VERIFIED (dependencies: None)
+    # NON CRITICAL TO CHECK: in acquire mode, is passing to absolute triangle a correct action to compute average of triangles ?
+    # ATTRIBUTES DEPENDENCIES: skills2int, fuzzyMode, mastery_levels
     def get_avg_skills(self, skill_list, replace_unk, mode:str):
         """Compute averaged (rounded) mastery per skill, mapping unknown (-1) to replace_unk.
         mode can be acquire or require. If acquire, work with triangle, otherwise, work with ramps [require] (Apply only if fuzzy mode II).
@@ -169,6 +182,7 @@ class Dataset:
 
         return avg_skills
 
+    # SEEM NOT TO BE USED ANYWHERE
     def get_base_skills(self, skill_list):
         """
         Convert a learner's list of type-4 skills to a unique set of type-3 base skills.
@@ -194,6 +208,8 @@ class Dataset:
 
         return base_skills
 
+    # VERIFIED (dependencies: get_avg_skills [acquire])
+    # ATTRIBUTES DEPENDENCIES: config [cv_path, max_cv_skills], skills, fuzzyMode
     def load_learners(self, replace_unk=2):
         """Load and process learner profiles from the CV data."""
         learners = json.load(open(self.config["cv_path"]))
@@ -229,6 +245,8 @@ class Dataset:
         # Trim matrix to actual number of learners
         self.learners = self.learners[:index]
 
+    # VERIFIED (dependencies: get_avg_skills [require])
+    # ATTRIBUTES DEPENDENCIES: config [job_path], fuzzyMode, skills
     def load_jobs(self, replace_unk=3):
         """Load the jobs from the file specified in the config and store it in the class attribute.
         Only jobs with at least one required skill are kept.
@@ -261,6 +279,8 @@ class Dataset:
         # print(f"THESE ARE JOBS: {self.jobs}")
         # print(f"THESE ARE jobs_index: {self.jobs_index}")
 
+    # VERIFIED (dependencies: get_avg_skills [acquire, require])
+    # ATTRIBUTES DEPENDENCIES: config [course_path], fuzzyMode, skills
     def load_courses(self, replace_unk=2):
         """Load the courses from the file specified in the config and store it in the class attribute.
         Only courses with at least one provided skill are kept.
@@ -304,6 +324,8 @@ class Dataset:
             # update the courses numpy array with the correct number of rows
         self.courses = self.courses[:index]
 
+    # VERIFIED (dependencies: None)
+    # ATTRIBUTES DEPENDENCIES: config [nb_cvs, nb_jobs, nb_courses], learners, learners_index, jobs, jobs_index, courses, courses_index, seed
     def get_subsample(self):
         """Get a subsample of the dataset based on the config parameters"""
         random.seed(self.seed)
@@ -335,6 +357,7 @@ class Dataset:
             }
             self.courses_index.update({v: k for k, v in self.courses_index.items()})
 
+    # NOT USED IN FUZZY I NOR FUZZY II
     def make_course_consistent(self):
         """Make the courses consistent by removing the skills that are provided and required at the same time.
         In binary case (only care about having/not having skills), if a course both requires and provides a skill,
@@ -352,17 +375,23 @@ class Dataset:
                     else:
                         course[0][skill_id] = provided_level - 1
 
+    # VERIFIED (dependencies: None)
+    # ATTRIBUTES DEPENDENCIES: fuzzyMode, jobs
     def get_jobs_inverted_index(self):
         """Get the inverted index for the jobs. The inverted index is a dictionary that maps the skill to the jobs that require it"""
         self.jobs_inverted_index = defaultdict(set)
         for i, job in enumerate(self.jobs):
             for skill, level in enumerate(job):
-                # Special case with Fuzzy 2, level[0] correspond to er, since cr < er, then if er = 0 => cr = 0 and that job has no requirements for the given skill
+                # Special case with Fuzzy 2, level[0] correspond to er, since cr <= er, then if er = 0 => cr = 0 and that job has no requirements for the given skill
                 if self.fuzzyMode == 2 and level[0] > 0:
                     self.jobs_inverted_index[skill].add(i)
                 elif self.fuzzyMode < 2 and level > 0:
                     self.jobs_inverted_index[skill].add(i)
 
+    # (dependencies: _nb_applicable_jobs_numba [Fuzzy I], _nb_fuzzyII_applicable_jobs_numba, minimumInclusionDegree)
+    # CRITICAL TO CHECK: Compare Minimum Inclusion degree with what is done with crisp. Somehow, it looks like fractional matching is also used here.
+    # CRITICAL TO CHECK: Result in Fuzzy II are float, but using threshold, it could be converted to integer again
+    # ATTRIBUTES DEPENDENCIES: jobs, fuzzyMode
     def get_nb_applicable_jobs(self, learner, threshold, jobs = None):
         """Get the number of applicable jobs for a learner
 
@@ -393,7 +422,6 @@ class Dataset:
         elif self.fuzzyMode == 2:
             return f2A.minimumInclusionDegree(np.expand_dims(learner, axis=0), jobs).sum()
         
-        
         # Element-wise fractions for ALL skills (not only learner's nonzeros):
         # - where job requires a skill (job_s > 0): min(learner_s, job_s) / job_s
         # - where job_s == 0: leave 0 (no contribution)
@@ -419,6 +447,7 @@ class Dataset:
         nb_applicable_jobs = int(np.sum(per_job_match >= threshold))
         return nb_applicable_jobs
 
+    # SEEM NOT TO BE USED ANYWHERE
     def get_avg_applicable_jobs(self, threshold, jobs = None):
         """Get the average number of applicable jobs for all the learners
 
@@ -436,6 +465,7 @@ class Dataset:
         avg_applicable_jobs /= len(self.learners)
         return avg_applicable_jobs
 
+    # SEEM NOT TO BE USED ANYWHERE APART FROM AVG WHICH IS ALSO NOT USED ANYWHERE
     def get_learner_attractiveness(self, learner):
         """Calculate a learner's attractiveness in the job market.
 
@@ -458,6 +488,7 @@ class Dataset:
                 attractiveness += len(self.jobs_inverted_index[skill])
         return attractiveness
 
+    # SEEM NOT TO BE USED ANYWHERE
     def get_avg_learner_attractiveness(self):
         """Calculate the average attractiveness across all learners.
 
@@ -474,6 +505,7 @@ class Dataset:
         attractiveness /= len(self.learners)
         return attractiveness
 
+    # NOT USED IN UIR
     def get_learner_missing_skills(self, learner: np.ndarray, job_id: int, jobs: np.ndarray = None) -> np.ndarray:
         """
         Return a boolean mask of missing skills for a given job.
@@ -492,10 +524,10 @@ class Dataset:
         if jobs is None:
             jobs = self.jobs
         job_skills = jobs[job_id]
-        # Missing skill ⇔ required level > learner level
+        # Missing skill <=> required level > learner level
         return job_skills > learner
 
-
+# NOT USED IN FUZZY II
 @njit(cache=True)
 def _nb_applicable_jobs_numba(learner: np.ndarray, jobs: np.ndarray, threshold: float) -> int:
     """Compute the number of applicable jobs using Numba (speed-optimized).
@@ -520,18 +552,26 @@ def _nb_applicable_jobs_numba(learner: np.ndarray, jobs: np.ndarray, threshold: 
                 count += 1
     return count
 
+# VERIFIED (dependencies: None)
+# ATTRIBUTES DEPENDENCIES: None
 @njit(cache=True, inline="always")
 def _R_numba(x:np.ndarray, cr:float, er:float) -> float:
     return (x-cr)/(er-cr)
 
+# VERIFIED (dependencies: None)
+# ATTRIBUTES DEPENDENCIES: None
 @njit(cache=True, inline="always")
 def _P1_numba(x:np.ndarray, ep:float, clp:float) -> float:
     return 1+(x-ep)/clp
 
+# VERIFIED (dependencies: None)
+# ATTRIBUTES DEPENDENCIES: None
 @njit(cache=True, inline="always")
 def _P2_numba(x:np.ndarray, ep:float, crp:float) -> float:
     return 1-(x-ep)/crp
 
+# VERIFIED (dependencies: _R_numba, _P1_numba, _P2_numba)
+# ATTRIBUTES DEPENDENCIES: None
 @njit(cache=True)
 def _nb_fuzzyII_applicable_jobs_numba(learner: np.ndarray, jobs: np.ndarray) -> float:
     J, S, _ = jobs.shape

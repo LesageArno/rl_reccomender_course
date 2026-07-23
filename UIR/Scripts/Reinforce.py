@@ -35,6 +35,8 @@ class Reinforce:
         params (dict|None): Algorithm hyperparameters (optional)
     """
 
+    # VERIFIED (dependencies: getModel, CourseRecEnv, EvaluateCallback)
+    # ATTRIBUTES DEPENDENCIES: config [ALMOST ALL]
     def __init__(
         self,
         dataset,
@@ -102,6 +104,7 @@ class Reinforce:
             all_results_filename=self.all_results_filename,
         )
 
+    # INNER OF THE MODEL, NOT VERIFIED (cannot act there)
     def get_model(self):
         """Initialize or load the RL model with an MLP policy (no semantic changes).
 
@@ -245,6 +248,8 @@ class Reinforce:
         else:
             raise ValueError(f"Unsupported model type: {self.model_name}")
 
+    # VERIFIED (dependencies: model.learn)
+    # ATTRIBUTES DEPENDENCIES: config [save_model, save_dir]
     def reinforce_recommendation(self):
         """
         Train the reinforcement learning model.
@@ -276,6 +281,7 @@ class Reinforce:
             
             print(f"[INFO] Model saved to: {save_path}")
 
+    # NOT USED ANYWHERE
     def recommend(self, learner_vec, want, avoid, forbidden=None):
         env = self.eval_env.unwrapped
 

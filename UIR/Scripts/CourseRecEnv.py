@@ -61,6 +61,9 @@ class CourseRecEnv(gym.Env):
         baseline (bool): Whether to use Employability as reward (True) or ```UIR/EUIR`/MUIR`` as reward (False)
     """
 
+    # VERIFIED (dependencies: None)
+    # NON CRITICAL TO CHECK: Try to fuzzify the observation space as well
+    # ATTRIBUTES DEPENDENCIES: config [feature, method, (fuzzy)threshold, seed, use_preference], dataset.jobs, dataset.courses, fuzzyMode, dataset.skills, dataset.mastery_levels, dataset.learners
     def __init__(self, dataset, config, k=3, fuzzyMode:int=0):
         """Initialize the course recommendation environment.
 
@@ -83,6 +86,10 @@ class CourseRecEnv(gym.Env):
         self.jobs = self.dataset.jobs  # None = usa tutti i job, altrimenti solo un sottoinsieme
         self.courses = dataset.courses
         
+        # Shape of courses: (#C, 2, #S, 3) in Fuzzy II, (#C, 2, #S) in Fuzzy I ; [2] -> requirement@0, provided@1 ; [3@0] -> er@0, cr@1, 0@2 ; [3@1] -> ep@0, clp@1, crp@2
+        # Shape of jobs: (#J, #S, 2) in Fuzzy II, (#J, #S) in Fuzzy I ; [2] -> er@0, cr@1
+        
+        
         ########################### USEFUL FOR ACTION MASKING
         ##### Required part
         # Get the required expertise for every skills
@@ -98,7 +105,7 @@ class CourseRecEnv(gym.Env):
         self._req_safe = np.where(self._req_has, self._req_skills, 1.0).astype(np.float32)
         
         # Count how many skills are required
-        self._req_count = self._req_has.sum(axis=1).astype(np.int32) # Count skills per jobs
+        self._req_count = self._req_has.sum(axis=1).astype(np.int32) # Count skills per jobs (cast apply, even with fuzzy II)
         
         ##### Provider part
         # Get the provided expertise for every skills
@@ -113,7 +120,7 @@ class CourseRecEnv(gym.Env):
         # Prov safe keep expertise where provided, and put 1 where not
         self._prov_safe = np.where(self._prov_has, self._prov_skills, 1.0).astype(np.float32)
         
-        # Count the number of skills being provided
+        # Count the number of skills being provided (note that the cast apply, even in fuzzy II here)
         self._prov_count = self._prov_has.sum(axis=1).astype(np.int32)
         ############################
 
@@ -176,6 +183,7 @@ class CourseRecEnv(gym.Env):
         # The agent will select an integer in [0, nb_courses - 1], representing the index of the recommended course.
         self.action_space = gym.spaces.Discrete(self.nb_courses)
 
+    # SEEM NOT TO BE USED ANYWHERE
     def set_extra_invalid_actions(self, invalid_actions_ids):
         """
         invalid_actions_ids: ids of avoided courses (es. [0, 3, 5, ...])
@@ -191,6 +199,9 @@ class CourseRecEnv(gym.Env):
 
         self.extra_invalid_actions = mask
 
+    # VERIFIED (dependencies: None)
+    # NON CRITICAL TO CHECK: See if all of agent_skills can be used 
+    # ATTRIBUTES DEPENDENCIES: k, nb_recommendation, _agent_skills, _want, _avoid 
     def get_obs(self):
         """Get the current observation of the environment.
 
@@ -211,6 +222,10 @@ class CourseRecEnv(gym.Env):
                 obs = np.concatenate([self._agent_skills[:,0], step_left])
         return obs
 
+    # VERIFIED (dependencies: dataset.get_nb_applicable_jobs)
+    # NON CRITICAL TO CHECK: Maybe we can make more informations available for fuzzy II
+    # CRITICAL TO CHECK: Threshold should make the difference between normal and fuzzy, even though there is not any impact for now
+    # ATTRIBUTES DEPENDENCIES: threshold, jobs_goal
     def get_info(self):
         """Get additional information about the current state.
 
@@ -293,6 +308,8 @@ class CourseRecEnv(gym.Env):
                 "skills_missing_unique": None
             }
 
+    # VERIFIED(dependencies: None)
+    # ATTRIBUTES DEPENDENCIES: min_skills, max_skills, nb_skills, mastery_levels, config [default_left(right)Confidence_resumesProv]
     def get_random_learner(self):
         """Generate a random learner profile for environment initialization.
 
@@ -335,6 +352,9 @@ class CourseRecEnv(gym.Env):
             
         return initial_skills
     
+    # VERIFIED (dependencies: None)
+    # COMMENT: Change nothing to fuzzy II nor fuzzy I
+    # ATTRIBUTES DEPENDENCIES: nb_skills
     def _eval_want_avoid(self, learner, learner_idx, base_seed=123):
         """
         Deterministic eval preferences:
@@ -361,6 +381,9 @@ class CourseRecEnv(gym.Env):
 
         return want, avoid
     
+    # VERIFIED (dependencies: None)
+    # COMMENT: Change nothing to fuzzy II nor fuzzy I
+    # ATTRIBUTES DEPENDENCIES: nb_skills
     def _sample_want_random(self):
         """
         Sample WANT skills uniformly at random.
@@ -379,6 +402,9 @@ class CourseRecEnv(gym.Env):
 
         return want
 
+    # VERIFIED (dependencies: None)
+    # COMMENT: CHange nothing to fuzzy II nor fuzzy I
+    # ATTRIBUTES DEPENDENCIES: _want, nb_skills
     def _sample_avoid_random(self):
         """
         Sample AVOID skills with a bias toward having none.
@@ -410,6 +436,8 @@ class CourseRecEnv(gym.Env):
 
         return avoid
 
+    # VERIFIED (dependencies: None)
+    # ATTRIBUTES DEPENDENCIES: _want, _avoid, jobs, fuzzyMode
     def _build_goal_jobs_W1_hard(self):
         """
         Build goal-job mask G_a using W1-hard:
@@ -453,6 +481,8 @@ class CourseRecEnv(gym.Env):
 
         return jobs_req[mask]
 
+    # VERIFIED (dependencies: get_random_learner, _sample_want(avoid)_random, build_goals_jobs_W1_hard, get_obs, get_info)
+    # ATTRIBUTES DEPENDENCIES: fuzzyMode, nb_skills, config [numba]
     def reset(self, seed=None, options=None, learner=None):
         """Method required by the gym environment. It resets the environment to its initial state.
 
@@ -498,6 +528,7 @@ class CourseRecEnv(gym.Env):
         info = self.get_info()
         return observation, info
 
+    # NOT USED IN UIR
     def calculate_course_metrics(self, learner: np.ndarray, course: np.ndarray) -> tuple:
         """
         Calculate (Nr, Nm, Nnr) for a course recommendation (THRESHOLD-BASED, mastery-aware).
@@ -561,6 +592,8 @@ class CourseRecEnv(gym.Env):
 
         return Nr, Nm, Nnr
 
+    # VERIFIED (dependencies: _calc_metrics_deficit_numba [Fuzzy I], _fuzzyII_calc_metrics_deficit_numba [Fuzzy II], f2A.TriangleUnion, f2A.DeltaRampTriangle, f2A.DeltaTriangleTriangle)
+    # ATTRIBUTES DEPENDENCIES: jobs_goal, fuzzyMode, config [numba]
     def calculate_course_metrics_gap(self, learner, course):
         """
         Calculate Nr, Nm, Nnr metrics for a course recommendation (GA-BASED-METHOD).
@@ -658,6 +691,9 @@ class CourseRecEnv(gym.Env):
             
         return Nr, Nm, Nnr
 
+    # VERIFIED (dependencies: f2A.TriangleUnion, get_nb_applicable_jobs)
+    # CRITICAL TO CHECK: no distinction between threshold and fuzzyThreshold
+    # ATTRIBUTES DEPENDENCIES: threshold, jobs_goal, fuzzyMode, 
     def calculate_achievable_goals(self, learner, course):
         """Calculate the set of goals (jobs) that become achievable after taking a course.
 
@@ -684,6 +720,8 @@ class CourseRecEnv(gym.Env):
 
         return initial_goals, new_goals
 
+    # VERIFIED (dependencies: calculate_course_metrics [deprecated], calculate_course_metrics_gap, calculate_achievable_goals, f2A.TriangleDivision, f2A.TriangleScalarAddition, f2A.TriangleScalarMultiplication, f2A.TriangleCentroidDefuzzification) 
+    # ATTRIBUTES DEPENDENCIES: jobs_goal
     def calculate_utility(self, learner, course, method=1, MUIR:bool = False):
         """Calculate the utility of a course recommendation.
 
@@ -747,6 +785,8 @@ class CourseRecEnv(gym.Env):
             
         return utility
 
+    # VERIFIED (dependencies: f2A._nb_fuzzyRequirementFractionalMatch, f2A.fuzzyRequirementFractionalMatch, f2A.TrianglesToRamps, f2A._nb_fuzzyProvideFractionalMatch, f2A.fuzzyProvideFractionalMatch)
+    # ATTRIBUTES DEPENDENCIES: _agent_skills, _req_skills, _req_sake, _req_has, _req_count, _prov_skill, _prov_safe, _prov_has, _prov_count, threshold, fuzzyThreshold, fuzzyMode, config [numba]
     def get_action_mask(self) -> np.ndarray:
         """
         Compute a boolean mask for valid course recommendations.
@@ -843,6 +883,9 @@ class CourseRecEnv(gym.Env):
             
         return valid_courses
 
+    # VERIFIED (dependencies: matchings.learner_course_provided(required)_matching, f2A.fuzzyProvide(Requirement)FractionalMatch, f2A.TrianglesToRamps, get_obs, get_info, f2A.InvertedInclusionDegree)
+    # CRITICAL TO CHECK: improved and self.covered_want may are ill-managed, self.fuzzyThreshold should not be used
+    # ATTRIBUTES DEPENDENCIES: courses, _agent_skills, _prov_has, _prov_count, _req_has, _req_count, fuzzyMode, threshold, fuzzyThreshold, _want, jobs, features, k, nb_recommendation, config [numba], info [nb_applicable_jobs, utility]
     def step(self, action):
         """Execute one step in the environment.
 
@@ -975,6 +1018,8 @@ class EvaluateCallback(BaseCallback):
         mode (str): File opening mode ('w' for first write, 'a' for append)
     """
 
+    # VERIFIED (dependencies: None)
+    # ATTRIBUTES DEPENDENCIES: None
     def __init__(self, eval_env, eval_freq, all_results_filename, fuzzyMode=0, verbose=1):
         """Initialize the evaluation callback.
 
@@ -999,6 +1044,7 @@ class EvaluateCallback(BaseCallback):
         self.last_avg_jobs: Optional[float] = None
         self._eval_calls: int = 0
 
+    # DO NOT IMPACT FUZZIFICATION
     def cosine_anneal(self, value_start, value_end, step, total_steps, start_frac=0.7):
 
         start_step = total_steps * start_frac
@@ -1008,6 +1054,8 @@ class EvaluateCallback(BaseCallback):
         weight = 0.5 * (1 + math.cos(math.pi * progress))
         return value_end + (value_start - value_end) * weight
 
+    # VERIFIED (dependencies: get_action_mask, predict, reset)
+    # ATTRIBUTES DEPENDENCIES: model, n_calls, eval_env, dataset.learners, config [use_standard], info [ALL]
     def _on_step(self):
         """Evaluate the model at regular intervals during training.
 
@@ -1188,7 +1236,7 @@ class EvaluateCallback(BaseCallback):
 
         return True  # Returning True continues training
 
-
+# NOT USED IN FUZZY II UIR
 @njit(cache=True, debug=True)
 def _calc_metrics_deficit_numba(learner: np.ndarray,
                                 course_provided: np.ndarray,
@@ -1255,7 +1303,7 @@ def _calc_metrics_deficit_numba(learner: np.ndarray,
 
     return Nr, Nm, Nnr
 
-
+# NOT USED IN FUZZY II UIR
 @njit(cache=True, fastmath=True)
 def _calc_metrics_threshold_mastery_numba(
         learner: np.ndarray,
@@ -1315,7 +1363,9 @@ def _calc_metrics_threshold_mastery_numba(
 
     return Nr, Nm, Nnr
 
-@njit(inline="always")
+# VERIFIED (dependencies: None)
+# ATTRIBUTES DEPENDENCIES: None
+@njit(cache=True, inline="always")
 def _fuzzyII_RampTriangle_Delta_numba(ramp:np.ndarray, triangle:np.ndarray, out:np.ndarray) -> None:
     ep, clp, crp = triangle
     er, cr = ramp
@@ -1338,8 +1388,10 @@ def _fuzzyII_RampTriangle_Delta_numba(ramp:np.ndarray, triangle:np.ndarray, out:
     out[1] = x2-x1
     out[2] = x3-x2
 
+# VERIFIED (dependencies: None)
+# ATTRIBUTES DEPENDENCIES: None
 @njit(cache=True, inline="always")
-def _fuzzyII_TriangleTriangle_Delta_numba(t1:np.ndarray, t2:np.ndarray, out:np.ndarray) -> np.ndarray:
+def _fuzzyII_TriangleTriangle_Delta_numba(t1:np.ndarray, t2:np.ndarray, out:np.ndarray) -> None:
     ep1, clp1, crp1 = t1
     ep2, clp2, crp2 = t2
     
@@ -1358,6 +1410,9 @@ def _fuzzyII_TriangleTriangle_Delta_numba(t1:np.ndarray, t2:np.ndarray, out:np.n
     # Reconstruct Triangle
     out[0], out[1], out[2]  = x2, x2-x1, x3-x2
 
+# VERIFIED (dependencies: _fuzzyII_RampTriangle_Delta_numba, _fuzzyII_TriangleTriangle_Delta_numba)
+# COMMENT: 1 LEARNER
+# ATTRIBUTES DEPENDENCIES: None
 @njit(cache=True)
 def _fuzzyII_calc_metrics_deficit_numba(learner: np.ndarray,
                                 course_provided: np.ndarray,
@@ -1395,7 +1450,7 @@ def _fuzzyII_calc_metrics_deficit_numba(learner: np.ndarray,
     #### MANUAL DELTA
     for j in range(J):
         for s in range(S):
-            job_req = jobs[j, s] # (1,2)
+            job_req = jobs[j, s] 
             if job_req[0] > 0:
                 lv = learner[s]
                 cs = cons_skills[s]
