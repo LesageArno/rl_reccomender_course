@@ -60,7 +60,7 @@ class CourseRecEnv(gym.Env):
         k (int): Maximum number of course recommendations per learner
         baseline (bool): Whether to use Employability as reward (True) or ```UIR/EUIR`/MUIR`` as reward (False)
     """
-
+    
     # VERIFIED (dependencies: None)
     # NON CRITICAL TO CHECK: Try to fuzzify the observation space as well
     # ATTRIBUTES DEPENDENCIES: config [feature, method, (fuzzy)threshold, seed, use_preference], dataset.jobs, dataset.courses, fuzzyMode, dataset.skills, dataset.mastery_levels, dataset.learners
@@ -247,7 +247,7 @@ class CourseRecEnv(gym.Env):
             threshold=self.threshold if self.fuzzyMode < 2 else self.fuzzyThreshold, 
             jobs=self.jobs_goal
         )
-
+            
         # Total skill gap on goal set (sum of missing levels)
         ## Original Version
         # Aggregate levels across all jobs and cap at 3
@@ -710,7 +710,7 @@ class CourseRecEnv(gym.Env):
         """
         # Calculate initial goals (jobs applicable with current skills)
         initial_goals = self.dataset.get_nb_applicable_jobs(learner, threshold=self.threshold if self.fuzzyMode < 2 else self.fuzzyThreshold, jobs=self.jobs_goal)
-
+            
         # Calculate skills after learning the course
         if self.fuzzyMode < 2:
             updated_skills = np.maximum(learner, course[1])
@@ -719,7 +719,6 @@ class CourseRecEnv(gym.Env):
 
         # Calculate new goals (jobs applicable after learning the course)
         new_goals = self.dataset.get_nb_applicable_jobs(updated_skills, threshold=self.threshold if self.fuzzyMode < 2 else self.fuzzyThreshold, jobs=self.jobs_goal)
-
         return initial_goals, new_goals
 
     # VERIFIED (dependencies: calculate_course_metrics [deprecated], calculate_course_metrics_gap, calculate_achievable_goals, f2A.TriangleDivision, f2A.TriangleScalarAddition, f2A.TriangleScalarMultiplication, f2A.TriangleCentroidDefuzzification) 
@@ -761,6 +760,9 @@ class CourseRecEnv(gym.Env):
 
         # Calculate |E(φ)|: number of new jobs that become applicable
         E_phi = new_goals - initial_goals
+        
+        # Some sanity check
+        assert total_jobs >= new_goals >= initial_goals 
 
         # Calculate denominator for Nr fraction with MUIR or without
         if not MUIR:

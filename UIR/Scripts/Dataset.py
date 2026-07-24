@@ -405,8 +405,11 @@ class Dataset:
         """
         if jobs is None:
             jobs = self.jobs
-        if self.config.get("use_numba", True) and self.fuzzyMode < 2:
-            nb_applicable_jobs = int(_nb_applicable_jobs_numba(learner, jobs, threshold))
+        if self.config.get("use_numba", True):
+            if self.fuzzyMode < 2:
+                nb_applicable_jobs = int(_nb_applicable_jobs_numba(learner, jobs, threshold))
+            elif self.fuzzyMode == 2:
+                nb_applicable_jobs = int(_nb_FuzzyII_applicable_jobs_numba(learner, jobs, threshold))
             return nb_applicable_jobs
 
         # Early exit: no jobs or no required skills anywhere
@@ -433,10 +436,7 @@ class Dataset:
             )  # values in [0, 1], shape: [J, S]
         elif self.fuzzyMode == 2:
             required_mask = job_req[:,:,0] > 0  # shape: [J, S]
-            if self.config.get("use_numba", True):
-                per_skill_fraction = f2A._nb_fuzzyRequirementFractionalMatch(np.expand_dims(learner, axis=0), job_req)
-            else:
-                per_skill_fraction = f2A.fuzzyRequirementFractionalMatch(np.expand_dims(learner, axis=0), job_req)
+            per_skill_fraction = f2A.fuzzyRequirementFractionalMatch(np.expand_dims(learner, axis=0), job_req)
             per_skill_fraction[~required_mask] = 0  # values in [0, 1], shape: [J, S]
             
         # Average across required skills for each job
@@ -551,6 +551,34 @@ def _nb_applicable_jobs_numba(learner: np.ndarray, jobs: np.ndarray, threshold: 
                 denom += 1
                 lv = learner[s]
                 acc += (lv if lv < req else req) / req
+        if denom > 0:
+            score = acc / denom  # average matching
+            if score >= threshold:
+                count += 1
+    return count
+
+
+@njit(cache=True)
+def _nb_FuzzyII_applicable_jobs_numba(learner: np.ndarray, jobs: np.ndarray, threshold: float) -> int:
+
+    J, S, _ = jobs.shape
+    count = 0
+    for j in range(J):  # loop over jobs
+        denom = 0
+        acc = 0.0
+        for s in range(S):  # loop over skills
+            er = jobs[j, s, 0]
+            cr = jobs[j, s, 1]
+            if er > 0:  # required skill
+                denom += 1
+                ep = learner[s, 0]
+                elp = ep - learner[s, 1]
+                erp = ep + learner[s, 2]
+                
+                ed = ep/er if ep < er and er != 0 else 1
+                edl = elp/cr if elp < cr and cr != 0 else 1
+                edr = erp/er if erp < er and er != 0 else 1
+                acc += (ed+edl+edr)/3
         if denom > 0:
             score = acc / denom  # average matching
             if score >= threshold:
