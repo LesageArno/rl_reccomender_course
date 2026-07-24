@@ -1,49 +1,42 @@
 # Data Paths
-taxonomy_path: Taxonomy/taxonomy.csv                    # Path to skill taxonomy data
+taxonomy_path: Taxonomy/taxonomy.csv                                          # Path to skill taxonomy data
 course_path: Data - Collection/FuzzyII/degenerated_fuzzyII_courses.json       # Path to course data
 job_path: Data - Collection/FuzzyII/degenerated_fuzzyII_jobs.json             # Path to job listings
+mastery_levels_path: Data - Collection/FuzzyII/fuzzy_mastery_levels.json      # Path to skill mastery levels
 
 # To change
 cv_path: Data - Collection/FuzzyII/degenerated_fuzzyII_resumes.json           # Path to learner profiles
-k: 2                                                   # Number of course recommendations to generate
-seed: 42                                               # Random seed for reproducibility of experiments
-name_exp: UIR_degenerated                             # Branch name for organizing results
-feature: "UIR"                                         # feature to use as reward
-#options: "Employability" or "UIR" or "EUIR"   
-dataset_seed: 42                                       # Set this seed in order not to have a variable dataset
+k: 2                                                                          # Number of course recommendations to generate
+seed: 42                                                                      # Random seed for reproducibility of experiments
+dataset_seed: 42                                                              # Set this seed in order not to have a variable dataset
+name_exp: UIR_degenerated                                                     # Branch name for organizing results
+feature: "UIR"                                                                # feature to use as reward ("Employability" or "UIR" or "EUIR")
+use_numba: true
 
-
-
-
-mastery_levels_path: Data - Collection/FuzzyII/fuzzy_mastery_levels.json  # Path to skill mastery levels
-
-# Results
-results_path: UIR/resultsFuzzyII/preferences_v3_k                              # Directory for storing results_k
-
-# Do not change
-pretrained_model_path: UIR/models_weights/preferences_v2/UIR-gap-based  # Path to pretrained model (if any)
-use_pretrained: false                                 # Whether to use a pretrained model from pretrained_model_path
-save_model: false                                     # Whether to save the trained model in save_dir/name_exp
-save_dir: UIR/models_weights/preferences_v2
-
-# Mode for fuzzy logic
-fuzzyMode: 2 #0 Crisp, 1 Fuzzy Set, 2 Fuzzy Set Type II
-useMaxOnAggregatedUseful: False
-useMaxOnAggregatedMissing: False
-useMaxOnAggregatedUnnecessary: False
-
-## FUZZY II SECTION
-fuzzyThreshold: 0.8        # Threshold used to say that a course fit a requirement
+# Mode for fuzzy logic 
+fuzzyMode: 2                                                                  # 0 Crisp, 1 Fuzzy Set, 2 Fuzzy Set Type II
+fuzzyThreshold: 0.8                                                           # (used for fuzzy 2) Threshold used to say that a course fit a requirement
+threshold: 0.8                                                                # (used for fuzzy 0 and 1) Minimum matching threshold for job eligibility
 
 # When generating random person, what should we do about confidence if fuzzy II
-default_leftConfidence_courseReq: 0 # Put dispersion here (it is simpler than absolute position)
+default_leftConfidence_courseReq: 0                                           # Put dispersion here (it is simpler than absolute position)
 default_leftConfidence_courseProv: 0
 default_rightConfidence_courseProv: 0
 
 default_leftConfidence_resumesProv: 0
 default_rightConfidence_resumeProv: 0
 
-default_leftConfidence_Job: 0 # Put dispersion here (it is simpler than absolute position)
+default_leftConfidence_Job: 0                                                 # Put dispersion here (it is simpler than absolute position)
+
+
+# Results
+results_path: UIR/resultsFuzzyII/preferences_v3_k                             # Directory for storing results_k
+
+# Do not change
+pretrained_model_path: UIR/models_weights/preferences_v2/UIR-gap-based        # Path to pretrained model (if any)
+use_pretrained: false                                                         # Whether to use a pretrained model from pretrained_model_path
+save_model: false                                                             # Whether to save the trained model in save_dir/name_exp
+save_dir: UIR/models_weights/preferences_v2
 
 # Data Processing Parameters
 level_3: true                                          # Use third level of taxonomy (true) or fourth level (false)
@@ -58,7 +51,6 @@ nb_jobs: 3587                                           # Number of jobs to incl
 set_dataset_seed: true
 
 # Model Parameters
-threshold: 0.8                                         # Minimum matching threshold for job eligibility
 model: ppo_mask                                        # Reinforcement learning algorithm (dqn, ppo, a2c, ppo_mask) only ppo and ppo_mask are implemented well
 total_steps: 500000                                    # Total training steps (normal to 500_000)
 eval_freq: 2000                                        # Evaluation frequency during training (normal to 2_000)
@@ -76,7 +68,6 @@ method: 1                                              # used only when feature 
 
 use_standard: false                                    # true: use library standard hyperparameters
                                                        # false: use ```hypers``` below
-use_numba: true
 hypers: {                                             # Standard hyperparameters used to train all models(not best)
   "device": "cuda",
   "n_steps": 1024, #256
@@ -94,3 +85,8 @@ hypers: {                                             # Standard hyperparameters
   "start_at": 0.70,                                   # Cosine lr decay starts from (percentage of start), goes from lr_initial to lr_final 
   "target_kl": 0.02
 }
+
+# OTHERS
+#useMaxOnAggregatedUseful: False
+#useMaxOnAggregatedMissing: False
+#useMaxOnAggregatedUnnecessary: False

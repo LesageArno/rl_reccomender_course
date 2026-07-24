@@ -405,35 +405,40 @@ class Dataset:
         """
         if jobs is None:
             jobs = self.jobs
-        if self.config.get("use_numba", True):
-            if self.fuzzyMode < 2:
-                nb_applicable_jobs = int(_nb_applicable_jobs_numba(learner, jobs, threshold))
-            elif self.fuzzyMode == 2:
-                nb_applicable_jobs = _nb_fuzzyII_applicable_jobs_numba(learner, jobs)
+        if self.config.get("use_numba", True) and self.fuzzyMode < 2:
+            nb_applicable_jobs = int(_nb_applicable_jobs_numba(learner, jobs, threshold))
             return nb_applicable_jobs
 
         # Early exit: no jobs or no required skills anywhere
         if self.fuzzyMode < 2:
             job_required_counts = np.count_nonzero(self.jobs, axis=1)  # denominator per job
-            if job_required_counts.size == 0 or not np.any(job_required_counts):
-                return 0
-
-        # If Fuzzy II, then it is just the sum of the inclusion degree, then it is just the 
         elif self.fuzzyMode == 2:
-            return f2A.minimumInclusionDegree(np.expand_dims(learner, axis=0), jobs).sum()
+            job_required_counts = np.count_nonzero(self.jobs[:,:,0], axis=1)
+        
+        if job_required_counts.size == 0 or not np.any(job_required_counts):
+            return 0
+        
         
         # Element-wise fractions for ALL skills (not only learner's nonzeros):
         # - where job requires a skill (job_s > 0): min(learner_s, job_s) / job_s
         # - where job_s == 0: leave 0 (no contribution)
         job_req = self.jobs  # shape: [J, S]
-        required_mask = job_req > 0  # shape: [J, S]
-        per_skill_fraction = np.divide(
-            np.minimum(learner, job_req),  # broadcasts learner [S] over [J,S]
-            job_req,
-            out=np.zeros_like(job_req, dtype=float),
-            where=required_mask
-        )  # values in [0, 1], shape: [J, S]
-
+        if self.fuzzyMode < 2:
+            required_mask = job_req > 0  # shape: [J, S]
+            per_skill_fraction = np.divide(
+                np.minimum(learner, job_req),  # broadcasts learner [S] over [J,S]
+                job_req,
+                out=np.zeros_like(job_req, dtype=float),
+                where=required_mask
+            )  # values in [0, 1], shape: [J, S]
+        elif self.fuzzyMode == 2:
+            required_mask = job_req[:,:,0] > 0  # shape: [J, S]
+            if self.config.get("use_numba", True):
+                per_skill_fraction = f2A._nb_fuzzyRequirementFractionalMatch(np.expand_dims(learner, axis=0), job_req)
+            else:
+                per_skill_fraction = f2A.fuzzyRequirementFractionalMatch(np.expand_dims(learner, axis=0), job_req)
+            per_skill_fraction[~required_mask] = 0  # values in [0, 1], shape: [J, S]
+            
         # Average across required skills for each job
         per_job_sum = per_skill_fraction.sum(axis=1)  # shape: [J]
         per_job_match = np.divide(
@@ -446,6 +451,62 @@ class Dataset:
         # Count jobs meeting the threshold
         nb_applicable_jobs = int(np.sum(per_job_match >= threshold))
         return nb_applicable_jobs
+
+#  def get_nb_applicable_jobs(self, learner, threshold, jobs = None):
+#         """Get the number of applicable jobs for a learner
+
+#         Args:
+#             learner (ndarray): list of skills and mastery level of the learner
+#             threshold (float): the threshold for the matching
+#             jobs (ndarray): list of jobs the learner want to apply to (optional) if None, use self.jobs
+
+#         Returns:
+#             int: the number of applicable jobs
+#         """
+#         if jobs is None:
+#             jobs = self.jobs
+#         if self.config.get("use_numba", True):
+#             if self.fuzzyMode < 2:
+#                 nb_applicable_jobs = int(_nb_applicable_jobs_numba(learner, jobs, threshold))
+#             elif self.fuzzyMode == 2:
+#                 nb_applicable_jobs = _nb_fuzzyII_applicable_jobs_numba(learner, jobs)
+#             return nb_applicable_jobs
+
+#         # Early exit: no jobs or no required skills anywhere
+#         if self.fuzzyMode < 2:
+#             job_required_counts = np.count_nonzero(self.jobs, axis=1)  # denominator per job
+#             if job_required_counts.size == 0 or not np.any(job_required_counts):
+#                 return 0
+
+#         # If Fuzzy II, then it is just the sum of the inclusion degree, then it is just the 
+#         elif self.fuzzyMode == 2:
+#             return f2A.minimumInclusionDegree(np.expand_dims(learner, axis=0), jobs).sum()
+        
+#         # Element-wise fractions for ALL skills (not only learner's nonzeros):
+#         # - where job requires a skill (job_s > 0): min(learner_s, job_s) / job_s
+#         # - where job_s == 0: leave 0 (no contribution)
+#         job_req = self.jobs  # shape: [J, S]
+#         required_mask = job_req > 0  # shape: [J, S]
+#         per_skill_fraction = np.divide(
+#             np.minimum(learner, job_req),  # broadcasts learner [S] over [J,S]
+#             job_req,
+#             out=np.zeros_like(job_req, dtype=float),
+#             where=required_mask
+#         )  # values in [0, 1], shape: [J, S]
+
+#         # Average across required skills for each job
+#         per_job_sum = per_skill_fraction.sum(axis=1)  # shape: [J]
+#         per_job_match = np.divide(
+#             per_job_sum,
+#             job_required_counts,
+#             out=np.zeros_like(per_job_sum, dtype=float),
+#             where=(job_required_counts > 0)
+#         )  # shape: [J], each in [0, 1]
+
+#         # Count jobs meeting the threshold
+#         nb_applicable_jobs = int(np.sum(per_job_match >= threshold))
+#         return nb_applicable_jobs
+
 
     # SEEM NOT TO BE USED ANYWHERE
     def get_avg_applicable_jobs(self, threshold, jobs = None):

@@ -243,7 +243,9 @@ class CourseRecEnv(gym.Env):
 
         # Employability on goal set
         employability_goal = self.dataset.get_nb_applicable_jobs(
-            learner, threshold=self.threshold, jobs=self.jobs_goal
+            learner, 
+            threshold=self.threshold if self.fuzzyMode < 2 else self.fuzzyThreshold, 
+            jobs=self.jobs_goal
         )
 
         # Total skill gap on goal set (sum of missing levels)
@@ -707,7 +709,7 @@ class CourseRecEnv(gym.Env):
                 - new_goals: Number of jobs that become applicable after taking the course
         """
         # Calculate initial goals (jobs applicable with current skills)
-        initial_goals = self.dataset.get_nb_applicable_jobs(learner, threshold=self.threshold, jobs=self.jobs_goal)
+        initial_goals = self.dataset.get_nb_applicable_jobs(learner, threshold=self.threshold if self.fuzzyMode < 2 else self.fuzzyThreshold, jobs=self.jobs_goal)
 
         # Calculate skills after learning the course
         if self.fuzzyMode < 2:
@@ -716,7 +718,7 @@ class CourseRecEnv(gym.Env):
             updated_skills = f2A.TriangleUnion(learner, course[1])
 
         # Calculate new goals (jobs applicable after learning the course)
-        new_goals = self.dataset.get_nb_applicable_jobs(updated_skills, threshold=self.threshold, jobs=self.jobs_goal)
+        new_goals = self.dataset.get_nb_applicable_jobs(updated_skills, threshold=self.threshold if self.fuzzyMode < 2 else self.fuzzyThreshold, jobs=self.jobs_goal)
 
         return initial_goals, new_goals
 
@@ -822,15 +824,11 @@ class CourseRecEnv(gym.Env):
         required_sum = required_fraction.sum(axis=1)
         #required_count = self._req_has.sum(axis=1)
         if self.fuzzyMode < 2:
-            required_matching = np.divide(
-                required_sum, self._req_count, out=np.ones_like(required_sum), where=(self._req_count > 0)
-            )
+            required_matching = np.divide(required_sum, self._req_count, out=np.ones_like(required_sum), where=(self._req_count > 0))
             # If no prerequisites, matching = 1.0 (course always valid in that regard)
             required_matching[self._req_count == 0] = 1.0
         elif self.fuzzyMode == 2:
-            required_matching = np.divide(
-                required_sum, self._req_count[:,0], out=np.ones_like(required_sum), where=(self._req_count[:,0] > 0)
-            )
+            required_matching = np.divide(required_sum, self._req_count[:,0], out=np.ones_like(required_sum), where=(self._req_count[:,0] > 0))
             required_matching[self._req_count[:,0] == 0] = 1.0
             
 
@@ -854,15 +852,11 @@ class CourseRecEnv(gym.Env):
         provided_sum = provided_fraction.sum(axis=1)
         #provided_count = has_provided.sum(axis=1)
         if self.fuzzyMode < 2:
-            provided_matching = np.divide(
-                provided_sum, self._prov_count, out=np.zeros_like(provided_sum), where=(self._prov_count > 0)
-            )
+            provided_matching = np.divide(provided_sum, self._prov_count, out=np.zeros_like(provided_sum), where=(self._prov_count > 0))
             # If no provided skills, treat as 0.0
             provided_matching[self._prov_count == 0] = 0.0
         elif self.fuzzyMode == 2:
-            provided_matching = np.divide(
-                provided_sum, self._prov_count[:,0], out=np.zeros_like(provided_sum), where=(self._prov_count[:,0] > 0)
-            )
+            provided_matching = np.divide(provided_sum, self._prov_count[:,0], out=np.zeros_like(provided_sum), where=(self._prov_count[:,0] > 0))
             # If no provided skills, treat as 0.0
             provided_matching[self._prov_count[:,0] == 0] = 0.0
             
