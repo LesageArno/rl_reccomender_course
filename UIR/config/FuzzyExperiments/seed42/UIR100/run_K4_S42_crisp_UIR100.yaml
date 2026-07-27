@@ -13,7 +13,7 @@ results_path: UIR/resultsFuzzy/preferences_v3_k                               # 
 k: 4                                                                          # Number of course recommendations to generate
 seed: 42                                                                      # Random seed for reproducibility of experiments
 dataset_seed: 42                                                              # Set this seed in order not to have a variable dataset
-name_exp: UIR80_crisp                                                         # Branch name for organizing results
+name_exp: UIR100_crisp                                                         # Branch name for organizing results
 feature: "UIR"                                                                # feature to use as reward ("Employability" or "UIR" or "EUIR")
 use_numba: true
 
