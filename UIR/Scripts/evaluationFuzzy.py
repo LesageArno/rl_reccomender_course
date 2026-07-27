@@ -24,7 +24,7 @@ COLS = ["Iteration", "Average jobs", "Average reward", "Average goal gap", "Aver
 EVALUATE_ON = ["Average jobs", "Average reward", "Time"]
 
 # Type of metric being maximised
-METRIC = "UIR" #UIR or Employability or MUIR
+METRIC = "UIR80" #UIR or Employability or MUIR or UIR80 or UIR100
 
 # Get working directory and extraction path
 ROOT_PATH = Path(os.getcwd())
@@ -33,7 +33,7 @@ EXTRACT_PATH = ROOT_PATH / RESULTS_PATH
 RESULTS_FOLDER_NAME = "saved_fuzzyII_results" # FUZZY I: "saved_fuzzy_results", FU22Y II: "saved_fuzzyII_results"
 
 # FILTER
-IGNORE_START = ["plot", "UIR_degenerated"] # IF FUZZY I: ["plot"], IF FUZZY II add "UIR_degenerated" (incomplete results)
+IGNORE_START = ["plot"] # IF FUZZY I: ["plot"], IF FUZZY II add "UIR_degenerated" (incomplete results)
 IGNORE_END = [".zip"]
 
 ## Gather the files into one big dataframe
@@ -89,7 +89,7 @@ for i, evaluation in enumerate(EVALUATE_ON, start=1):
     fig.set_size_inches(15.6, 8.7)
     
     # Save the figures
-    plt.savefig(EXTRACT_PATH / RESULTS_FOLDER_NAME / f"plot_{METRIC.lower()}_{'_'.join(evaluation.lower().split(' '))}.png", dpi=600)
+    plt.savefig(EXTRACT_PATH / RESULTS_FOLDER_NAME / f"plot_{METRIC.lower()}_{'_'.join(evaluation.lower().split(' '))}.png", dpi=300)
     
     # Show advacement
     print(f"[{i}/{len(EVALUATE_ON)}] Iteration VS {evaluation}. Time from start: {time.time()-begin:.4f}s")
