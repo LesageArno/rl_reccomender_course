@@ -2,6 +2,7 @@ import numpy as np
 from numba import njit
 from . import helperBenchmark as hb
 
+# VERIFIED
 def InclusionDegree(learner: np.ndarray[float], jobs: np.ndarray[float]) -> np.ndarray[float]:
     # Provider
     ep  = learner[:, :, 0] # Learner expertise (1,#S)
@@ -119,11 +120,13 @@ def InclusionDegree(learner: np.ndarray[float], jobs: np.ndarray[float]) -> np.n
     # Return the matrix of inclusions for each corresponding pair of skills requirement and provide
     return out
 
+# Not used in the current implementation
 def minimumInclusionDegree(learner:np.ndarray[float], jobs:np.ndarray[float], inverted:bool = False) -> np.ndarray[float]:
     if not inverted:
         return InclusionDegree(learner, jobs).min(axis=1)
     return InvertedInclusionDegree(learner, jobs).min(axis=1)
 
+# Not used in the current implementation
 def mirrorTriangle(triangle:np.ndarray[float]) -> np.ndarray[float]:
     out = np.empty_like(triangle)
     out[0] = 1 - triangle[0]
@@ -131,19 +134,28 @@ def mirrorTriangle(triangle:np.ndarray[float]) -> np.ndarray[float]:
     out[2] = triangle[1]
     return out
 
+# VERIFIED
 def mirrorTriangle2(triangles:np.ndarray[float]) -> np.ndarray[float]:
+    # Initialise the results
     out = np.empty_like(triangles)
+    
+    # Mirror the central value
     out[:,:,0] = 1 - triangles[:,:,0]
+    
+    # Swap the dispersions
     out[:,:,1] = triangles[:,:,2]
     out[:,:,2] = triangles[:,:,1]
     return out
 
+# VERIFIED (Since all position are absolute, we can just mirror them as is)
 def mirrorRamp(ramp:np.ndarray[float]) -> np.ndarray[float]:
     return 1 - ramp
 
+# VERIFIED (Work because the mirrors transfers the problems into simple InclusionDegree and ensure equivalent results.)
 def InvertedInclusionDegree(learner: np.ndarray[float], providers: np.ndarray[float]) -> np.ndarray[float]:
     return InclusionDegree(mirrorTriangle2(learner), mirrorRamp(providers))
 
+# VERIFIED
 def DeltaRampTriangle(jobs:np.ndarray[float], learner:np.ndarray[float]) -> np.ndarray[float]:
     # Provider
     ep  = learner[None, :, 0] # Learner expertise (1,#S)
@@ -165,6 +177,7 @@ def DeltaRampTriangle(jobs:np.ndarray[float], learner:np.ndarray[float]) -> np.n
     # Reconstitute triangles
     return np.stack((X[:,:,1], X[:,:,1]-X[:,:,0], X[:,:,2]-X[:,:,1]), axis=2)
 
+# VERIFIED
 def DeltaTriangleTriangle(training:np.ndarray[float], subdelta:np.ndarray[float]) -> np.ndarray[float]:
     # Training Provider
     et  = training[None, :, 0] # Training expertise (1,#S)
@@ -185,31 +198,43 @@ def DeltaTriangleTriangle(training:np.ndarray[float], subdelta:np.ndarray[float]
     
     # Reconstitute triangles
     return np.stack((X[:,:,1], X[:,:,1]-X[:,:,0], X[:,:,2]-X[:,:,1]), axis=2)
-    
+
+# VERIFIED
 def TriangleUnion(courseAcquire:np.ndarray[float], learner:np.ndarray[float]) -> np.ndarray[float]:
+    # Get Informations on triangle 1 and compute absolute positions
     ep1 = courseAcquire[:,0]
     l1 = ep1-courseAcquire[:,1]
     r1 = ep1+courseAcquire[:,2]
     
+    # Get Information on triangle 2 and compute absolute positions
     ep2 = learner[:,0]
     l2 = ep2-learner[:,1]
     r2 = ep2+learner[:,2]
     
+    # Get the maximum for each points of the triangle and sort to recreare the triangles
     z = np.sort(np.stack((np.maximum(ep1, ep2), np.maximum(l1,l2), np.maximum(r1,r2)), axis=1), axis=1)
+    
+    # Reconstruct the triangle
     epz = z[:,1]
     clz = epz-z[:,0]
     crz = z[:,2]-epz
-    
     return np.column_stack((epz,clz,crz))
 
+# VERIFIED
 def TrianglesToRamps(triangles:np.ndarray[float], inverted:bool = False) -> np.ndarray[float]:
+    # Get main expertise
     ep  = triangles[None, :, 0] # Triangles expertise (1,#S)
+    
+    # If not inverted, provide left-right increasing ramp
     if not inverted:
         clp = triangles[None, :, 1] # Triangles left confidence (1,#S)
         return np.stack((ep, ep-clp), axis=2) #(1,#S,2)
+    
+    # If inverted, get left-right decreasing ramp
     crp = triangles[None, :, 2]
     return np.stack((ep, ep+crp), axis=2)
 
+# Not used in the current implementation
 def TrianglesToRamps2(triangles:np.ndarray[float], inverted:bool = False) -> np.ndarray[float]:
     ep = triangles[:,:,0] # Triangle expertise (#J, #S)
     if not inverted:
@@ -217,56 +242,75 @@ def TrianglesToRamps2(triangles:np.ndarray[float], inverted:bool = False) -> np.
         return np.stack((ep, ep-clp), axis=2)
     crp = triangles[:,:,2]
     return np.stack((ep, ep+crp), axis=2)
-      
+
+# Not used in the current implementation
 def TrianglesSum(triangles:np.ndarray[float]) -> np.ndarray[float]:
     return triangles.sum(axis=0)
 
+# VERIFIED
 def TriangleDivision(t1:np.ndarray[float], t2:np.ndarray[float]) -> np.ndarray[float]:
+    # If both confidence are undefined, then result is just the division of expertises
     if t2[1] == 0 and t2[2] == 0:
         return np.array([t1[0]/t2[0], 0, 0])
+    # If clp is undefined, proceed without the corresponding value and set clp to 0
     elif t2[1] == 0:
         return np.array([t1[0]/t2[0], 0, max(t1[1]/t2[2], t1[2]/t2[2])])
+    # If crp is undefined, proceed without the corresponding value and set crp to 0
     elif t2[2] == 0:
         return np.array([t1[0]/t2[0], min(t1[1]/t2[1], t1[2]/t2[1]), 0])
+    # Otherwise, proceed with classical division
     else:
         vals = {t1[1]/t2[1], t1[1]/t2[2], t1[2]/t2[1], t1[2]/t2[2]}
         return np.array([t1[0]/t2[0], min(vals), max(vals)])
 
+# VERIFIED
 def TriangleScalarAddition(t1:np.ndarray[float], t2:float) -> np.ndarray[float]:
     return np.array([t1[0]+t2, t1[1], t1[2]])
 
+# VERIFIED
 def TriangleScalarMultiplication(t1:np.ndarray[float], m:float) -> np.ndarray[float]:
+    # Get central expertise and absolute position of the triangle
     x = t1[0]
     ul = x-t1[1]
     ur = x+t1[2]
+    
+    # Get new expertise
     mx = m*x
     vals = {m*ul, m*ur}
     
+    # Apply classical formula for multiplication
     return np.array([mx, mx-min(vals), max(vals)-mx])
 
+# Not used in the current implementation
 def ClipTriangle(triangles:np.ndarray[float], ep_clip:list[float] = [0,1]) -> np.ndarray[float]:
     ep = triangles[:,0].clip(*ep_clip)
     clp = np.where(triangles[:,1]>ep, ep, triangles[:,1])
     crp = np.where(triangles[:,2]>1-ep, 1-ep, triangles[:,2])
     return np.column_stack((ep, clp, crp))
 
+# VERIFIED
 def TriangleCentroidDefuzzification(triangle:np.ndarray[float]) -> np.ndarray[float]:
+    # Get the triangle information
     et = triangle[0]
     L = et - triangle[1]
     R = et + triangle[2]
     
+    # Return the centroid from the absolute positions
     return (et + L + R)/3
 
+# Not used in the current implementation
 def RampSum(ramps:np.ndarray[float]) -> np.ndarray[float]:
     er = ramps.sum(axis=0)[:,0]
     cr = er-(ramps[:,:,0]-ramps[:,:,1]).sum(axis=0)
     return np.column_stack((er, cr))
 
+# Not used in the current implementation
 def ClipRamp(ramps:np.ndarray[float], clip:list[float] = [0,1]) -> np.ndarray[float]:
     er = ramps[:,0].clip(*clip)
     cr = ramps[:,1].clip(*clip)
     return np.column_stack((er,cr)) 
 
+# VERIFIED
 def fuzzyRequirementFractionalMatch(learner:np.ndarray[float], requirements:np.ndarray[float]) -> np.ndarray[float]:
     # Provider
     ep  = learner[:, :, 0] # Learner expertise (1,#S)
@@ -286,7 +330,8 @@ def fuzzyRequirementFractionalMatch(learner:np.ndarray[float], requirements:np.n
     
     # Return centroid Defuzzification
     return out.sum(axis=2)/3
-    
+
+# VERIFIED  
 def fuzzyProvideFractionalMatch(learnerRamp:np.ndarray[float], prov:np.ndarray[float]) -> np.ndarray[float]:
     # Learner as ramp
     er = learnerRamp[:,:,0]
@@ -307,6 +352,7 @@ def fuzzyProvideFractionalMatch(learnerRamp:np.ndarray[float], prov:np.ndarray[f
     # Return centroid Defuzzification
     return out.sum(axis=2)/3
 
+# VERIFIED
 @njit(cache=True)
 def _nb_fuzzyRequirementFractionalMatch(learner:np.ndarray[float], requirements:np.ndarray[float]) -> np.ndarray[float]:
     # Retrieve shapes
@@ -339,6 +385,7 @@ def _nb_fuzzyRequirementFractionalMatch(learner:np.ndarray[float], requirements:
         
     return out
 
+# VERIFIED
 @njit(cache=True)
 def _nb_fuzzyProvideFractionalMatch(learnerRamp:np.ndarray[float], prov:np.ndarray[float]) -> np.ndarray[float]:
     # Retrieve shapes
@@ -370,18 +417,22 @@ def _nb_fuzzyProvideFractionalMatch(learnerRamp:np.ndarray[float], prov:np.ndarr
             out[n,s] = (ed+edl+edr)/3
     return out
 
+# Not used in the current implementation
 @njit(inline="always")
 def _nb_R(x:float, er:float, cr:float) -> float:
     return (x - cr) / (er - cr)
 
+# Not used in the current implementation
 @njit(inline="always")
 def _nb_P1(x:float, ep:float, clp:float) -> float:
     return 1.0 + (x - ep) / clp
 
+# Not used in the current implementation
 @njit(inline="always")
 def _nb_P2(x:float, ep:float, crp:float) -> float:
     return 1.0 - (x - ep) / crp
 
+# Not used in the current implementation
 @njit(cache=True)
 def _nb_InclusionDegree(learner:np.ndarray[float], jobs:np.ndarray[float]) -> np.ndarray[float]:
     # Retrieve shapes
@@ -465,6 +516,7 @@ def _nb_InclusionDegree(learner:np.ndarray[float], jobs:np.ndarray[float]) -> np
             out[n, s] = integral / Xp
     return out
 
+# Not used in the current implementation
 @njit(cache=True)
 def _nb_InvertedInclusionDegree(learner:np.ndarray[float], jobs:np.ndarray[float]) -> np.ndarray[float]:
     invertedLearner = np.empty_like(learner)
