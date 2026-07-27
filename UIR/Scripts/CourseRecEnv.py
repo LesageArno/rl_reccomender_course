@@ -80,6 +80,7 @@ class CourseRecEnv(gym.Env):
         self.method = config.get("method", 1)
         self.threshold = config.get("threshold", 1)
         self.fuzzyThreshold = config.get("fuzzyThreshold", 1)
+        self.fuzzyExtendedObs = self.config.get("fuzzyExtendedObs", False)
 
         # Get datasets, jobs and courses
         self.dataset = dataset
@@ -157,6 +158,8 @@ class CourseRecEnv(gym.Env):
         if self.config.get("use_preference", True):
             high = np.concatenate([
                 np.full(self.nb_skills, self.max_level, dtype=np.int32 if fuzzyMode == 0 else np.float32),  # skills
+                np.full(self.nb_skills, self.max_level, dtype=float) if fuzzyMode == 2 and self.fuzzyExtendedObs else np.array([]), # Fuzzy II Lower hand
+                np.full(self.nb_skills, self.max_level, dtype=float) if fuzzyMode == 2 and self.fuzzyExtendedObs else np.array([]), # Fuzzy II Higher hand 
                 np.ones(self.nb_skills, dtype=np.int32),                  # want
                 np.ones(self.nb_skills, dtype=np.int32),                  # avoid
                 np.array([self.k], dtype=np.int32),                       # step_left
@@ -167,6 +170,8 @@ class CourseRecEnv(gym.Env):
         else: 
             high = np.concatenate([
                 np.full(self.nb_skills, self.max_level, dtype=np.int32 if fuzzyMode == 0 else np.float32),  # skills
+                np.full(self.nb_skills, self.max_level, dtype=float) if fuzzyMode == 2 and self.fuzzyExtendedObs else np.array([]), # Fuzzy II Lower hand
+                np.full(self.nb_skills, self.max_level, dtype=float) if fuzzyMode == 2 and self.fuzzyExtendedObs else np.array([]), # Fuzzy II Higher hand 
                 np.array([self.k], dtype=np.int32),                       # step_left
             ])
             low = np.zeros_like(high)
@@ -210,16 +215,27 @@ class CourseRecEnv(gym.Env):
         """
         step_left = np.array([self.k - self.nb_recommendations], dtype=np.int32)
         
+        if self.fuzzyMode == 2:
+            ea = self._agent_skills[:,0]
+        
         if self.config.get("use_preference", True):
             if self.fuzzyMode < 2:
                 obs = np.concatenate([self._agent_skills, self._want, self._avoid, step_left])
-            elif self.fuzzyMode == 2:
-                obs = np.concatenate([self._agent_skills[:,0], self._want, self._avoid, step_left])
+            elif self.fuzzyMode == 2 and not self.fuzzyExtendedObs:
+                obs = np.concatenate([ea, self._want, self._avoid, step_left])
+            elif self.fuzzyMode == 2 and self.fuzzyExtendedObs:
+                ela = ea - self._agent_skills[:,1]
+                era = ea + self._agent_skills[:,2]
+                obs = np.concatenate([ea, ela, era, self._want, self._avoid, step_left])
         else:
             if self.fuzzyMode < 2:
                 obs = np.concatenate([self._agent_skills, step_left])
-            elif self.fuzzyMode == 2:
-                obs = np.concatenate([self._agent_skills[:,0], step_left])
+            elif self.fuzzyMode == 2 and not self.fuzzyExtendedObs:
+                obs = np.concatenate([ea, step_left])
+            elif self.fuzzyMode == 2 and self.fuzzyExtendedObs:
+                ela = ea - self._agent_skills[:,1]
+                era = ea + self._agent_skills[:,2]
+                obs = np.concatenate([ea, ela, era, step_left])
         return obs
 
     # VERIFIED (dependencies: dataset.get_nb_applicable_jobs)
