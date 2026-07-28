@@ -13,7 +13,7 @@ import seaborn as sns
 import time
 
 # Should we display the plot at runtime
-SHOW = True
+SHOW = False
 
 # Headers of the "headerless" txt (tsv) files  
 COLS = ["Iteration", "Average jobs", "Average reward", "Average goal gap", "Average pref cov", "Average total levels req", "Average skills req unique", "Average skills fully covered", "Average skills missing unique", "Time"]
