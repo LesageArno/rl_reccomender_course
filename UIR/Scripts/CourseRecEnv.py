@@ -80,7 +80,10 @@ class CourseRecEnv(gym.Env):
         self.method = config.get("method", 1)
         self.threshold = config.get("threshold", 1)
         self.fuzzyThreshold = config.get("fuzzyThreshold", 1)
+        
+        # Experimental Configurations
         self.fuzzyExtendedObs = self.config.get("fuzzyExtendedObs", False)
+        self.earlyDefuzzification = self.config.get("earlyDefuzzification", False)
 
         # Get datasets, jobs and courses
         self.dataset = dataset
@@ -784,8 +787,10 @@ class CourseRecEnv(gym.Env):
         if not MUIR:
             if self.fuzzyMode < 2:
                 denominator = Nr + Nm + (Nnr / (Nnr + 1))
-            elif self.fuzzyMode == 2:
+            elif self.fuzzyMode == 2 and not self.earlyDefuzzification:
                 denominator = Nr + Nm + f2A.TriangleDivision(Nnr, f2A.TriangleScalarAddition(Nnr, 1))
+            elif self.fuzzyMode == 2 and self.earlyDefuzzification:
+                denominator = f2A.TriangleCentroidDefuzzification(Nr) + f2A.TriangleCentroidDefuzzification(Nm) + f2A.TriangleCentroidDefuzzification(Nnr)/(f2A.TriangleCentroidDefuzzification(Nnr)+1)
         else:
             denominator = Nr + Nm
             
@@ -793,15 +798,19 @@ class CourseRecEnv(gym.Env):
             Nr_fraction = 0
         elif self.fuzzyMode < 2:
             Nr_fraction = Nr / denominator
-        elif self.fuzzyMode == 2:
+        elif self.fuzzyMode == 2 and not self.earlyDefuzzification:
             Nr_fraction = f2A.TriangleDivision(Nr, denominator)
+        elif self.fuzzyMode == 2 and self.earlyDefuzzification:
+            Nr_fraction = f2A.TriangleCentroidDefuzzification(Nr)/denominator
         
         # Calculate U(φ)
         if self.fuzzyMode < 2:
             utility = (1 / (Ga + 1)) * (E_phi + Nr_fraction)
-        elif self.fuzzyMode == 2:
+        elif self.fuzzyMode == 2 and not self.earlyDefuzzification:
             utility = f2A.TriangleScalarMultiplication(f2A.TriangleScalarAddition(Nr_fraction, E_phi), (1 / (Ga + 1)))
             utility = min(1,max(0,f2A.TriangleCentroidDefuzzification(utility)))
+        elif self.fuzzyMode == 2 and self.earlyDefuzzification:
+            utility = min(1,max(0,(1 / (Ga + 1)) * (E_phi + Nr_fraction)))
             
         return utility
 
