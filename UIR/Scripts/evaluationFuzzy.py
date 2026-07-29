@@ -21,16 +21,16 @@ COLS = ["Iteration", "Average jobs", "Average reward", "Average goal gap", "Aver
 # Metric on which we want to evaluate versus iteration
 # FUZZY I: ["Average jobs", "Average reward", "Average goal gap", "Average pref cov", "Average total levels req", "Average skills req unique", "Average skills fully covered", "Average skills missing unique", "Time"]
 # FUZZY II: ["Average jobs", "Average reward", "Time"]
-EVALUATE_ON = ["Average jobs", "Average reward", "Time"]
+EVALUATE_ON = ["Average jobs", "Average reward", "Average goal gap", "Average pref cov", "Average total levels req", "Average skills req unique", "Average skills fully covered", "Average skills missing unique", "Time"]
 
 # Type of metric being maximised
-METRIC = "UIR80" #UIR or Employability or MUIR or UIR80 or UIR100
+METRIC = "UIR100" #UIR or Employability or MUIR or UIR80 or UIR100
 
 # Get working directory and extraction path
 ROOT_PATH = Path(os.getcwd())
-RESULTS_PATH = Path("UIR/resultsFuzzyII") # FUZZY I: "UIR/resultsFuzzy", FUZZY II: "UIR/resultsFuzzyII"
+RESULTS_PATH = Path("UIR/resultsFuzzy") # FUZZY I: "UIR/resultsFuzzy", FUZZY II: "UIR/resultsFuzzyII"
 EXTRACT_PATH = ROOT_PATH / RESULTS_PATH
-RESULTS_FOLDER_NAME = "saved_fuzzyII_results" # FUZZY I: "saved_fuzzy_results", FU22Y II: "saved_fuzzyII_results"
+RESULTS_FOLDER_NAME = "saved_fuzzy_results" # FUZZY I: "saved_fuzzy_results", FU22Y II: "saved_fuzzyII_results"
 
 # FILTER
 IGNORE_START = ["plot"] # IF FUZZY I: ["plot"], IF FUZZY II add "UIR_degenerated" (incomplete results)
