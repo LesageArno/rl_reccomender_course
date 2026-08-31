@@ -1,9 +1,9 @@
 # Data Paths
-cv_path: Data - Collection/Final/alt_resumes.json                             # Path to learner profiles
-course_path: Data - Collection/Final/alt_courses.json                         # Path to course data
-job_path: Data - Collection/Final/alt_jobs.json                               # Path to job listings
+cv_path: Data - Collection/Final/resumes.json                             # Path to learner profiles
+course_path: Data - Collection/Final/courses.json                         # Path to course data
+job_path: Data - Collection/Final/jobs.json                               # Path to job listings
 
-mastery_levels_path: Data - Collection/Final/alt_mastery_levels.json          # Path to skill mastery levels
+mastery_levels_path: Data - Collection/Final/mastery_levels.json          # Path to skill mastery levels
 taxonomy_path: Taxonomy/taxonomy.csv                                          # Path to skill taxonomy data
 
 # Results
@@ -13,7 +13,7 @@ results_path: UIR/resultsFuzzy/preferences_v3_k                               # 
 k: 4                                                                          # Number of course recommendations to generate
 seed: 50                                                                      # Random seed for reproducibility of experiments
 dataset_seed: 50                                                              # Set this seed in order not to have a variable dataset
-name_exp: alt_UIR80_crisp                                                     # Branch name for organizing results
+name_exp: alt_UIR100_crisp                                                     # Branch name for organizing results
 feature: "UIR"                                                                # feature to use as reward ("Employability" or "UIR" or "EUIR")
 use_numba: true
 
