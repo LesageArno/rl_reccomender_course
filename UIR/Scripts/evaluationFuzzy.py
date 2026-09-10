@@ -15,25 +15,28 @@ import time
 # Should we display the plot at runtime
 SHOW = False
 
+# If true, does not plot anything, just get the dataframe, otherwise get the plots
+RETURN_DF = True
+
 # Headers of the "headerless" txt (tsv) files  
 COLS = ["Iteration", "Average jobs", "Average reward", "Average goal gap", "Average pref cov", "Average total levels req", "Average skills req unique", "Average skills fully covered", "Average skills missing unique", "Time"]
 
 # Metric on which we want to evaluate versus iteration
 # FUZZY I: ["Average jobs", "Average reward", "Average goal gap", "Average pref cov", "Average total levels req", "Average skills req unique", "Average skills fully covered", "Average skills missing unique", "Time"]
 # FUZZY II: ["Average jobs", "Average reward", "Time"]
-EVALUATE_ON = ["Average jobs", "Average reward", "Time"]
+EVALUATE_ON = ["Average jobs", "Average reward", "Average goal gap", "Average pref cov", "Average total levels req", "Average skills req unique", "Average skills fully covered", "Average skills missing unique", "Time"]
 
 # Type of metric being maximised
-METRIC = "UIR100" #UIR or Employability or MUIR or UIR80 or UIR100
+METRIC = "UIR100" #UIR or Employability or MUIR or UIR80 or UIR100 or altUIR100 or altUIR80
 
 # Get working directory and extraction path
 ROOT_PATH = Path(os.getcwd())
-RESULTS_PATH = Path("UIR/resultsFuzzyII") # FUZZY I: "UIR/resultsFuzzy", FUZZY II: "UIR/resultsFuzzyII"
+RESULTS_PATH = Path("UIR/resultsFuzzy") # FUZZY I: "UIR/resultsFuzzy", FUZZY II: "UIR/resultsFuzzyII"
 EXTRACT_PATH = ROOT_PATH / RESULTS_PATH
-RESULTS_FOLDER_NAME = "saved_fuzzyII_results" # FUZZY I: "saved_fuzzy_results", FU22Y II: "saved_fuzzyII_results"
+RESULTS_FOLDER_NAME = "saved_fuzzy_results" # FUZZY I: "saved_fuzzy_results", FUZZY II: "saved_fuzzyII_results"
 
 # FILTER
-IGNORE_START = ["plot"] # ["plot"]
+IGNORE_START = ["plot", "data", "script"] # ["plot", "data", "script"]
 IGNORE_END = [".zip"] # ["zip"]
 
 ## Gather the files into one big dataframe
@@ -70,33 +73,36 @@ for path, folder, files in os.walk(EXTRACT_PATH):
 df = pd.concat(df_list, axis=0, ignore_index=True)
 
 # Keep only the reward type we are interested in
-filteredDF = df.loc[df["Metric"]==METRIC,:]
+filteredDF:pd.DataFrame = df.loc[df["Metric"]==METRIC,:]
 
-## Start the plots
-begin = time.time()
+if RETURN_DF:
+    pd.DataFrame.to_csv(filteredDF, EXTRACT_PATH / RESULTS_FOLDER_NAME / f"data_{METRIC.lower()}.csv")
+elif not RETURN_DF:
+    ## Start the plots
+    begin = time.time()
 
-# For each plot 
-for i, evaluation in enumerate(EVALUATE_ON, start=1):
-    # Create a subplot containing each sequence length from 2 to 5 (excluded)
-    fig, axes = plt.subplots(1,3, constrained_layout = True)
-    for k in range(2,5):
-        # Plot the metrics over iteration and colour the methods. Confidence interval are computed as bootstrap using lineplot
-        sns.lineplot(filteredDF.loc[filteredDF["k"]==k,:], x="Iteration", y=evaluation, hue="Method", ax=axes[(k+1)%3])
-        axes[(k+1)%3].set_title(f"{k=}")
-    
-    # Modify the figure parameters (size and title)
-    fig.suptitle(f"{evaluation} and Confidence Interval at 95% VS Iteration for {METRIC}")
-    fig.set_size_inches(15.6, 8.7)
-    
-    # Save the figures
-    plt.savefig(EXTRACT_PATH / RESULTS_FOLDER_NAME / f"plot_{METRIC.lower()}_{'_'.join(evaluation.lower().split(' '))}.png", dpi=300)
-    
-    # Show advacement
-    print(f"[{i}/{len(EVALUATE_ON)}] Iteration VS {evaluation}. Time from start: {time.time()-begin:.4f}s")
-    
-    # Display the plot if asked
-    if SHOW:
-        plt.show()
+    # For each plot
+    for i, evaluation in enumerate(EVALUATE_ON, start=1):
+        # Create a subplot containing each sequence length from 2 to 5 (excluded)
+        fig, axes = plt.subplots(1,3, constrained_layout = True)
+        for k in range(2,5):
+            # Plot the metrics over iteration and colour the methods. Confidence interval are computed as bootstrap using lineplot
+            sns.lineplot(filteredDF.loc[filteredDF["k"]==k,:], x="Iteration", y=evaluation, hue="Method", ax=axes[(k+1)%3])
+            axes[(k+1)%3].set_title(f"{k=}")
+        
+        # Modify the figure parameters (size and title)
+        fig.suptitle(f"{evaluation} and Confidence Interval at 95% VS Iteration for {METRIC}")
+        fig.set_size_inches(15.6, 8.7)
+        
+        # Save the figures
+        plt.savefig(EXTRACT_PATH / RESULTS_FOLDER_NAME / f"plot_{METRIC.lower()}_{'_'.join(evaluation.lower().split(' '))}.png", dpi=300)
+        
+        # Show advacement
+        print(f"[{i}/{len(EVALUATE_ON)}] Iteration VS {evaluation}. Time from start: {time.time()-begin:.4f}s")
+        
+        # Display the plot if asked
+        if SHOW:
+            plt.show()
     
 
     
