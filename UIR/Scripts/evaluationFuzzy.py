@@ -36,7 +36,7 @@ EXTRACT_PATH = ROOT_PATH / RESULTS_PATH
 RESULTS_FOLDER_NAME = "saved_fuzzy_results" # FUZZY I: "saved_fuzzy_results", FUZZY II: "saved_fuzzyII_results"
 
 # FILTER
-IGNORE_START = ["plot", "data", "script"] # ["plot", "data", "script"]
+IGNORE_START = ["plot", "data", "script", "."] # ["plot", "data", "script"]
 IGNORE_END = [".zip"] # ["zip"]
 
 ## Gather the files into one big dataframe
