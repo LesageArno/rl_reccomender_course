@@ -1,22 +1,17 @@
 from typing import Any, Annotated
-from numpy import floating
- 
 
 class FuzzySkillExpertiseSet():
-    def __init__(self, skillExpertiseSet:list[list[Any,float]]|dict[Any,float]|list[float], *, fromSelf:bool=False, roundingDecimal:int=6):
+    def __init__(self, skillExpertiseSet:list[list[Any,float]]|dict[Any,float], *, fromSelf:bool=False, roundingDecimal:int=6):
         """A class to represent and perform operations on Fuzzy Skill Expertise Set. It can take as input a list of skill-expertise pair, or a dictionary representing directly the skill-expertise set.
 
         Args:
-            skillExpertiseSet (list[list[Any,float]] | dict[Any,float] | list[float]): A list containing pairs of skill/expertise, a dictionary mapping skills to expertise levels or a list containing float where all the float represent the expertise for the skill at index i.
+            skillExpertiseSet (list[list[Any,float]] | dict[Any,float]): A list containing pairs of skill/expertise or a dictionary mapping a skill to an expertise level.
             fromSelf (bool, optional): ~~This is not meant to be used by the user directly. It is used internally to create copies of the object. Defaults to False.~~
             roundingDecimal (int, optional): Operations on floats may result in awkward results (eg. 3.00000000004). As a consequence, we prune the obtained values for such an operation to the defined rounding decimal. Defaults to 6.
         """
         # If the input is a list, transform it into a skill-expertise set.
         if not fromSelf and not isinstance(skillExpertiseSet, dict):
-            if isinstance(skillExpertiseSet[0], (float,floating)):
-                self.fuzzySkillExpertiseSet:dict[Any, float] = dict(enumerate(skillExpertiseSet))
-            else:
-                self.fuzzySkillExpertiseSet:dict[Any, float] = {val[0]:val[1] for val in skillExpertiseSet}
+            self.fuzzySkillExpertiseSet:dict[Any, float] = {val[0]:val[1] for val in skillExpertiseSet}
         
         # If it already is a skill expertise-set format, register it directly
         else:
@@ -328,7 +323,18 @@ CV = Annotated[FuzzySkillExpertiseSet, "A Skill-Expertise set representing the k
 
 if __name__ == "__main__":
     
-    cv1:CV = CV({"A":0.8,"B":0.4,"C":0.6,"D":0.2,"E":0.3})
+    bob:CV = CV({"Cooking":8, "Cleaning":6, "Art":3})
+    pastry:Job = Job({"Cooking":8, "Cleaning":5, "Art":6})
+    training:Training = Training((
+        FuzzySkillExpertiseSet({"Cooking":5,"Art":3}),
+        FuzzySkillExpertiseSet({"Cooking":9, "Art":7})
+    ))
+    bob.computeAggregatedUsefulContent([pastry], training)
+    bob.computeAggregatedMissingContent([pastry], training)
+    bob.computeAggregatedUnnecessaryContent([pastry], training)
+    bob.computeUsefulnessDegree([pastry], training)
+    
+    """cv1:CV = CV({"A":0.8,"B":0.4,"C":0.6,"D":0.2,"E":0.3})
     
     t1:Training = Training((
         FuzzySkillExpertiseSet({"A":0.8,"B":0.2,"E":0.1}),
@@ -349,4 +355,4 @@ if __name__ == "__main__":
     j2:Job = Job({"A":0.2,"E":0.2})
     j3:Job = Job({"F":0.4,"G":0.2,"D":0.3})
     
-    G = Goals([j1, j2, j3])
+    G = Goals([j1, j2, j3])"""

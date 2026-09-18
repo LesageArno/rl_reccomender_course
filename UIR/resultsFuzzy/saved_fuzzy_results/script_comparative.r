@@ -55,6 +55,7 @@ lboot <- function(df, metric, criterion, n=1000) {
     return(df)
 }
 
+# Function to plot the results
 plotResults <- function(df, metric_vec, k_, title = "avg") {
     ggplotly(
         ggplot(

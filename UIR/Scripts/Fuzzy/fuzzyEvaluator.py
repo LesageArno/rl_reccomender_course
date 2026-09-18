@@ -2,7 +2,7 @@ from fuzzifier import NeighbourResumeFuzzifier, SimpleFuzzifier, OnTaxonomyFuzzi
 from taxonomy_explorer import LEVEL_COLS
 import pandas as pd
 import json
-from typing import Any, overload
+from typing import Any, overload, Literal
 import numpy as np
 from copy import deepcopy
 import time
@@ -123,6 +123,37 @@ class FuzzyResumeEvaluator():
         # Return RMSE
         return RMSE                    
     
+    def computeNearestNeighbourAccuracy(self, y:list[list[str,int,Any]], ypred:list[list[str,int,Any]]) -> float:
+        # Get the levels 
+        levels = np.array(list(self.fuzzifier.levels.values()))
+        
+        # Check if the document have the same length
+        if len(y) != len(ypred):
+            raise Exception("The lists of skills should be the same (only diverging on expertises).")
+            
+        # Compute the number of correct nearest neighbour
+        count = 0
+        for i in range(len(y)):
+            # Check if the order is the same
+            if y[i][:-1] != ypred[i][:-1]:
+                raise Exception("The lists of skills must posses the same ordering.")
+            
+            # If the prediction is the same, add 1 to the count
+            if y[i][2] == ypred[i][2]:
+                count+=1
+            
+            # Otherwise, check the nearest neighbouring level, if it is the same, add 1 as well, otherwise, continue
+            else:
+                closest_level = np.argmin(np.abs(ypred[i][2]-levels))
+                if levels[closest_level] == y[i][2]:
+                    count += 1
+            
+        # Compute nearest neighbour accuracy 
+        ACC = count/len(y)
+                    
+        # Return nearest neighbour accuracy
+        return ACC      
+    
     def customFixedFuzzificationForEvaluation(self, unknownDefault:float, fuzzify=None):
         fuzzified = deepcopy(self.maskedFuzzyBaseline if fuzzify is None else fuzzify)
         for key, values in self.maskedFuzzyBaseline.items() if fuzzify is None else fuzzify.items():
@@ -136,7 +167,8 @@ class FuzzyResumeEvaluator():
         count = 1
         begin = time.time()
         with open(outPath, "w") as file:
-            file.write("mode,seed,p,RMSE\n")
+            
+            file.write("mode,seed,p,RMSE,NNACC\n")
             for seed in seeds:
                 for p in P:
                     # Compute the fuzzy baseline mask (choose to mask some known values). This will be compared onward with our results
@@ -153,12 +185,12 @@ class FuzzyResumeEvaluator():
                     
                     file.write(f"fixed,{seed},{round(p,5)},")
                     # Compute the RMSE, save the results and flush (for some reason, it is necessary here)
-                    file.write(f"{self.computeRMSE(maskedFilteredBaseline, maskedFilteredFuzzified)}\n")
+                    file.write(f"{self.computeRMSE(maskedFilteredBaseline, maskedFilteredFuzzified)},{self.computeNearestNeighbourAccuracy(maskedFilteredBaseline, maskedFilteredFuzzified)}\n")
                     file.flush()
                     count+=1
                     
                     if count % 100 == 0:
-                        print(f"[{count}, {time.time()-begin:.6f}s] mode=fixed, {seed=}, ={round(p,5)}")
+                        print(f"[{count}, {time.time()-begin:.6f}s] mode=fixed, {seed=}, p={round(p,5)}")
                         
     def evaluateOnTaxonomy(self, 
                    modes:list[OnTaxonomyFuzzificationMethod], 
@@ -181,7 +213,7 @@ class FuzzyResumeEvaluator():
             file.write(f"mode,seed,p,")
             for param in modeParameters.keys():
                 file.write(f"{param},")
-            file.write("RMSE\n")
+            file.write("RMSE,NNACC\n")
             
             # For each mode
             for mode in modes:
@@ -222,7 +254,7 @@ class FuzzyResumeEvaluator():
                                         file.write(f"{round(gamma,5)},")
                                 
                                 # Compute the RMSE, save the results and flush (for some reason, it is necessary here)
-                                file.write(f"{self.computeRMSE(maskedFilteredBaseline, maskedFilteredFuzzified)}\n")
+                                file.write(f"{self.computeRMSE(maskedFilteredBaseline, maskedFilteredFuzzified)},{self.computeNearestNeighbourAccuracy(maskedFilteredBaseline, maskedFilteredFuzzified)}\n")
                                 file.flush()
                                 count+=1
                         
@@ -243,7 +275,7 @@ class FuzzyResumeEvaluator():
                             file.write(f"{mode},{seed},{round(p,5)},")
                             for param in modeParameters.keys():
                                 file.write(",")
-                            file.write(f"{self.computeRMSE(maskedFilteredBaseline, maskedFilteredFuzzified)}\n")
+                            file.write(f"{self.computeRMSE(maskedFilteredBaseline, maskedFilteredFuzzified)},{self.computeNearestNeighbourAccuracy(maskedFilteredBaseline, maskedFilteredFuzzified)}\n")
                             file.flush()
                             count+=1
 
@@ -266,7 +298,7 @@ class FuzzyResumeEvaluator():
         # Open the outfile        
         with open(outPath, "w") as file:
             # Put the header
-            file.write("mode,method,seed,p,threshold,subparam,RMSE\n")
+            file.write("mode,method,seed,p,threshold,subparam,RMSE,NNACC\n")
             
             # For each mode (crisp, min, weighted)
             for mode in modes:
@@ -284,7 +316,7 @@ class FuzzyResumeEvaluator():
                         maskedFilteredBaseline = [self.fuzzyBaselineAsLists[i] for i in self.masked] # That's the y to find again 
                         
                         # Load the association matrix earlier to gain some time
-                        self.fuzzifier.loadAssociationRuleMatrix(self.maskedFuzzyBaseline, association=mode)
+                        self.fuzzifier.loadAssociationRuleDict(self.maskedFuzzyBaseline, association=mode)
                         
                         # For every threshold
                         for k in thresholds:
@@ -310,7 +342,7 @@ class FuzzyResumeEvaluator():
                                 maskedFilteredFuzzified = [fuzzified[i] for i in self.masked]
                                 
                                 # Write the results
-                                file.write(f"{mode},{method},{seed},{round(p,5)},{k},{lastUnknownFill[method]},{self.computeRMSE(maskedFilteredBaseline, maskedFilteredFuzzified)}\n")
+                                file.write(f"{mode},{method},{seed},{round(p,5)},{k},{lastUnknownFill[method]},{self.computeRMSE(maskedFilteredBaseline, maskedFilteredFuzzified)},{self.computeNearestNeighbourAccuracy(maskedFilteredBaseline, maskedFilteredFuzzified)}\n")
                                 file.flush()
                                 count+=1    
         
@@ -348,6 +380,8 @@ if __name__ == "__main__":
     # Get the necessary files for evaluations
     with open("fuzzifiedData/fuzzy_mastery_levels.json") as file:
         fuzzyMasteryLevels = json.load(file)
+    with open("fuzzifiedData/fuzzy_mastery_levels_alt.json") as file:
+        fuzzyMasteryLevelsAlt = json.load(file)
     with open("data/resumes.json") as file: 
         resumes = json.load(file)
     with open("data/jobs.json") as file:
@@ -355,33 +389,40 @@ if __name__ == "__main__":
     with open("data/courses.json") as file:
         courses = json.load(file)
     
+    # Whether to use alternative default or not
+    USE_ALT = True
     
     # Get taxonomy
     taxonomy = pd.read_csv("data/taxonomy.csv")
     
     # Initialise for resumes
-    fuzzyResumeEval = FuzzyResumeEvaluator(fuzzyMasteryLevels, taxonomy, LEVEL_COLS, "unique_id")
+    fuzzyResumeEval = FuzzyResumeEvaluator(fuzzyMasteryLevels if not USE_ALT else fuzzyMasteryLevelsAlt, taxonomy, LEVEL_COLS, "unique_id")
     fuzzyResumeEval.loadResume(resumes)
     
     # Initialise for jobs
-    fuzzyJobEval = FuzzyResumeEvaluator(fuzzyMasteryLevels, taxonomy, LEVEL_COLS, "unique_id")
+    fuzzyJobEval = FuzzyResumeEvaluator(fuzzyMasteryLevels if not USE_ALT else fuzzyMasteryLevelsAlt, taxonomy, LEVEL_COLS, "unique_id")
     fuzzyJobEval.loadResume(jobs)
     
     # Initialises for courses
-    fuzzyCoursesRequirementEval, fuzzyCoursesAcquirementsEval = convertCoursesForEvaluation(courses, fuzzyMasteryLevels, taxonomy, LEVEL_COLS, "unique_id") 
+    fuzzyCoursesRequirementEval, fuzzyCoursesAcquirementsEval = convertCoursesForEvaluation(courses, fuzzyMasteryLevels if not USE_ALT else fuzzyMasteryLevelsAlt, taxonomy, LEVEL_COLS, "unique_id") 
     
     # Parameters
-    modes = ["linear","log2","weighted","weightedLog2"]
+    modes = ["linear","log2","weighted","weightedLog2"] #["linear","log2","weighted","weightedLog2"]
     P = np.arange(0.01,1.01,0.01)
     N = 10
     gamma = np.arange(0,1.01,0.01)
     
     #### RESUME EVALUATION
-    # Eval for fixed
-    #fuzzyResumeEval.evaluateOnFixed(P,seeds=list(range(N)))
+    # Eval for fixed (default levels)
+    # fuzzyResumeEval.evaluateOnFixed(P,seeds=list(range(N)))
+    # Alternative Levels
+    #fuzzyResumeEval.evaluateOnFixed(P, seeds=list(range(N)), unknownDefault=0.6666666666666667, outPath="out/onFixedAltEvaluation2.csv")
     
     # Uncomment for taxonomy
     #fuzzyResumeEval.evaluateOnTaxonomy(modes=modes, P=P, seeds=list(range(N)), gamma=gamma)
+    
+    # Uncomment for taxonomy on alternative levels
+    # fuzzyResumeEval.evaluateOnTaxonomy(modes=modes, P=P, seeds=list(range(N)), gamma=gamma, outPath="out/onTaxonomyAltEvaluation2.csv")
     
     # Uncomment for association rules
     #fuzzyResumeEval.evaluateOnRulesAssociations(
@@ -397,14 +438,35 @@ if __name__ == "__main__":
     #    }
     #)
     
+    # Uncomment for association rules with alternative defaults
+    # fuzzyResumeEval.evaluateOnRulesAssociations(
+    #    modes=["crisp","min","weighted"], # ["crisp","min","weighted"]
+    #    P = np.arange(0.02,1.01,0.02),
+    #    seeds=list(range(10)),
+    #    thresholds=list(range(1,16)),
+    #        lastUnknownFill = {
+    #            "Fixed":None,
+    #            "weightedLog2":{"gamma":1},
+    #            "log2":None,
+    #            "linear":None
+    #        },
+    #        outPath="out/onRulesAssociationsAltEvaluation2.csv"
+    #    )
+    
     #### JOB EVALUATION
-    # Fixed only
-    fuzzyJobEval.evaluateOnFixed(P,seeds=list(range(N)), unknownDefault=0.8, outPath="out/onFixedJobEvaluation.csv")
+    # Fixed only (default levels)
+    # fuzzyJobEval.evaluateOnFixed(P,seeds=list(range(N)), unknownDefault=0.8, outPath="out/onFixedJobEvaluation.csv")
+    # Alternative Levels
+    # fuzzyJobEval.evaluateOnFixed(P, seeds=list(range(N)), unknownDefault=1, outPath="out/onFixedAltJobEvaluation2.csv")
     
     #### COURSES EVALUATIONS
     ## Fixed only
-    # For requirements
-    fuzzyCoursesRequirementEval.evaluateOnFixed(P, seeds=list(range(N)), unknownDefault=0.5, outPath="out/onFixedCoursesRequirements.csv")
+    # For requirements (default levels)
+    #fuzzyCoursesRequirementEval.evaluateOnFixed(P, seeds=list(range(N)), unknownDefault=0.5, outPath="out/onFixedCoursesRequirements.csv")
+    # Alternative Levels
+    # fuzzyCoursesRequirementEval.evaluateOnFixed(P, seeds=list(range(N)), unknownDefault=0.6666666666666667, outPath="out/onFixedAltCoursesRequirements2.csv")
 
     # For Acquirements
-    fuzzyCoursesAcquirementsEval.evaluateOnFixed(P, seeds=list(range(N)), unknownDefault=0.5, outPath="out/onFixedCoursesAcquirements.csv")
+    #fuzzyCoursesAcquirementsEval.evaluateOnFixed(P, seeds=list(range(N)), unknownDefault=0.5, outPath="out/onFixedCoursesAcquirements.csv")
+    # Alternative levels
+    #fuzzyCoursesAcquirementsEval.evaluateOnFixed(P, seeds=list(range(N)), unknownDefault=0.6666666666666667, outPath="out/onFixedAltCoursesAcquirements2.csv")

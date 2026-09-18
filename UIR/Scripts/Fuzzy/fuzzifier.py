@@ -54,6 +54,12 @@ CRISP_DEFAULT = {
     }
 }
 
+UNKNOWN_DEFAULT_ALT = {
+    "data/courses.json": 0.6666666666666667,
+    "data/jobs.json": 1,
+    "data/resumes.json": 0.6666666666666667,
+}
+
 FuzzificationMethod = Literal["linear","weighted","log2","weightedLog2","associationRules"]
 OnTaxonomyFuzzificationMethod = Literal["linear","weighted","log2","weightedLog2"]
 AssociationsMethod = Literal["min","weighted","crisp"]
@@ -564,13 +570,19 @@ if __name__ == "__main__":
     # Get the fuzzy mastery levels
     with open("fuzzifiedData/fuzzy_mastery_levels.json") as file:
         fuzzyMasteryLevels = json.load(file)    
+        
+    # Load alternative mastery level
+    with open("fuzzifiedData/fuzzy_mastery_levels_alt.json") as file:
+        fuzzyMasteryLevelsAlt = json.load(file)
     
     # Instantiate the fuzzifier
     ## For the Training and Jobs
     fuzzy = SimpleFuzzifier(fuzzyMasteryLevels)
+    fuzzyAlt = SimpleFuzzifier(fuzzyMasteryLevelsAlt)
     
     ## For the resumes
     fuzzyNeighbour = NeighbourResumeFuzzifier(fuzzyMasteryLevels, pd.read_csv("data/taxonomy.csv"), te.LEVEL_COLS)
+    fuzzyNeighbourAlt = NeighbourResumeFuzzifier(fuzzyMasteryLevelsAlt, pd.read_csv("data/taxonomy.csv"), te.LEVEL_COLS)
     
     ## For Fuzzy II
     fuzzyII = simpleFuzzyIIFuzzifier(fuzzyMasteryLevels, UNKNOWN_DEFAULT)
@@ -588,38 +600,95 @@ if __name__ == "__main__":
     #        indent=4
     #    )
     
+    ## Fuzzify with alternative default values
+    # with open("fuzzifiedData/fuzzy_resumes_alt.json", "w") as file:
+    #     json.dump(
+    #         fuzzyAlt.fuzzify(resumes, unknownDefault=UNKNOWN_DEFAULT_ALT["data/resumes.json"]),
+    #         file,
+    #         indent=4
+    #     )
     
     ## Fuzzify with weighted association rules (occurrences>=1), then Gamma 1 
     #with open("fuzzifiedData/weightedGamma1_fuzzy_resumes.json", "w") as file:
     #    json.dump(
     #        fuzzyNeighbour.fuzzify(fuzzyNeighbour.fuzzify(
-    #            resumes, mode="associationRules", weighted=False, association="weighted", frequencyThreshold=1        
+    #            resumes, mode="associationRules", association="weighted", frequencyThreshold=1        
     #        ), mode="weightedLog2", gamma=1),
     #        file,
     #        indent=4
     #    )
+    
+    ## Fuzzify with weighted association rules (occurrences>=1), then Gamma 1 (ALT)
+    # with open("fuzzifiedData/weightedGamma1_fuzzy_resumes_alt.json", "w") as file:
+    #     json.dump(
+    #         fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+    #             resumes, mode="associationRules", association="weighted", frequencyThreshold=1        
+    #         ), mode="weightedLog2", gamma=1),
+    #         file,
+    #         indent=4
+    #     )
+    
+    ## Fuzzify with weighted association rules (occurrences>=1), then Gamma 1 (ALT)
+        with open("fuzzifiedData/weightedGamma1k2_fuzzy_resumes_alt.json", "w") as file:
+            json.dump(
+                fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                    resumes, mode="associationRules", association="weighted", frequencyThreshold=2        
+                ), mode="weightedLog2", gamma=1),
+                file,
+                indent=4
+            )
     
     ## Fuzzify with min association rules (occurrences>=1), then Gamma 1
     #with open("fuzzifiedData/minGamma1_fuzzy_resumes.json", "w") as file:
     #    json.dump(
     #        fuzzyNeighbour.fuzzify(fuzzyNeighbour.fuzzify(
-    #            resumes, mode="associationRules", weighted=False, association="min", frequencyThreshold=1
+    #            resumes, mode="associationRules", association="min", frequencyThreshold=1
     #        ), mode="weightedLog2", gamma=1),
     #        file,
     #        indent=4
     #    )
     
+    ## Fuzzify with min association rules (occurrences>=1), then Gamma 1 (ALT)
+    # with open("fuzzifiedData/minGamma1_fuzzy_resumes_alt.json", "w") as file:
+    #    json.dump(
+    #        fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+    #            resumes, mode="associationRules", association="min", frequencyThreshold=1
+    #        ), mode="weightedLog2", gamma=1),
+    #        file,
+    #        indent=4
+    #    )
+    
+    ## Fuzzify with min association rules (occurrences >=2) then Gamma 1 (ALT)
+    with open("fuzzifiedData/minGamma1k2_fuzzy_resumes_alt.json", "w") as file:
+        json.dump(
+            fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                resumes, mode="associationRules", association="min", frequencyThreshold=2
+            ), mode="weightedLog2", gamma=1),
+            file,
+            indent=4
+        )
+    
+    ## Fuzzify with crisp association rules (occurrences >=2) then Gamma 1 (ALT)
+        with open("fuzzifiedData/crispGamma1k2_fuzzy_resumes_alt.json", "w") as file:
+            json.dump(
+                fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                    resumes, mode="associationRules", association="crisp", frequencyThreshold=2
+                ), mode="weightedLog2", gamma=1),
+                file,
+                indent=4
+            )
+    
     ## Constant 0 Fuzzy II for resumes
-    with open("fuzzyIIData/degenerated_fuzzyII_resumes.json", "w") as file:
-       json.dump(
-           fuzzyII_crisp.fuzzify(
-               resumes,
-               "data/resumes.json",
-               use_default=True
-           ),
-           file,
-           indent=4
-       )
+    # with open("fuzzyIIData/degenerated_fuzzyII_resumes.json", "w") as file:
+    #    json.dump(
+    #        fuzzyII_crisp.fuzzify(
+    #            resumes,
+    #            "data/resumes.json",
+    #            use_default=True
+    #        ),
+    #        file,
+    #        indent=4
+    #    )
     
     ## Constant 0.1 Fuzzy II for resumes
     #with open("fuzzyIIData/fixed_fuzzyII_resumes.json", "w") as file:
@@ -662,17 +731,20 @@ if __name__ == "__main__":
     with open("data/jobs.json", "r") as file:
         jobs = json.load(file)
     
-    ## Fuzzify jobs
+    ## Fuzzify jobs (default levels)
     #with open("fuzzifiedData/fuzzy_jobs.json", "w") as file:
     #    json.dump(fuzzy.fuzzify(jobs, unknownDefault=UNKNOWN_DEFAULT["data/jobs.json"]), file, indent=4)
+    ## with alternative default values
+    # with open("fuzzifiedData/fuzzy_jobs_alt.json", "w") as file:
+    #     json.dump(fuzzyAlt.fuzzify(jobs, unknownDefault=UNKNOWN_DEFAULT_ALT["data/jobs.json"]), file, indent=4)
     
     ## Fixed Fuzzy II for jobs
     # with open("fuzzyIIData/fixed_fuzzyII_jobs.json", "w") as file:
         # json.dump(fuzzyII.fuzzify(jobs, "data/jobs.json"), file, indent=4)
     
     ## Degenerated Fuzzy II for jobs
-    with open("fuzzyIIData/degenerated_fuzzyII_jobs.json", "w") as file:
-        json.dump(fuzzyII_crisp.fuzzify(jobs, "data/jobs.json"), file, indent=4)
+    # with open("fuzzyIIData/degenerated_fuzzyII_jobs.json", "w") as file:
+    #     json.dump(fuzzyII_crisp.fuzzify(jobs, "data/jobs.json"), file, indent=4)
     
     ## Fixed RMSE for jobs
     # with open("fuzzyIIData/fixedRMSE_fuzzyII_jobs.json", "w") as file:
@@ -691,17 +763,21 @@ if __name__ == "__main__":
     with open("data/courses.json", "r") as file:
         courses = json.load(file)
         
-    ## Fuzzify courses
+    ## Fuzzify courses (default levels)
     #with open("fuzzifiedData/fuzzy_courses.json", "w") as file:
     #    json.dump(fuzzy.fuzzify(courses, unknownDefault=UNKNOWN_DEFAULT["data/courses.json"]), file, indent=4)
+    ## Alternative levels
+    # with open("fuzzifiedData/fuzzy_courses_alt.json", "w") as file:
+    #     json.dump(fuzzyAlt.fuzzify(courses, unknownDefault=UNKNOWN_DEFAULT_ALT["data/courses.json"]), file, indent=4)
+    
     
     ## Fixed Fuzzy II for courses
     # with open("fuzzyIIData/fixed_fuzzyII_courses.json", "w") as file:
     #     json.dump(fuzzyII.fuzzify(courses, "data/courses.json"), file, indent=4)
     
     ## Degenerated Fuzzy II for courses
-    with open("fuzzyIIData/degenerated_fuzzyII_courses.json", "w") as file:
-        json.dump(fuzzyII_crisp.fuzzify(courses, "data/courses.json"), file, indent=4)
+    # with open("fuzzyIIData/degenerated_fuzzyII_courses.json", "w") as file:
+    #     json.dump(fuzzyII_crisp.fuzzify(courses, "data/courses.json"), file, indent=4)
 
     # ## Fixed RMSE for courses
     # with open("fuzzyIIData/fixedRMSE_fuzzyII_courses.json", "w") as file:
