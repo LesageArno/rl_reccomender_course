@@ -215,6 +215,28 @@ encodeGammaAsMode <- function(dfx, gammaVal = 1, baseMode = "weightedLog2") {
     return(bind_rows(dfa, dfx))
 }
 
+# Function to plot rules based association result, while returning best three combinations
+plotAllRuleBased <- function(df, useRMSE = F, bestAtp = 0.02, selectHead = 3) {
+    # Plot grid plot for rules association (k, p, RMSE/NNAC) and retrieve the df to put in for the next plot
+    df_rules <- plotGammaRuleBasedFuzzification(df, useRMSE = useRMSE, returnDF = T)
+    
+    # Plot and get the best k per method for p=bestAtp
+    df_rules <- plotRuleBasedFuzzification(df_rules, useRMSE = useRMSE, returnDF = T, bestAtp = bestAtp)
+    
+    # Get the best methods overall
+    selector <- df_rules %>% group_by(mode, method, p) %>% filter(p==bestAtp) %>% arrange(desc(lbnnacc)) %>% head(selectHead)
+    
+    # Select all the informations relatives to the best methods
+    selected <- df %>% filter(code%in%selector$code) %>% select(-mode, -method, -threshold, -subparam)
+    
+    # Rename weightedLog2 to Gamma 1
+    selected$mode <- selected$code %>% str_replace("weightedLog2", "Gamma1")
+    
+    # Remove the code and return
+    selected <- selected %>% select(-code)
+    return(selected)
+}
+
 #### If __name__ == "__main__": ####
 if (sys.nframe() == 0){
     ##### Collect the data ####
@@ -247,37 +269,35 @@ if (sys.nframe() == 0){
     #### Plots ####
     ##### Taxonomy #####
     # On (user) taxonomy evaluation (alternative)
-    plotTaxonomyBasedFuzzification(df$onTaxonomyAltEvaluation.csv, useRMSE = F)
+    plotTaxonomyBasedFuzzification(df$onTaxonomyAltEvaluation.csv, useRMSE = T)
     plotGammaTaxonomyBasedFuzzification(df$onTaxonomyAltEvaluation.csv, useRMSE = F)
     
-    ##### Association Rules #####
-    ## Alt NNACC
-    df_rulesNNACC <- plotGammaRuleBasedFuzzification(df$onRulesAssociationsAltEvaluation.csv, useRMSE = F, returnDF = T)
-    df_rulesNNACC <- plotRuleBasedFuzzification(df_rulesNNACC, useRMSE = F, returnDF = T, bestAtp = 0.02)
-    selectorNNACC <- df_rulesNNACC %>% group_by(mode, method, p) %>% filter(p==0.02) %>% arrange(desc(lbnnacc)) %>% head(3)
-    selectedNNACC <- df$onRulesAssociationsAltEvaluation.csv %>% 
-        filter(code%in%selectorNNACC$code) %>%
-        select(-mode, -method, -threshold, -subparam)
-    selectedNNACC$mode <- selectedNNACC$code %>% str_replace("weightedLog2", "Gamma1")
-    selectedNNACC <- selectedNNACC %>% select(-code)
+    # On (user) taxonomy evaluation <0.2, 0.5, 0.8>
+    plotTaxonomyBasedFuzzification(df$onTaxonomyEvaluation.csv, useRMSE = T)
+    plotGammaTaxonomyBasedFuzzification(df$onTaxonomyEvaluation.csv, useRMSE = F)
     
-    ## Alt RMSE
-    df_rulesRMSE <- plotGammaRuleBasedFuzzification(df$onRulesAssociationsAltEvaluation.csv, useRMSE = T, returnDF = T)
-    df_rulesRMSE <- plotRuleBasedFuzzification(df_rulesRMSE, useRMSE = T, returnDF = T, bestAtp = 0.02)
-    selectorRMSE <- df_rulesRMSE %>% group_by(mode, method, p) %>% filter(p==0.02) %>% arrange(ubrmse) %>% head(3)
-    selectedRMSE <- df$onRulesAssociationsAltEvaluation.csv %>% 
-        filter(code%in%selectorRMSE$code) %>%
-        select(-mode, -method, -threshold, -subparam)
-    selectedRMSE$mode <- selectedRMSE$code %>% str_replace("weightedLog2", "Gamma1")
-    selectedRMSE <- selectedRMSE %>% select(-code)
+    ##### Association Rules #####
+    ## On alternative
+    selectedAltNNACC <- plotAllRuleBased(df$onRulesAssociationsAltEvaluation.csv, useRMSE = F, bestAtp = 0.02, selectHead = 50)
+    selectedAltRMSE <- plotAllRuleBased(df$onRulesAssociationsAltEvaluation.csv, useRMSE = T, bestAtp = 0.02, selectHead = 50)
+    
+    ## On <0.2,0.5,0.8>
+    selectedNNACC <- plotAllRuleBased(df$onRulesAssociationsEvaluation.csv, useRMSE = F, bestAtp = 0.02, selectHead = 50)
+    selectedRMSE <- plotAllRuleBased(df$onRulesAssociationsEvaluation.csv, useRMSE = T, bestAtp = 0.02, selectHead = 50)
     
     ##### Global ####
-    ## On user alt NNACC global
-    df$onGlobalNNACC <- bind_rows(selectedNNACC, df$onTaxonomyAltEvaluation.csv)
-    plotTaxonomyBasedFuzzification(df$onGlobalNNACC)
+    ## On user ALT Global
+    df$onGlobalAltNNACC <- bind_rows(selectedAltNNACC, df$onTaxonomyAltEvaluation.csv)
+    df$onGlobalAltRMSE <- bind_rows(selectedAltRMSE, df$onTaxonomyAltEvaluation.csv)
     
-    ## On user alt RMSE global
-    df$onGlobalRMSE <- bind_rows(selectedRMSE, df$onTaxonomyAltEvaluation.csv)
+    plotTaxonomyBasedFuzzification(df$onGlobalAltNNACC, useRMSE = F) 
+    plotTaxonomyBasedFuzzification(df$onGlobalAltRMSE, useRMSE = T)
+    
+    ## On user Global
+    df$onGlobalNNACC <- bind_rows(selectedNNACC, df$onTaxonomyEvaluation.csv)
+    df$onGlobalRMSE <- bind_rows(selectedRMSE, df$onTaxonomyEvaluation.csv)
+    
+    plotTaxonomyBasedFuzzification(df$onGlobalNNACC, useRMSE = F) 
     plotTaxonomyBasedFuzzification(df$onGlobalRMSE, useRMSE = T)
 }
     
