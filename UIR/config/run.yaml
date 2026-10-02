@@ -5,7 +5,7 @@ cv_path: Data - Collection/Final/resumes.json           # Path to learner profil
 job_path: Data - Collection/Final/jobs.json             # Path to job listings
 mastery_levels_path: Data - Collection/Final/mastery_levels.json  # Path to skill mastery levels
 results_path: UIR/results/preferences_v3_k                              # Directory for storing results_k
-name_exp: Employability                              # Branch name for organizing results
+name_exp: UIRbase                            # Branch name for organizing results
 pretrained_model_path: UIR/models_weights/preferences_v2/UIR-gap-based  # Path to pretrained model (if any)
 use_pretrained: false                                 # Whether to use a pretrained model from pretrained_model_path
 save_model: false                                     # Whether to save the trained model in save_dir/name_exp
@@ -22,15 +22,18 @@ nb_cvs: -1                                             # Number of learner profi
 max_cv_skills: 15                                      # Maximum number of skills per learner profile
 nb_jobs: 3587                                           # Number of jobs to include in the dataset
 set_dataset_seed: true
-dataset_seed: 42                                       # Set this seed in order not to have a variable dataset
+dataset_seed: 1092                                       # Set this seed in order not to have a variable dataset
 
 # Model Parameters
 threshold: 0.8                                         # Minimum matching threshold for job eligibility
 k: 3                                                   # Number of course recommendations to generate
 model: ppo_mask                                        # Reinforcement learning algorithm (dqn, ppo, a2c, ppo_mask) only ppo and ppo_mask are implemented well
-total_steps: 500000                                    # Total training steps
+total_steps: 20000                                    # Total training steps
 eval_freq: 2000                                        # Evaluation frequency during training
 seed: 1092                                             # Random seed for reproducibility of experiments
+fuzzyMode: 0
+evaluateCrispAsFuzzy: true
+crispAsFuzzyConvertor: {0: 0, 1: 0.3333333333333333, 2: 0.6666666666666667, 3: 1}
 
 # Model Configuration
 use_preference: true                                   # set to true if you want to use environment with preferences, false otherwise
