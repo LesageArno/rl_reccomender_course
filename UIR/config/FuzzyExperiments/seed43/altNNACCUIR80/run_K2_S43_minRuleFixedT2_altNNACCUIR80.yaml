@@ -1,27 +1,26 @@
 # Data Paths
-cv_path: Data - Collection/Final/resumes.json                             # Path to learner profiles
-course_path: Data - Collection/Final/courses.json                         # Path to course data
-job_path: Data - Collection/Final/jobs.json                               # Path to job listings
+cv_path: Data - Collection/Fuzzy/altNNACC/altNNACC_minFixedk2_fuzzy_resumes.json                       # Path to learner profiles
+course_path: Data - Collection/Fuzzy/altNNACC/altNNACC_fixed_fuzzy_courses.json                   # Path to course data
+job_path: Data - Collection/Fuzzy/altNNACC/altNNACC_fixed_fuzzy_jobs.json                         # Path to job listings
 
-mastery_levels_path: Data - Collection/Final/mastery_levels.json          # Path to skill mastery levels
+mastery_levels_path: Data - Collection/Fuzzy/alt_fuzzy_mastery_levels.json    # Path to skill mastery levels
 taxonomy_path: Taxonomy/taxonomy.csv                                          # Path to skill taxonomy data
 
 # Results
 results_path: UIR/resultsFuzzy/preferences_v3_k                               # Directory for storing results_k
 
 # Parameters
-k: 3                                                                          # Number of course recommendations to generate
-seed: 42                                                                      # Random seed for reproducibility of experiments
-dataset_seed: 42                                                              # Set this seed in order not to have a variable dataset
-name_exp: altNNACCUIR80_crisp                                                      # Branch name for organizing results
+k: 2                                                                          # Number of course recommendations to generate
+seed: 43                                                                      # Random seed for reproducibility of experiments
+dataset_seed: 43                                                              # Set this seed in order not to have a variable dataset
+name_exp: altNNACCUIR80_minRuleFixedT2                                                      # Branch name for organizing results
 feature: "UIR"                                                                # feature to use as reward ("Employability" or "UIR" or "EUIR")
 use_numba: true
 
 # Mode for fuzzy logic 
-fuzzyMode: 0                                                                  # 0 Crisp, 1 Fuzzy Set, 2 Fuzzy Set Type II
+fuzzyMode: 1                                                                  # 0 Crisp, 1 Fuzzy Set, 2 Fuzzy Set Type II
 fuzzyThreshold: 0.8                                                           # (used for fuzzy 2) Threshold used to say that a course fit a requirement
 threshold: 0.8                                                                # (used for fuzzy 0 and 1) Minimum matching threshold for job eligibility
-evaluateCrispAsFuzzy: true                                                    # (used whenever fuzzyMode = 0). If active, some correction to the result will be applied to ensure fair comparison with fuzzy systems
 
 # When generating random person, what should we do about confidence if fuzzy II (all dispersion for simplicity)
 default_leftConfidence_courseReq: 0                                           # degen: 0, fixed: 0.1, RMSE: 0.279712, minGamma1: 0.279712
