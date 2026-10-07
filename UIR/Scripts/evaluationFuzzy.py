@@ -13,10 +13,10 @@ import seaborn as sns
 import time
 
 # Should we display the plot at runtime
-SHOW = False
+SHOW = True
 
 # If true, does not plot anything, just get the dataframe, otherwise get the plots
-RETURN_DF = True
+RETURN_DF = False
 
 # Headers of the "headerless" txt (tsv) files  
 COLS = ["Iteration", "Average jobs", "Average reward", "Average goal gap", "Average pref cov", "Average total levels req", "Average skills req unique", "Average skills fully covered", "Average skills missing unique", "Time"]
@@ -27,7 +27,7 @@ COLS = ["Iteration", "Average jobs", "Average reward", "Average goal gap", "Aver
 EVALUATE_ON = ["Average jobs", "Average reward", "Average goal gap", "Average pref cov", "Average total levels req", "Average skills req unique", "Average skills fully covered", "Average skills missing unique", "Time"]
 
 # Type of metric being maximised
-METRIC = "UIR100" #UIR or Employability or MUIR or UIR80 or UIR100 or altUIR100 or altUIR80
+METRIC = "altNNACCUIR80" #UIR or Employability or MUIR or UIR80 or UIR100 or altUIR100 or altUIR80 or altNNACCUIR80
 
 # Get working directory and extraction path
 ROOT_PATH = Path(os.getcwd())

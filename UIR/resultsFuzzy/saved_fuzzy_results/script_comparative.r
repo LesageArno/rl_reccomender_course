@@ -36,8 +36,15 @@ lboot <- function(df, metric, criterion, n=1000) {
                 # Select the rows possessing the specified method, metric, k and iteration over the defined criterion
                 action <- as.vector(df %>% filter(Method==method, Metric==metric, k==repetition, Iteration==iteration) %>% select(as.symbol(criterion)))[[1]]
                 
+                # If no action was found (missing method for example), then continue
+                if (length(action) == 0) {
+                    l[[i]] <- list(Metric=metric, Method=method, k=repetition, Iteration=iteration, avg=NA, lower=NA, upper=NA)
+                    i <- i+1 #Keep consistent size
+                    next
+                }
+                
                 # Compute bootstrap error margin at 95%, store the results and continue
-                ci <- boot.ci(boot(action, boot.mean, R=n), type="perc")
+                ci <- tryCatch({boot.ci(boot(action, boot.mean, R=n), type="perc")}, error = function(cond) {print(paste(method, metric, repetition, iteration, criterion))})
                 l[[i]] <- list(Metric=metric, Method=method, k=repetition, Iteration=iteration, avg=mean(action), lower=ci$percent[4], upper=ci$percent[5])
                 i <- i+1
                 
@@ -56,16 +63,16 @@ lboot <- function(df, metric, criterion, n=1000) {
 }
 
 # Function to plot the results
-plotResults <- function(df, metric_vec, k_, title = "avg") {
+plotResults <- function(df, metric_vec, title = "avg") {
     ggplotly(
         ggplot(
-            avgJobDf %>% filter(Metric %in% metric_vec),
-            aes(x=Iteration, ymin=lower, ymax=upper)
+            avgJobDf %>% filter(Metric %in% metric_vec) %>% na.omit(),
+            aes(x=Iteration, ymin=lower, ymax=upper, fill = Method, colour = Method)
         ) +
             geom_ribbon(aes(fill=Method), alpha=0.6) +
-            geom_line(aes(y=avg, colour=Method), linewidth=1.2) +
-            geom_line(aes(y=upper, colour=Method)) +
-            geom_line(aes(y=lower, colour=Method)) +
+            geom_line(aes(y=avg), linewidth=1.2) +
+            geom_line(aes(y=upper)) +
+            geom_line(aes(y=lower)) +
             facet_grid(rows = vars(k), cols = vars(Metric), scales = "free_y") +
             ggtitle(title)
     )
@@ -82,7 +89,8 @@ if (sys.nframe() == 0){
         lboot(df, "UIR80", "Average.jobs", n=1000),
         lboot(df, "UIR100", "Average.jobs", n=1000),
         lboot(df, "altUIR80", "Average.jobs", n=1000),
-        lboot(df, "altUIR100", "Average.jobs", n=1000)
+        lboot(df, "altUIR100", "Average.jobs", n=1000),
+        lboot(df, "altNNACCUIR80", "Average.jobs", n=1000)
     ))
     
     # Get for the average reward
@@ -90,15 +98,31 @@ if (sys.nframe() == 0){
         lboot(df, "UIR80", "Average.reward", n=1000),
         lboot(df, "UIR100", "Average.reward", n=1000),
         lboot(df, "altUIR80", "Average.reward", n=1000),
-        lboot(df, "altUIR100", "Average.reward", n=1000)
+        lboot(df, "altUIR100", "Average.reward", n=1000),
+        lboot(df, "altNNACCUIR80", "Average.reward", n=1000)
+    ))
+    
+    # Get for the average preference coverage
+    avgPrefCoverageDf <- dplyr::bind_rows(list(
+        lboot(df, "UIR80", "Average.pref.cov", n=1000),
+        lboot(df, "UIR100", "Average.pref.cov", n=1000),
+        lboot(df, "altUIR80", "Average.pref.cov", n=1000),
+        lboot(df, "altUIR100", "Average.pref.cov", n=1000),
+        lboot(df, "altNNACCUIR80", "Average.pref.cov", n=1000)
     ))
      
-    # For Opened Job
-    plotResults(avgJobDf, c("altUIR80", "UIR80"), 2, "Average Opened Job UIR80")
-    plotResults(avgRewardDf, c("altUIR80", "UIR80"), 2, "Average Reward UIR80")
+    # For UIR80
+    plotResults(avgJobDf, c("altUIR80", "UIR80"), "Average Opened Job UIR80")
+    plotResults(avgRewardDf, c("altUIR80", "UIR80"), "Average Reward UIR80")
+    plotResults(avgPrefCoverageDf, c("altUIR80", "UIR80"), "Average Pref Coverage UIR80")
     
-    # For Reward
+    plotResults(avgJobDf, c("altNNACCUIR80"), "Average Opened Job altNNACCUIR80")
+    plotResults(avgRewardDf, c("altNNACCUIR80"), "Average Reward altNNACCUIR80")
+    plotResults(avgPrefCoverageDf, c("altNNACCUIR80"), "Average Pref Coverage altNNACCUIR80")
+    
+    # For UIR100
     plotResults(avgJobDf, c("altUIR100", "UIR100"), 2, "Average Opened Job UIR100")
     plotResults(avgRewardDf, c("altUIR100", "UIR100"), 2, "Average Reward Job UIR100")
+    plotResults(avgPrefCoverageDf, c("altUIR100", "UIR100"), "Average Pref Coverage UIR100")
 }
 
