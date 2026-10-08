@@ -32,6 +32,8 @@ total_steps: 20000                                    # Total training steps
 eval_freq: 2000                                        # Evaluation frequency during training
 seed: 1092                                             # Random seed for reproducibility of experiments
 fuzzyMode: 0
+trainProportion: 0.7
+syntheticTrainingProportion: 1
 
 # Model Configuration
 use_preference: true                                   # set to true if you want to use environment with preferences, false otherwise

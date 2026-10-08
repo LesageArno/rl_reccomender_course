@@ -67,17 +67,21 @@ class Reinforce:
         if self.feature in {"UIR", "EUIR"} and self.method not in (0, 1):
             raise ValueError("method must be 0 (threshold) or 1 (gap) when feature is UIR/EUIR")
 
-
-
+        # Get Train/test Split
+        train_dataset, eval_dataset = dataset.get_trainTestSplit(
+            trainProportion = self.config.get("trainProportion", None),
+            syntheticTrainingProportion = self.config.get("syntheticTrainingProportion", None)
+        )
+        
         # Create training and evaluation environments
         self.train_env = CourseRecEnv(
-            dataset,
+            train_dataset,
             config=self.config,
             k=self.k,
             fuzzyMode=self.config.get("fuzzyMode", 0),
         )
         self.eval_env = CourseRecEnv(
-            dataset,
+            eval_dataset,
             config=self.config,
             k=self.k,
             fuzzyMode = self.config.get("fuzzyMode", 0),

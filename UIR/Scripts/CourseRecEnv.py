@@ -520,11 +520,22 @@ class CourseRecEnv(gym.Env):
         super().reset(seed=seed)
         if learner is None and options is not None:
             learner = options["learner"]
-
         if learner is not None:
             self._agent_skills = learner
         else:
-            self._agent_skills = self.get_random_learner()
+            # If learner is not provided, that not training proportion is declared and that non synthetic proportion is declared, then get fully random
+            if self.dataset.trainProportion is None or self.dataset.syntheticTrainingProportion is None:
+                self._agent_skills = self.get_random_learner()
+            
+            # If all proportions are declared, then proceed as following
+            else:
+                # Take random learner syntheticTrainingProportion of the time, a random real user the remaining part of the time
+                if self.dataset.rng.random() < self.dataset.syntheticTrainingProportion: 
+                    self._agent_skills = self.get_random_learner()
+                else:
+                    agentIndex = self.dataset.rng.randrange(0, self.dataset.learners.shape[0]) # random.randrange for strict upper bound (yes dataset is using random module and not np.random)
+                    self._agent_skills = self.dataset.learners[agentIndex,:]
+                
         self.nb_recommendations = 0
         #self.rng = np.random.default_rng(self.seed)
 

@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 
 from collections import defaultdict
+from copy import deepcopy
 
 from . import matchings
 import torch
@@ -44,7 +45,9 @@ class Dataset:
         if self.config.get("set_dataset_seed", False):
             self.seed = self.config.get("dataset_seed", 42)
         self.fuzzyMode = self.config.get("fuzzyMode", 0)
-
+        self.trainProportion = self.config.get("trainProportion", None)
+        self.syntheticTrainingProportion = self.config.get("syntheticTrainingProportion", None)
+        
         self.load_data()
         self.get_jobs_inverted_index()
 
@@ -532,6 +535,65 @@ class Dataset:
         # Missing skill <=> required level > learner level
         return job_skills > learner
 
+    def get_trainTestSplit(self, trainProportion:float = None, syntheticTrainingProportion:float = None) -> tuple["Dataset", "Dataset"]:
+        """Function to generate a train test split of training proportion `trainProportion`. If `None`, the training set is not used as training but as evaluation only, random samples are used in training instead. 
+        If the training proportion is between 0 and 1, then the `syntheticTrainingProportion` is used. This proportion define how frequent are random samples used during training. If set to `None`, then only synthetic data
+        are used for training as well. 
+
+        Returns:
+            tuple[Dataset, Dataset]: The training and test set.
+        """
+        
+        # Generate the training set and the test set
+        train_data = deepcopy(self)
+        test_data = deepcopy(self)
+        
+        
+        # If trainProportion is None, then, we consider the training to use synthetic data only and the evaluation to use real cvs only
+        if trainProportion is None or syntheticTrainingProportion is None:
+            return (train_data, test_data)
+
+        # If we use a proportion, then compute the number of cvs in the training set
+        nTraining = (self.learners.shape[0]*trainProportion).__floor__()
+        
+        # If the training set is empty, use synthetic data only
+        if nTraining == 0:
+            return (train_data, test_data)
+
+        # Otherwise, use training data
+        initial_index = {k for k in self.learners_index.keys() if isinstance(k, int)} # Check with int because it is a bidirectional dict
+        train_index = set(map(int, self.rng.sample(list(initial_index), nTraining))) # Random.sample has replace=False builtin
+        test_index = initial_index.difference(train_index)
+        
+        # Compute the new learners index and reindex
+        learners_train_index = {k:v for k,v in self.learners_index.items() if k in train_index}
+        learners_test_index = {k:v for k,v in self.learners_index.items() if k in test_index}
+        
+        # Compute training and test learners
+        learners_train = self.learners[list(train_index),:]
+        learners_test = self.learners[list(test_index),:]
+        
+        # Reindex
+        learners_train_index = {k:v for k,v in enumerate(learners_train_index.values())}
+        learners_train_index |= {v:k for k,v in learners_train_index.items()}
+        learners_test_index = {k:v for k,v in enumerate(learners_test_index.values())}
+        learners_test_index |= {v:k for k,v in learners_test_index.items()}
+
+        # Fill the training set
+        train_data.learners = learners_train
+        train_data.learners_index = learners_train_index
+        train_data.trainProportion = trainProportion
+        train_data.syntheticTrainingProportion = syntheticTrainingProportion
+        
+        # Fill the test set
+        test_data.learners = learners_test
+        test_data.learners_index = learners_test_index
+        
+        # Return the instance
+        return (train_data, test_data)
+
+        
+    
 # NOT USED IN FUZZY II
 @njit(cache=True)
 def _nb_applicable_jobs_numba(learner: np.ndarray, jobs: np.ndarray, threshold: float) -> int:
