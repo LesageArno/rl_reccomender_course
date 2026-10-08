@@ -44,7 +44,6 @@ class Dataset:
         if self.config.get("set_dataset_seed", False):
             self.seed = self.config.get("dataset_seed", 42)
         self.fuzzyMode = self.config.get("fuzzyMode", 0)
-        self.evaluateCrispAsFuzzy = self.config.get("evaluateCrispAsFuzzy", False)
 
         self.load_data()
         self.get_jobs_inverted_index()

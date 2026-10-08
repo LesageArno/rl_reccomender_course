@@ -32,8 +32,6 @@ total_steps: 20000                                    # Total training steps
 eval_freq: 2000                                        # Evaluation frequency during training
 seed: 1092                                             # Random seed for reproducibility of experiments
 fuzzyMode: 0
-evaluateCrispAsFuzzy: true
-crispAsFuzzyConvertor: {0: 0, 1: 0.3333333333333333, 2: 0.6666666666666667, 3: 1}
 
 # Model Configuration
 use_preference: true                                   # set to true if you want to use environment with preferences, false otherwise

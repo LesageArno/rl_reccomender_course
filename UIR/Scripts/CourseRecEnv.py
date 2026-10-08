@@ -64,7 +64,7 @@ class CourseRecEnv(gym.Env):
     # VERIFIED (dependencies: None)
     # NON CRITICAL TO CHECK: Try to fuzzify the observation space as well
     # ATTRIBUTES DEPENDENCIES: config [feature, method, (fuzzy)threshold, seed, use_preference], dataset.jobs, dataset.courses, fuzzyMode, dataset.skills, dataset.mastery_levels, dataset.learners
-    def __init__(self, dataset, config, k=3, fuzzyMode:int=0, evaluateCrispAsFuzzy:bool=False):
+    def __init__(self, dataset, config, k=3, fuzzyMode:int=0):
         """Initialize the course recommendation environment.
 
         Args:
@@ -75,9 +75,6 @@ class CourseRecEnv(gym.Env):
         # Get configurations
         self.config = config
         self.fuzzyMode = fuzzyMode
-        self.evaluateCrispAsFuzzy = evaluateCrispAsFuzzy
-        self.crispAsFuzzyConvertor = config.get("crispAsFuzzyConvertor", None)
-        self.fairEvaluationMode = False
         self.feature = config.get("feature", "UIR")
         self.baseline = self.feature == "Employability"
         self.method = config.get("method", 1)
@@ -248,7 +245,7 @@ class CourseRecEnv(gym.Env):
     # NON CRITICAL TO CHECK: Maybe we can make more informations available for fuzzy II
     # CRITICAL TO CHECK: Threshold should make the difference between normal and fuzzy, even though there is not any impact for now
     # ATTRIBUTES DEPENDENCIES: threshold, jobs_goal
-    def get_info(self, evaluationMode:bool=False):
+    def get_info(self):
         """Get additional information about the current state.
 
         Returns:
@@ -263,19 +260,11 @@ class CourseRecEnv(gym.Env):
         """
         learner = self._agent_skills
         
-        # For evaluation
-        useFuzzyFairEval = evaluationMode and self.fuzzyMode == 0 and self.evaluateCrispAsFuzzy
-        
-        # If we use fair evaluation, then we fuzzify the learner
-        if useFuzzyFairEval:
-            instantFuzzify = np.vectorize(lambda x: self.crispAsFuzzyConvertor.get(x,x), otypes=[np.float32])
-            learner = instantFuzzify(learner)
-        
         # Employability on goal set
         employability_goal = self.dataset.get_nb_applicable_jobs(
             learner, 
             threshold=self.threshold if self.fuzzyMode < 2 else self.fuzzyThreshold, 
-            jobs=self.jobs_goal if not useFuzzyFairEval else instantFuzzify(self.jobs_goal)
+            jobs=self.jobs_goal
         )
             
         # Total skill gap on goal set (sum of missing levels)
@@ -284,10 +273,7 @@ class CourseRecEnv(gym.Env):
         # required_levels = self.jobs_goal.sum(axis=0).clip(0, 3)
         ## New Version (I do not know why clipping)
         if self.fuzzyMode == 0:
-            if not useFuzzyFairEval:
-                required_levels = self.jobs_goal.sum(axis=0).clip(0,3)
-            else:
-                required_levels = instantFuzzify(self.jobs_goal).sum(axis=0).clip(0,1)
+            required_levels = self.jobs_goal.sum(axis=0).clip(0,3)
         if self.fuzzyMode == 1:
             required_levels = self.jobs_goal.sum(axis=0).clip(0,1)
         
@@ -299,15 +285,15 @@ class CourseRecEnv(gym.Env):
             levels_missing = (required_levels - covered_levels)
 
             # Total gap is the sum of levels still missing to reach the required profile
-            if self.fuzzyMode == 0 and not useFuzzyFairEval:
+            if self.fuzzyMode == 0:
                 goal_gap_total = int(levels_missing.sum())
-            elif self.fuzzyMode == 1 or useFuzzyFairEval:
+            elif self.fuzzyMode == 1:
                 goal_gap_total = levels_missing.sum()
             
             # Total number of skill levels involved in the goal
-            if self.fuzzyMode == 0 and not useFuzzyFairEval:
+            if self.fuzzyMode == 0:
                 total_skill_levels_required = int(required_levels.sum())
-            elif self.fuzzyMode == 1 or useFuzzyFairEval:
+            elif self.fuzzyMode == 1:
                 total_skill_levels_required = required_levels.sum()
                 
             # Count of unique skills involved in the goal
@@ -947,16 +933,6 @@ class CourseRecEnv(gym.Env):
         """
         course = self.courses[action]
         learner = self._agent_skills
-
-        # For evaluation
-        if self.fairEvaluationMode:
-            instantFuzzifier = np.vectorize(lambda x: self.crispAsFuzzyConvertor.get(x,x), otypes=[np.float32])
-            learner = instantFuzzifier(learner)
-            course = instantFuzzifier(course)
-            _agent_skills_backup = self._agent_skills 
-            self._agent_skills = instantFuzzifier(self._agent_skills)
-            jobs_goal_backup = self.jobs_goal
-            self.jobs_goal = instantFuzzifier(self.jobs_goal)
         
         # Skip-expertise case: use new metrics and utility
         if self.fuzzyMode < 2:
@@ -995,9 +971,6 @@ class CourseRecEnv(gym.Env):
             (self.fuzzyMode < 2 and (provided_matching == 1.0 or required_matching < self.threshold)) or
             (self.fuzzyMode == 2 and (provided_matching == 1.0 or required_matching < self.fuzzyThreshold))
         ):
-            if self.fairEvaluationMode:
-                self.jobs_goal = jobs_goal_backup
-                self._agent_skills = _agent_skills_backup
             observation = self.get_obs()
             reward = -1
             terminated = True
@@ -1036,19 +1009,9 @@ class CourseRecEnv(gym.Env):
                 # DO NOT REMOVE INVERTED INCLUSION DEGREE HERE. IT IS CORRECT USE
                 improved = f2A.InvertedInclusionDegree(np.expand_dims(learner, axis=0), f2A.TrianglesToRamps(self._agent_skills, inverted=True))[0] >= self.fuzzyThreshold
                 self.covered_want = np.maximum(self.covered_want, np.minimum(improved, self._want))
-
-            if self.fairEvaluationMode:
-                # Get back jobs goal
-                self.jobs_goal = jobs_goal_backup
-                
-                # Get back agent skills
-                values = np.array(list(self.crispAsFuzzyConvertor.values()), dtype=np.float32)
-                keys = np.array(list(self.crispAsFuzzyConvertor.keys()))
-                idx = np.abs(self._agent_skills[:, None] - values).argmin(axis=1)
-                self._agent_skills = keys[idx]
             
             observation = self.get_obs()
-            info = self.get_info(evaluationMode=self.fairEvaluationMode)
+            info = self.get_info()
             info["utility"] = utility
 
             if self.feature in ["UIR", "MUIR"]:
@@ -1080,7 +1043,7 @@ class EvaluateCallback(BaseCallback):
 
     # VERIFIED (dependencies: None)
     # ATTRIBUTES DEPENDENCIES: None
-    def __init__(self, eval_env, eval_freq, all_results_filename, fuzzyMode=0, evaluateCrispAsFuzzy=False, crispAsFuzzyConvertor=None, verbose=1):
+    def __init__(self, eval_env, eval_freq, all_results_filename, fuzzyMode=0, verbose=1):
         """Initialize the evaluation callback.
 
         Args:
@@ -1094,8 +1057,7 @@ class EvaluateCallback(BaseCallback):
         self.eval_freq = eval_freq
         self.all_results_filename = all_results_filename
         self.fuzzyMode = fuzzyMode
-        self.evaluateCrispAsFuzzy = evaluateCrispAsFuzzy
-        self.crispAsFuzzyConvertor = crispAsFuzzyConvertor
+
         self.mode = "w"
 
         self._anneal_done = False  # run-once switch
@@ -1175,7 +1137,7 @@ class EvaluateCallback(BaseCallback):
                     self.eval_env.reset(options={"learner": learner})  # Reset environment with current learner
 
                 done = False  # Flag to control evaluation episode
-                tmp_avg_jobs = self.eval_env.unwrapped.get_info(evaluationMode=True)["nb_applicable_jobs"]  # Initial jobs applicable without any recommendations
+                tmp_avg_jobs = self.eval_env.unwrapped.get_info()["nb_applicable_jobs"]  # Initial jobs applicable without any recommendations
                 tmp_avg_reward = 0
                 tmp_goal_gap = 0
                 tmp_pref_cov = 0.0
@@ -1195,23 +1157,13 @@ class EvaluateCallback(BaseCallback):
                     else:
                         action, _state = self.model.predict(obs, deterministic=True)  # Predict action using current policy
                     # obs = self.eval_env.get_obs()  # Get current observation (learner's skills)
-
-                    # For fair evaluation mode
-                    fairEvaluationMode = False
-                    if self.fuzzyMode == 0 and self.evaluateCrispAsFuzzy:
-                        fairEvaluationMode = True
-                    self.eval_env.unwrapped.fairEvaluationMode = fairEvaluationMode
                     
                     obs, reward, terminated, truncated, info = self.eval_env.step(action)  # Step in environment
                     done = terminated or truncated  # Properly compute done flag
-
-                    # Reset evaluation mode
-                    self.eval_env.unwrapped.fairEvaluationMode = False
                     
                     # Only update if the recommendation was valid and use nb_applicable_jobs
                     if reward != -1:
                         tmp_avg_jobs = info["nb_applicable_jobs"]
-
                     tmp_avg_reward = reward
                     
                     if done:

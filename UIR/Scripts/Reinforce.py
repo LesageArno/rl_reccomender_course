@@ -75,14 +75,12 @@ class Reinforce:
             config=self.config,
             k=self.k,
             fuzzyMode=self.config.get("fuzzyMode", 0),
-            evaluateCrispAsFuzzy=False # We set to false so that the crisp are not influenced by fuzzy at training
         )
         self.eval_env = CourseRecEnv(
             dataset,
             config=self.config,
             k=self.k,
             fuzzyMode = self.config.get("fuzzyMode", 0),
-            evaluateCrispAsFuzzy=self.config.get("evaluateCrispAsFuzzy", False) # If evaluate as fuzzy, crisp will be converted into fuzzy for evaluation
         )
 
         # Mask unavailable actions when using maskable PPO
@@ -103,9 +101,7 @@ class Reinforce:
             self.eval_env,
             eval_freq=self.eval_freq,
             fuzzyMode=self.config.get("fuzzyMode", 0),
-            evaluateCrispAsFuzzy=self.eval_env.evaluateCrispAsFuzzy,
-            crispAsFuzzyConvertor=self.config.get("crispAsFuzzyConvertor", None),
-            all_results_filename=self.all_results_filename,
+            all_results_filename=self.all_results_filename
         )
 
     # INNER OF THE MODEL, NOT VERIFIED (cannot act there)
