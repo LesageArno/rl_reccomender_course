@@ -384,20 +384,24 @@ if __name__ == "__main__":
         fuzzyMasteryLevelsAlt = json.load(file)
     with open("data/resumes.json") as file: 
         resumes = json.load(file)
+    with open("data/resumes_train.json") as file:
+        resumes_train = json.load(file)
     with open("data/jobs.json") as file:
         jobs = json.load(file)
     with open("data/courses.json") as file:
         courses = json.load(file)
     
     # Whether to use alternative default or not
-    USE_ALT = True
+    USE_ALT = False
     
     # Get taxonomy
     taxonomy = pd.read_csv("data/taxonomy.csv")
     
     # Initialise for resumes
     fuzzyResumeEval = FuzzyResumeEvaluator(fuzzyMasteryLevels if not USE_ALT else fuzzyMasteryLevelsAlt, taxonomy, LEVEL_COLS, "unique_id")
+    fuzzyResumePlusTrainingEval = FuzzyResumeEvaluator(fuzzyMasteryLevels if not USE_ALT else fuzzyMasteryLevelsAlt, taxonomy, LEVEL_COLS, "unique_id")
     fuzzyResumeEval.loadResume(resumes)
+    fuzzyResumePlusTrainingEval.loadResume(resumes_train)
     
     # Initialise for jobs
     fuzzyJobEval = FuzzyResumeEvaluator(fuzzyMasteryLevels if not USE_ALT else fuzzyMasteryLevelsAlt, taxonomy, LEVEL_COLS, "unique_id")
@@ -414,59 +418,82 @@ if __name__ == "__main__":
     
     #### RESUME EVALUATION
     # Eval for fixed (default levels)
-    # fuzzyResumeEval.evaluateOnFixed(P,seeds=list(range(N)))
+    # fuzzyResumeEval.evaluateOnFixed(P,seeds=list(range(N)), outPath="out/onFixedEvaluation2.csv")
     # Alternative Levels
-    #fuzzyResumeEval.evaluateOnFixed(P, seeds=list(range(N)), unknownDefault=0.6666666666666667, outPath="out/onFixedAltEvaluation2.csv")
+    # fuzzyResumeEval.evaluateOnFixed(P, seeds=list(range(N)), unknownDefault=0.6666666666666667, outPath="out/onFixedAltEvaluation2.csv")
+    # Alternative Levels + training
+    # fuzzyResumePlusTrainingEval.evaluateOnFixed(P, seeds=list(range(N)), unknownDefault=0.3333333333333333, outPath="out/onFixedAltTrainEvaluation.csv")
     
     # Uncomment for taxonomy
-    #fuzzyResumeEval.evaluateOnTaxonomy(modes=modes, P=P, seeds=list(range(N)), gamma=gamma)
+    # fuzzyResumeEval.evaluateOnTaxonomy(modes=modes, P=P, seeds=list(range(N)), gamma=gamma, outPath="out/onTaxonomyEvaluation2.csv")
     
     # Uncomment for taxonomy on alternative levels
     # fuzzyResumeEval.evaluateOnTaxonomy(modes=modes, P=P, seeds=list(range(N)), gamma=gamma, outPath="out/onTaxonomyAltEvaluation2.csv")
     
+    # With Training over alternative
+    fuzzyResumePlusTrainingEval.evaluateOnTaxonomy(modes=modes, P=P, seeds=list(range(N)), gamma=gamma, outPath="out/onTaxonomyAltTrainEvaluation.csv")
+    
     # Uncomment for association rules
-    #fuzzyResumeEval.evaluateOnRulesAssociations(
-    #    modes=["crisp","min","weighted"],
-    #    P = np.arange(0.02,1.01,0.02),
-    #    seeds=list(range(10)),
-    #    thresholds=list(range(1,16)),
-    #    lastUnknownFill = {
-    #        "Fixed":None
-    #        #"weightedLog2":{"gamma":1},
-    #        #"log2":None,
-    #        #"linear":None
-    #    }
-    #)
+    # fuzzyResumeEval.evaluateOnRulesAssociations(
+    #     modes=["second"],#,"min","weighted"], #["second","min","weighted"]
+    #     P = np.arange(0.02,1.01,0.02),
+    #     seeds=list(range(10)),
+    #     thresholds=list(range(1,16)),
+    #     lastUnknownFill = {
+    #        "Fixed":None,
+    #        "weightedLog2":{"gamma":1},
+    #        "log2":None,
+    #        "linear":None
+    #     },
+    #     outPath="out/onRulesAssociationsEvaluation2_crisp.csv"
+    # )
     
     # Uncomment for association rules with alternative defaults
     # fuzzyResumeEval.evaluateOnRulesAssociations(
-    #    modes=["crisp","min","weighted"], # ["crisp","min","weighted"]
-    #    P = np.arange(0.02,1.01,0.02),
-    #    seeds=list(range(10)),
-    #    thresholds=list(range(1,16)),
-    #        lastUnknownFill = {
-    #            "Fixed":None,
-    #            "weightedLog2":{"gamma":1},
-    #            "log2":None,
-    #            "linear":None
-    #        },
-    #        outPath="out/onRulesAssociationsAltEvaluation2.csv"
-    #    )
+    #     modes=["second"], # ["second","min","weighted"]
+    #     P = np.arange(0.02,1.01,0.02),
+    #     seeds=list(range(10)),
+    #     thresholds=list(range(1,16)),
+    #     lastUnknownFill = {
+    #         "Fixed":None,
+    #         "weightedLog2":{"gamma":1},
+    #         "log2":None,
+    #         "linear":None
+    #     },
+    #     outPath="out/onRulesAssociationsAltEvaluation2_crisp.csv",
+    #     fixedUnknownDefault=0.6666666666666667
+    # )
+
+    # Uncomment for association rules with alternative default + training
+    # fuzzyResumePlusTrainingEval.evaluateOnRulesAssociations(
+    #     modes=["weighted"], # ["second","min","weighted"]
+    #     P = np.arange(0.02,1.01,0.02),
+    #     seeds=list(range(10)),
+    #     thresholds=list(range(1,16)),
+    #     lastUnknownFill = {
+    #         "Fixed":None,
+    #         "weightedLog2":{"gamma":1},
+    #         "log2":None,
+    #         "linear":None
+    #     },
+    #     outPath="out/onRulesAssociationsAltTrainEvaluation_weighted.csv",
+    #     fixedUnknownDefault=0.3333333333333333
+    # )
     
     #### JOB EVALUATION
     # Fixed only (default levels)
-    # fuzzyJobEval.evaluateOnFixed(P,seeds=list(range(N)), unknownDefault=0.8, outPath="out/onFixedJobEvaluation.csv")
+    # fuzzyJobEval.evaluateOnFixed(P,seeds=list(range(N)), unknownDefault=0.8, outPath="out/onFixedJobEvaluation2.csv")
     # Alternative Levels
     # fuzzyJobEval.evaluateOnFixed(P, seeds=list(range(N)), unknownDefault=1, outPath="out/onFixedAltJobEvaluation2.csv")
     
     #### COURSES EVALUATIONS
     ## Fixed only
     # For requirements (default levels)
-    #fuzzyCoursesRequirementEval.evaluateOnFixed(P, seeds=list(range(N)), unknownDefault=0.5, outPath="out/onFixedCoursesRequirements.csv")
+    # fuzzyCoursesRequirementEval.evaluateOnFixed(P, seeds=list(range(N)), unknownDefault=0.5, outPath="out/onFixedCoursesRequirements2.csv")
     # Alternative Levels
     # fuzzyCoursesRequirementEval.evaluateOnFixed(P, seeds=list(range(N)), unknownDefault=0.6666666666666667, outPath="out/onFixedAltCoursesRequirements2.csv")
 
     # For Acquirements
-    #fuzzyCoursesAcquirementsEval.evaluateOnFixed(P, seeds=list(range(N)), unknownDefault=0.5, outPath="out/onFixedCoursesAcquirements.csv")
+    # fuzzyCoursesAcquirementsEval.evaluateOnFixed(P, seeds=list(range(N)), unknownDefault=0.5, outPath="out/onFixedCoursesAcquirements2.csv")
     # Alternative levels
-    #fuzzyCoursesAcquirementsEval.evaluateOnFixed(P, seeds=list(range(N)), unknownDefault=0.6666666666666667, outPath="out/onFixedAltCoursesAcquirements2.csv")
+    # fuzzyCoursesAcquirementsEval.evaluateOnFixed(P, seeds=list(range(N)), unknownDefault=0.6666666666666667, outPath="out/onFixedAltCoursesAcquirements2.csv")

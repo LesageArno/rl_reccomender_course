@@ -258,6 +258,13 @@ if (sys.nframe() == 0){
         gammaVal = 1, baseMode = "weighted"
     )
     
+    ## Taxonomy AltTrain to include Gamma1 and Fixed
+    df$onTaxonomyAltTrainEvaluation.csv <- encodeGammaAsMode(bind_rows(
+        df$onFixedAltTrainEvaluation.csv, 
+        df$onTaxonomyAltTrainEvaluation.csv),
+        gammaVal = 1, baseMode = "weighted"
+    )
+    
     ## Add code to rule_based (Alt)
     df$onRulesAssociationsAltEvaluation.csv <- df$onRulesAssociationsAltEvaluation.csv %>%
         mutate(code=as.factor(paste0(mode,".",method,"_k",threshold)))
@@ -265,21 +272,33 @@ if (sys.nframe() == 0){
     ## Add code to rule_based
     df$onRulesAssociationsEvaluation.csv <- df$onRulesAssociationsEvaluation.csv %>%
         mutate(code=as.factor(paste0(mode,".",method,"_k",threshold)))
+    
+    ## Add code to rule_based (AltTrain)
+    df$onRulesAssociationsAltTrainEvaluation.csv <- df$onRulesAssociationsAltTrainEvaluation.csv %>%
+        mutate(code=as.factor(paste0(mode,".",method,"_k",threshold)))
         
     #### Plots ####
     ##### Taxonomy #####
     # On (user) taxonomy evaluation (alternative)
-    plotTaxonomyBasedFuzzification(df$onTaxonomyAltEvaluation.csv, useRMSE = T)
+    plotTaxonomyBasedFuzzification(df$onTaxonomyAltEvaluation.csv, useRMSE = F)
     plotGammaTaxonomyBasedFuzzification(df$onTaxonomyAltEvaluation.csv, useRMSE = F)
     
+    # On (user) taxonomy + train evaluation (alternative)
+    plotTaxonomyBasedFuzzification(df$onTaxonomyAltTrainEvaluation.csv, useRMSE = F)
+    plotGammaTaxonomyBasedFuzzification(df$onTaxonomyAltTrainEvaluation.csv, useRMSE = F)
+    
     # On (user) taxonomy evaluation <0.2, 0.5, 0.8>
-    plotTaxonomyBasedFuzzification(df$onTaxonomyEvaluation.csv, useRMSE = T)
+    plotTaxonomyBasedFuzzification(df$onTaxonomyEvaluation.csv, useRMSE = F)
     plotGammaTaxonomyBasedFuzzification(df$onTaxonomyEvaluation.csv, useRMSE = F)
     
     ##### Association Rules #####
     ## On alternative
     selectedAltNNACC <- plotAllRuleBased(df$onRulesAssociationsAltEvaluation.csv, useRMSE = F, bestAtp = 0.02, selectHead = 50)
     selectedAltRMSE <- plotAllRuleBased(df$onRulesAssociationsAltEvaluation.csv, useRMSE = T, bestAtp = 0.02, selectHead = 50)
+    
+    ## On alternative + train
+    selectedAltTrainNNACC <- plotAllRuleBased(df$onRulesAssociationsAltEvaluation.csv, useRMSE = F, bestAtp = 0.02, selectHead = 50)
+    selectedAltTrainRMSE <- plotAllRuleBased(df$onRulesAssociationsAltEvaluation.csv, useRMSE = T, bestAtp = 0.02, selectHead = 50)
     
     ## On <0.2,0.5,0.8>
     selectedNNACC <- plotAllRuleBased(df$onRulesAssociationsEvaluation.csv, useRMSE = F, bestAtp = 0.02, selectHead = 50)
@@ -299,6 +318,13 @@ if (sys.nframe() == 0){
     
     plotTaxonomyBasedFuzzification(df$onGlobalNNACC, useRMSE = F) 
     plotTaxonomyBasedFuzzification(df$onGlobalRMSE, useRMSE = T)
+    
+    ## On user Global Alt Train
+    df$onGlobalAltTrainNNACC <- bind_rows(selectedAltTrainNNACC, df$onTaxonomyAltTrainEvaluation.csv)
+    df$onGlobalAltTrainRMSE <- bind_rows(selectedAltTrainRMSE, df$onTaxonomyAltTrainEvaluation.csv)
+    
+    plotTaxonomyBasedFuzzification(df$onGlobalAltTrainNNACC, useRMSE = F) 
+    plotTaxonomyBasedFuzzification(df$onGlobalAltTrainRMSE, useRMSE = T)
 }
     
     
