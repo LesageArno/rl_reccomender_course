@@ -504,7 +504,7 @@ class CourseRecEnv(gym.Env):
 
     # VERIFIED (dependencies: get_random_learner, _sample_want(avoid)_random, build_goals_jobs_W1_hard, get_obs, get_info)
     # ATTRIBUTES DEPENDENCIES: fuzzyMode, nb_skills, config [numba]
-    def reset(self, seed=None, options=None, learner=None):
+    def reset(self, seed=None, options=None, learner=None, agentIndex=None):
         """Method required by the gym environment. It resets the environment to its initial state.
 
         Args:
@@ -544,9 +544,20 @@ class CourseRecEnv(gym.Env):
         if options is not None:
             want = options.get("want", None)
             avoid = options.get("avoid", None)
-
-        self._want = want if want is not None else self._sample_want_random()
-        self._avoid = avoid if avoid is not None else self._sample_avoid_random()
+        
+        # In evaluation, want and avoid are already passed
+        if want is not None and avoid is not None:
+            self._want = want
+            self._avoid = avoid
+        
+        # In training mode, check if the learner was generated or if the agent is real and does not need preference
+        elif agentIndex is not None and self.dataset.use_external_preferences:
+            self._want = self.dataset.learners_wants[agentIndex,:]
+            self._avoid = self.dataset.learners_avoids[agentIndex,:]
+        # Otherwise generate them on the fly
+        else:
+            self._want = self._sample_want_random()
+            self._avoid = self._sample_avoid_random()
 
         self.jobs_goal = self._build_goal_jobs_W1_hard()
         self.jobs_goal = np.ascontiguousarray(self.jobs_goal)  # For Numba in order to work faster
@@ -1138,11 +1149,16 @@ class EvaluateCallback(BaseCallback):
             avg_skills_missing_unique = 0                        # Accumulator for total number of SKILLS missing
 
             use_preference = self.eval_env.unwrapped.config.get("use_preference", True)
+            use_external_preference = self.eval_env.unwrapped.config.get("preferences_path", None) is not None
             
             # Loop through each learner in the evaluation dataset
             for learner_idx, learner in enumerate(self.eval_env.unwrapped.dataset.learners):
                 if use_preference:
-                    want, avoid = self.eval_env.unwrapped._eval_want_avoid(learner, learner_idx)
+                    if not use_external_preference:
+                        want, avoid = self.eval_env.unwrapped._eval_want_avoid(learner, learner_idx)
+                    else:
+                        want = self.eval_env.unwrapped.dataset.learners_wants[learner_idx,:]
+                        avoid = self.eval_env.unwrapped.dataset.learners_avoids[learner_idx,:]
                     self.eval_env.reset(options={"learner": learner, "want": want, "avoid": avoid})  # Reset environment with current learner
                 else:
                     self.eval_env.reset(options={"learner": learner})  # Reset environment with current learner

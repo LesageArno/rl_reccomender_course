@@ -4,6 +4,13 @@ course_path: Data - Collection/Final/courses.json       # Path to course data
 cv_path: Data - Collection/Final/resumes.json           # Path to learner profiles
 job_path: Data - Collection/Final/jobs.json             # Path to job listings
 mastery_levels_path: Data - Collection/Final/mastery_levels.json  # Path to skill mastery levels
+
+# Training Preference and Evaluation path
+training_path: Data - Collection/Final/resumes_train.json
+eval_path: Data - Collection/Final/resumes_eval.json
+preferences_path: Data - Collection/Final/preferencesLV3.json
+
+# Others
 results_path: UIR/results/preferences_v3_k                              # Directory for storing results_k
 name_exp: UIRbase                            # Branch name for organizing results
 pretrained_model_path: UIR/models_weights/preferences_v2/UIR-gap-based  # Path to pretrained model (if any)

@@ -68,10 +68,14 @@ class Reinforce:
             raise ValueError("method must be 0 (threshold) or 1 (gap) when feature is UIR/EUIR")
 
         # Get Train/test Split
-        train_dataset, eval_dataset = dataset.get_trainTestSplit(
-            trainProportion = self.config.get("trainProportion", None),
-            syntheticTrainingProportion = self.config.get("syntheticTrainingProportion", None)
-        )
+        if not dataset.use_external_training:
+            train_dataset, eval_dataset = dataset.get_trainTestSplit(
+                trainProportion = self.config.get("trainProportion", None),
+                syntheticTrainingProportion = self.config.get("syntheticTrainingProportion", None)
+            )
+        else:
+            train_dataset, eval_dataset = dataset.get_externalTrainTestSplit()
+        
         
         # Create training and evaluation environments
         self.train_env = CourseRecEnv(
@@ -80,6 +84,7 @@ class Reinforce:
             k=self.k,
             fuzzyMode=self.config.get("fuzzyMode", 0),
         )
+        
         self.eval_env = CourseRecEnv(
             eval_dataset,
             config=self.config,

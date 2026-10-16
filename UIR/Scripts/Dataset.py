@@ -48,6 +48,9 @@ class Dataset:
         self.trainProportion = self.config.get("trainProportion", None)
         self.syntheticTrainingProportion = self.config.get("syntheticTrainingProportion", None)
         
+        self.use_external_preferences = self.config.get("preferences_path", None) is not None
+        self.use_external_training = self.config.get("training_path", None) is not None
+        
         self.load_data()
         self.get_jobs_inverted_index()
 
@@ -71,6 +74,8 @@ class Dataset:
         self.load_skills()
         self.load_mastery_levels()
         self.load_learners()
+        if self.use_external_preferences:
+            self.load_external_preferences()
         self.load_jobs()
         self.load_courses()
         self.get_subsample()
@@ -213,9 +218,12 @@ class Dataset:
 
     # VERIFIED (dependencies: get_avg_skills [acquire])
     # ATTRIBUTES DEPENDENCIES: config [cv_path, max_cv_skills], skills, fuzzyMode
-    def load_learners(self, replace_unk=2):
+    def load_learners(self, replace_unk=1, learner_path:str = None):
         """Load and process learner profiles from the CV data."""
-        learners = json.load(open(self.config["cv_path"]))
+        if learner_path is None:
+            learners = json.load(open(self.config["cv_path"]))
+        else:
+            learners = json.load(open(learner_path))
         self.max_learner_skills = self.config["max_cv_skills"]
         self.learners_index = dict()
 
@@ -247,6 +255,23 @@ class Dataset:
 
         # Trim matrix to actual number of learners
         self.learners = self.learners[:index]
+
+    def load_external_preferences(self) -> None:
+        # Retrieve full preferences
+        preferences = json.load(open(self.config["preferences_path"]))
+        
+        # Prepare the set of learners want
+        self.learners_wants = np.zeros_like(self.learners)
+        self.learners_avoids = np.zeros_like(self.learners)
+        
+        # For each learner retrieve their preferences (negative: don't want, positive:want, neutral: don't care)
+        for learner, pref in preferences.items():
+            ind = self.learners_index.get(learner, None)
+            if ind is None:
+                continue
+            pref_arr = np.array(pref)
+            self.learners_wants[ind, :] = pref_arr[:,1] > 0
+            self.learners_avoids[ind, :] = pref_arr[:,1] < 0
 
     # VERIFIED (dependencies: get_avg_skills [require])
     # ATTRIBUTES DEPENDENCIES: config [job_path], fuzzyMode, skills
@@ -592,8 +617,23 @@ class Dataset:
         # Return the instance
         return (train_data, test_data)
 
+    def get_externalTrainTestSplit(self) -> tuple["Dataset", "Dataset"]:
+        # Generate the training set and the test set
+        train_data = deepcopy(self)
+        test_data = deepcopy(self)
         
-    
+        # Load learners
+        train_data.load_learners(learner_path=self.config["training_path"])
+        test_data.load_learners(learner_path=self.config["eval_path"])
+        
+        # Learners with external preferences
+        if self.use_external_preferences:
+            train_data.load_external_preferences()
+            test_data.load_external_preferences()
+        
+        # Return the training set and the test set
+        return train_data, test_data
+        
 # NOT USED IN FUZZY II
 @njit(cache=True)
 def _nb_applicable_jobs_numba(learner: np.ndarray, jobs: np.ndarray, threshold: float) -> int:
