@@ -40,7 +40,7 @@ eval_freq: 2000                                        # Evaluation frequency du
 seed: 1092                                             # Random seed for reproducibility of experiments
 fuzzyMode: 0
 trainProportion: 0.7
-syntheticTrainingProportion: 1
+syntheticTrainingProportion: 0.5
 
 # Model Configuration
 use_preference: true                                   # set to true if you want to use environment with preferences, false otherwise
