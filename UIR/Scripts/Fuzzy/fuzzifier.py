@@ -1033,258 +1033,370 @@ if __name__ == "__main__":
     #### WITH NNACC Alt + Training
     ### User Gamma 1
     ## Fuzzify training with weighted association rules (occurrences>=2), then Gamma 1 (ALT)
-    # with open("fuzzifiedData/trainFromNNACC/altNNACC_weightedGamma1c2_fuzzy_trainResumes.json", "w") as file:
-    #     json.dump(
-    #         fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
-    #             training_resumes, mode="associationRules", association="weighted", frequencyThreshold=2, loadARMatrix=False        
-    #         ), mode="weightedLog2", gamma=1), file, indent=4
-    #     )
+    with open("fuzzifiedData/trainFromAltNNACC/altNNACC_weightedGamma1c2_fuzzy_trainResumes.json", "w") as file:
+        json.dump(
+            fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                training_resumes, mode="associationRules", association="weighted", frequencyThreshold=2, loadARMatrix=False        
+            ), mode="weightedLog2", gamma=1), file, indent=4
+        )
     
-    # ## Fuzzify eval with weighted association rules (occurrences>=2), then Gamma 1 (ALT)
-    # with open("fuzzifiedData/evalFromNNACC/altNNACC_weightedGamma1c2_fuzzy_evalResumes.json", "w") as file:
-    #     json.dump(
-    #         fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
-    #             eval_resumes, mode="associationRules", association="weighted", frequencyThreshold=2, loadARMatrix=False        
-    #         ), mode="weightedLog2", gamma=1), file, indent=4
-    #     )
+    ## Fuzzify eval with weighted association rules (occurrences>=2), then Gamma 1 (ALT)
+    with open("fuzzifiedData/evalFromAltNNACC/altNNACC_weightedGamma1c2_fuzzy_evalResumes.json", "w") as file:
+        json.dump(
+            fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                eval_resumes, mode="associationRules", association="weighted", frequencyThreshold=2, loadARMatrix=False        
+            ), mode="weightedLog2", gamma=1), file, indent=4
+        )
     
-    # ## Fuzzify training with min association rules (occurrences>=2), then Gamma 1 (ALT)
-    # with open("fuzzifiedData/trainFromNNACC/altNNACC_minGamma1c2_fuzzy_trainResumes.json", "w") as file:
-    #     json.dump(
-    #         fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
-    #             training_resumes, mode="associationRules", association="min", frequencyThreshold=2, loadARMatrix=False        
-    #         ), mode="weightedLog2", gamma=1), file, indent=4
-    #     )
+    # Fuzzify training with weighted association rules (occurrences>=2), then Gamma 1 (ALT)
+    with open("fuzzifiedData/trainFromAltNNACC/altNNACC_weightedGamma1c1_fuzzy_trainResumes.json", "w") as file:
+        json.dump(
+            fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                training_resumes, mode="associationRules", association="weighted", frequencyThreshold=1, loadARMatrix=False        
+            ), mode="weightedLog2", gamma=1), file, indent=4
+        )
     
-    # ## Fuzzify eval with min association rules (occurrences>=2), then Gamma 1 (ALT)
-    # with open("fuzzifiedData/evalFromNNACC/altNNACC_minGamma1c2_fuzzy_evalResumes.json", "w") as file:
-    #     json.dump(
-    #         fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
-    #             eval_resumes, mode="associationRules", association="min", frequencyThreshold=2, loadARMatrix=False        
-    #         ), mode="weightedLog2", gamma=1), file, indent=4
-    #     )
+    ## Fuzzify eval with weighted association rules (occurrences>=1), then Gamma 1 (ALT)
+    with open("fuzzifiedData/evalFromAltNNACC/altNNACC_weightedGamma1c1_fuzzy_evalResumes.json", "w") as file:
+        json.dump(
+            fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                eval_resumes, mode="associationRules", association="weighted", frequencyThreshold=1, loadARMatrix=False        
+            ), mode="weightedLog2", gamma=1), file, indent=4
+        )
     
-    # ## Fuzzify training with second association rules (occurrences>=2), then Gamma 1 (ALT)
-    # with open("fuzzifiedData/evalFromNNACC/altNNACC_secondGamma1c2_fuzzy_trainResumes.json", "w") as file:
-    #     json.dump(
-    #         fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
-    #             training_resumes, mode="associationRules", association="second", frequencyThreshold=2, loadARMatrix=False        
-    #         ), mode="weightedLog2", gamma=1), file, indent=4
-    #     )
+    ## Fuzzify training with min association rules (occurrences>=2), then Gamma 1 (ALT)
+    with open("fuzzifiedData/trainFromAltNNACC/altNNACC_minGamma1c2_fuzzy_trainResumes.json", "w") as file:
+        json.dump(
+            fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                training_resumes, mode="associationRules", association="min", frequencyThreshold=2, loadARMatrix=False        
+            ), mode="weightedLog2", gamma=1), file, indent=4
+        )
+    
+    ## Fuzzify eval with min association rules (occurrences>=2), then Gamma 1 (ALT)
+    with open("fuzzifiedData/evalFromAltNNACC/altNNACC_minGamma1c2_fuzzy_evalResumes.json", "w") as file:
+        json.dump(
+            fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                eval_resumes, mode="associationRules", association="min", frequencyThreshold=2, loadARMatrix=False        
+            ), mode="weightedLog2", gamma=1), file, indent=4
+        )
+    
+    ## Fuzzify training with min association rules (occurrences>=1), then Gamma 1 (ALT)
+    with open("fuzzifiedData/trainFromAltNNACC/altNNACC_minGamma1c1_fuzzy_trainResumes.json", "w") as file:
+        json.dump(
+            fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                training_resumes, mode="associationRules", association="min", frequencyThreshold=1, loadARMatrix=False        
+            ), mode="weightedLog2", gamma=1), file, indent=4
+        )
+    
+    ## Fuzzify eval with min association rules (occurrences>=1), then Gamma 1 (ALT)
+    with open("fuzzifiedData/evalFromAltNNACC/altNNACC_minGamma1c1_fuzzy_evalResumes.json", "w") as file:
+        json.dump(
+            fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                eval_resumes, mode="associationRules", association="min", frequencyThreshold=1, loadARMatrix=False        
+            ), mode="weightedLog2", gamma=1), file, indent=4
+        )
+    
+    ## Fuzzify training with second association rules (occurrences>=2), then Gamma 1 (ALT)
+    with open("fuzzifiedData/trainFromAltNNACC/altNNACC_secondGamma1c2_fuzzy_trainResumes.json", "w") as file:
+        json.dump(
+            fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                training_resumes, mode="associationRules", association="second", frequencyThreshold=2, loadARMatrix=False        
+            ), mode="weightedLog2", gamma=1), file, indent=4
+        )
         
-    # ## Fuzzify eval with second association rules (occurrences>=2), then Gamma 1 (ALT)
-    # with open("fuzzifiedData/evalFromNNACC/altNNACC_secondGamma1c2_fuzzy_evalResumes.json", "w") as file:
-    #     json.dump(
-    #         fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
-    #             eval_resumes, mode="associationRules", association="second", frequencyThreshold=2, loadARMatrix=False        
-    #         ), mode="weightedLog2", gamma=1), file, indent=4
-    #     )
+    ## Fuzzify eval with second association rules (occurrences>=2), then Gamma 1 (ALT)
+    with open("fuzzifiedData/evalFromAltNNACC/altNNACC_secondGamma1c2_fuzzy_evalResumes.json", "w") as file:
+        json.dump(
+            fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                eval_resumes, mode="associationRules", association="second", frequencyThreshold=2, loadARMatrix=False        
+            ), mode="weightedLog2", gamma=1), file, indent=4
+        )
     
-    # ## Fuzzify with Gamma1
-    # # Fuzzify training
-    # with open("fuzzifiedData/trainFromNNACC/altNNACC_gamma1_fuzzy_trainResumes.json", "w") as file:
-    #     json.dump(
-    #         fuzzyNeighbourAlt.fuzzify(training_resumes, mode="weightedLog2", gamma=1), file, indent=4
-    #     )
+    ## Fuzzify training with second association rules (occurrences>=1), then Gamma 1 (ALT)
+    with open("fuzzifiedData/trainFromAltNNACC/altNNACC_secondGamma1c1_fuzzy_trainResumes.json", "w") as file:
+        json.dump(
+            fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                training_resumes, mode="associationRules", association="second", frequencyThreshold=1, loadARMatrix=False        
+            ), mode="weightedLog2", gamma=1), file, indent=4
+        )
         
-    # # Fuzzify eval
-    # with open("fuzzifiedData/evalFromNNACC/altNNACC_gamma1_fuzzy_evalResumes.json", "w") as file:
-    #     json.dump(
-    #         fuzzyNeighbourAlt.fuzzify(eval_resumes, mode="weightedLog2", gamma=1), file, indent=4
-    #     )
+    ## Fuzzify eval with second association rules (occurrences>=1), then Gamma 1 (ALT)
+    with open("fuzzifiedData/evalFromAltNNACC/altNNACC_secondGamma1c1_fuzzy_evalResumes.json", "w") as file:
+        json.dump(
+            fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                eval_resumes, mode="associationRules", association="second", frequencyThreshold=1, loadARMatrix=False        
+            ), mode="weightedLog2", gamma=1), file, indent=4
+        )
     
-    
-    
-    # ### User Fixed
-    # ## Fuzzify training with weighted association rules (occurrences>=2), then Fixed (ALT)
-    # with open("fuzzifiedData/trainFromNNACC/altNNACC_weightedFixedc2_fuzzy_trainResumes.json", "w") as file:
-    #     json.dump(
-    #         fuzzyAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
-    #             training_resumes, mode="associationRules", association="weighted", frequencyThreshold=2, loadARMatrix=False        
-    #         ), unknownDefault=fuzzyMasteryLevelsAlt["beginner"]), file, indent=4
-    #     )
-    
-    # ## Fuzzify eval with weighted association rules (occurrences>=2), then Fixed (ALT)
-    # with open("fuzzifiedData/evalFromNNACC/altNNACC_weightedFixedc2_fuzzy_evalResumes.json", "w") as file:
-    #     json.dump(
-    #         fuzzyAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
-    #             eval_resumes, mode="associationRules", association="weighted", frequencyThreshold=2, loadARMatrix=False        
-    #         ), unknownDefault=fuzzyMasteryLevelsAlt["beginner"]), file, indent=4
-    #     )
-    
-    # ## Fuzzify training with min association rules (occurrences>=2), then Fixed (ALT)
-    # with open("fuzzifiedData/trainFromNNACC/altNNACC_minFixedc2_fuzzy_trainResumes.json", "w") as file:
-    #     json.dump(
-    #         fuzzyAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
-    #             training_resumes, mode="associationRules", association="min", frequencyThreshold=2, loadARMatrix=False        
-    #         ), unknownDefault=fuzzyMasteryLevelsAlt["beginner"]), file, indent=4
-    #     )
-    
-    # ## Fuzzify eval with min association rules (occurrences>=2), then Fixed (ALT)
-    # with open("fuzzifiedData/evalFromNNACC/altNNACC_minFixedc2_fuzzy_evalResumes.json", "w") as file:
-    #     json.dump(
-    #         fuzzyAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
-    #             eval_resumes, mode="associationRules", association="min", frequencyThreshold=2, loadARMatrix=False        
-    #         ), unknownDefault=fuzzyMasteryLevelsAlt["beginner"]), file, indent=4
-    #     )
-    
-    # ## Fuzzify training with second association rules (occurrences>=2), then Fixed (ALT)
-    # with open("fuzzifiedData/evalFromNNACC/altNNACC_secondFixedc2_fuzzy_trainResumes.json", "w") as file:
-    #     json.dump(
-    #         fuzzyAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
-    #             training_resumes, mode="associationRules", association="second", frequencyThreshold=2, loadARMatrix=False        
-    #         ), unknownDefault=fuzzyMasteryLevelsAlt["beginner"]), file, indent=4
-    #     )
+    ## Fuzzify with Gamma1
+    # Fuzzify training
+    with open("fuzzifiedData/trainFromAltNNACC/altNNACC_gamma1_fuzzy_trainResumes.json", "w") as file:
+        json.dump(
+            fuzzyNeighbourAlt.fuzzify(training_resumes, mode="weightedLog2", gamma=1), file, indent=4
+        )
         
-    # ## Fuzzify eval with second association rules (occurrences>=2), then Fixed (ALT)
-    # with open("fuzzifiedData/evalFromNNACC/altNNACC_secondFixedc2_fuzzy_evalResumes.json", "w") as file:
-    #     json.dump(
-    #         fuzzyAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
-    #             eval_resumes, mode="associationRules", association="second", frequencyThreshold=2, loadARMatrix=False        
-    #         ), unknownDefault=fuzzyMasteryLevelsAlt["beginner"]), file, indent=4
-    #     )
+    # Fuzzify eval
+    with open("fuzzifiedData/evalFromAltNNACC/altNNACC_gamma1_fuzzy_evalResumes.json", "w") as file:
+        json.dump(
+            fuzzyNeighbourAlt.fuzzify(eval_resumes, mode="weightedLog2", gamma=1), file, indent=4
+        )
     
-    # ## Fuzzify with Fixed
-    # # Fuzzify training
-    # with open("fuzzifiedData/trainFromNNACC/altNNACC_fixed_fuzzy_trainResumes.json", "w") as file:
-    #     json.dump(
-    #         fuzzyAlt.fuzzify(training_resumes, unknownDefault=fuzzyMasteryLevelsAlt["beginner"]), file, indent=4
-    #     )
+    
+    
+    ### User Fixed
+    ## Fuzzify training with weighted association rules (occurrences>=2), then Fixed (ALT)
+    with open("fuzzifiedData/trainFromAltNNACC/altNNACC_weightedFixedc2_fuzzy_trainResumes.json", "w") as file:
+        json.dump(
+            fuzzyAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                training_resumes, mode="associationRules", association="weighted", frequencyThreshold=2, loadARMatrix=False        
+            ), unknownDefault=fuzzyMasteryLevelsAlt["beginner"]), file, indent=4
+        )
+    
+    ## Fuzzify eval with weighted association rules (occurrences>=2), then Fixed (ALT)
+    with open("fuzzifiedData/evalFromAltNNACC/altNNACC_weightedFixedc2_fuzzy_evalResumes.json", "w") as file:
+        json.dump(
+            fuzzyAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                eval_resumes, mode="associationRules", association="weighted", frequencyThreshold=2, loadARMatrix=False        
+            ), unknownDefault=fuzzyMasteryLevelsAlt["beginner"]), file, indent=4
+        )
+    
+    ## Fuzzify training with weighted association rules (occurrences>=1), then Fixed (ALT)
+    with open("fuzzifiedData/trainFromAltNNACC/altNNACC_weightedFixedc1_fuzzy_trainResumes.json", "w") as file:
+        json.dump(
+            fuzzyAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                training_resumes, mode="associationRules", association="weighted", frequencyThreshold=1, loadARMatrix=False        
+            ), unknownDefault=fuzzyMasteryLevelsAlt["beginner"]), file, indent=4
+        )
+    
+    ## Fuzzify eval with weighted association rules (occurrences>=1), then Fixed (ALT)
+    with open("fuzzifiedData/evalFromAltNNACC/altNNACC_weightedFixedc1_fuzzy_evalResumes.json", "w") as file:
+        json.dump(
+            fuzzyAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                eval_resumes, mode="associationRules", association="weighted", frequencyThreshold=1, loadARMatrix=False        
+            ), unknownDefault=fuzzyMasteryLevelsAlt["beginner"]), file, indent=4
+        )
+    
+    ## Fuzzify training with min association rules (occurrences>=2), then Fixed (ALT)
+    with open("fuzzifiedData/trainFromAltNNACC/altNNACC_minFixedc2_fuzzy_trainResumes.json", "w") as file:
+        json.dump(
+            fuzzyAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                training_resumes, mode="associationRules", association="min", frequencyThreshold=2, loadARMatrix=False        
+            ), unknownDefault=fuzzyMasteryLevelsAlt["beginner"]), file, indent=4
+        )
+    
+    ## Fuzzify eval with min association rules (occurrences>=2), then Fixed (ALT)
+    with open("fuzzifiedData/evalFromAltNNACC/altNNACC_minFixedc2_fuzzy_evalResumes.json", "w") as file:
+        json.dump(
+            fuzzyAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                eval_resumes, mode="associationRules", association="min", frequencyThreshold=2, loadARMatrix=False        
+            ), unknownDefault=fuzzyMasteryLevelsAlt["beginner"]), file, indent=4
+        )
+
+    ## Fuzzify training with min association rules (occurrences>=1), then Fixed (ALT)
+    with open("fuzzifiedData/trainFromAltNNACC/altNNACC_minFixedc1_fuzzy_trainResumes.json", "w") as file:
+        json.dump(
+            fuzzyAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                training_resumes, mode="associationRules", association="min", frequencyThreshold=1, loadARMatrix=False        
+            ), unknownDefault=fuzzyMasteryLevelsAlt["beginner"]), file, indent=4
+        )
+    
+    ## Fuzzify eval with min association rules (occurrences>=1), then Fixed (ALT)
+    with open("fuzzifiedData/evalFromAltNNACC/altNNACC_minFixedc1_fuzzy_evalResumes.json", "w") as file:
+        json.dump(
+            fuzzyAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                eval_resumes, mode="associationRules", association="min", frequencyThreshold=1, loadARMatrix=False        
+            ), unknownDefault=fuzzyMasteryLevelsAlt["beginner"]), file, indent=4
+        )
+    
+    ## Fuzzify training with second association rules (occurrences>=2), then Fixed (ALT)
+    with open("fuzzifiedData/trainFromAltNNACC/altNNACC_secondFixedc2_fuzzy_trainResumes.json", "w") as file:
+        json.dump(
+            fuzzyAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                training_resumes, mode="associationRules", association="second", frequencyThreshold=2, loadARMatrix=False        
+            ), unknownDefault=fuzzyMasteryLevelsAlt["beginner"]), file, indent=4
+        )
         
-    # # Fuzzify eval
-    # with open("fuzzifiedData/evalFromNNACC/altNNACC_fixed_fuzzy_evalResumes.json", "w") as file:
-    #     json.dump(
-    #         fuzzyAlt.fuzzify(eval_resumes, unknownDefault=fuzzyMasteryLevelsAlt["beginner"]), file, indent=4
-    #     )
+    ## Fuzzify eval with second association rules (occurrences>=2), then Fixed (ALT)
+    with open("fuzzifiedData/evalFromAltNNACC/altNNACC_secondFixedc2_fuzzy_evalResumes.json", "w") as file:
+        json.dump(
+            fuzzyAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                eval_resumes, mode="associationRules", association="second", frequencyThreshold=2, loadARMatrix=False        
+            ), unknownDefault=fuzzyMasteryLevelsAlt["beginner"]), file, indent=4
+        )
+    
+    ## Fuzzify training with second association rules (occurrences>=1), then Fixed (ALT)
+    with open("fuzzifiedData/trainFromAltNNACC/altNNACC_secondFixedc1_fuzzy_trainResumes.json", "w") as file:
+        json.dump(
+            fuzzyAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                training_resumes, mode="associationRules", association="second", frequencyThreshold=1, loadARMatrix=False        
+            ), unknownDefault=fuzzyMasteryLevelsAlt["beginner"]), file, indent=4
+        )
+        
+    ## Fuzzify eval with second association rules (occurrences>=1), then Fixed (ALT)
+    with open("fuzzifiedData/evalFromAltNNACC/altNNACC_secondFixedc1_fuzzy_evalResumes.json", "w") as file:
+        json.dump(
+            fuzzyAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                eval_resumes, mode="associationRules", association="second", frequencyThreshold=1, loadARMatrix=False        
+            ), unknownDefault=fuzzyMasteryLevelsAlt["beginner"]), file, indent=4
+        )
+    
+    ## Fuzzify with Fixed
+    # Fuzzify training
+    with open("fuzzifiedData/trainFromAltNNACC/altNNACC_fixed_fuzzy_trainResumes.json", "w") as file:
+        json.dump(
+            fuzzyAlt.fuzzify(training_resumes, unknownDefault=fuzzyMasteryLevelsAlt["beginner"]), file, indent=4
+        )
+        
+    # Fuzzify eval
+    with open("fuzzifiedData/evalFromAltNNACC/altNNACC_fixed_fuzzy_evalResumes.json", "w") as file:
+        json.dump(
+            fuzzyAlt.fuzzify(eval_resumes, unknownDefault=fuzzyMasteryLevelsAlt["beginner"]), file, indent=4
+        )
 
 
 
-    # ### User Linear
-    # ## Fuzzify training with weighted association rules (occurrences>=2), then Linear (ALT)
-    # with open("fuzzifiedData/trainFromNNACC/altNNACC_weightedLinearc1_fuzzy_trainResumes.json", "w") as file:
-    #     json.dump(
-    #         fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
-    #             training_resumes, mode="associationRules", association="weighted", frequencyThreshold=1, loadARMatrix=False        
-    #         ), mode="linear"), file, indent=4
-    #     )
+    ### User Linear
+    ## Fuzzify training with weighted association rules (occurrences>=1), then Linear (ALT)
+    with open("fuzzifiedData/trainFromAltNNACC/altNNACC_weightedLinearc1_fuzzy_trainResumes.json", "w") as file:
+        json.dump(
+            fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                training_resumes, mode="associationRules", association="weighted", frequencyThreshold=1, loadARMatrix=False        
+            ), mode="linear"), file, indent=4
+        )
     
-    # ## Fuzzify eval with weighted association rules (occurrences>=2), then Linear (ALT)
-    # with open("fuzzifiedData/evalFromNNACC/altNNACC_weightedLinearc1_fuzzy_evalResumes.json", "w") as file:
-    #     json.dump(
-    #         fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
-    #             eval_resumes, mode="associationRules", association="weighted", frequencyThreshold=1, loadARMatrix=False        
-    #         ), mode="linear"), file, indent=4
-    #     )
+    ## Fuzzify eval with weighted association rules (occurrences>=1), then Linear (ALT)
+    with open("fuzzifiedData/evalFromAltNNACC/altNNACC_weightedLinearc1_fuzzy_evalResumes.json", "w") as file:
+        json.dump(
+            fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                eval_resumes, mode="associationRules", association="weighted", frequencyThreshold=1, loadARMatrix=False        
+            ), mode="linear"), file, indent=4
+        )
     
-    # ## Fuzzify training with min association rules (occurrences>=2), then Linear (ALT)
-    # with open("fuzzifiedData/trainFromNNACC/altNNACC_minLinearc1_fuzzy_trainResumes.json", "w") as file:
-    #     json.dump(
-    #         fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
-    #             training_resumes, mode="associationRules", association="min", frequencyThreshold=1, loadARMatrix=False        
-    #         ), mode="linear"), file, indent=4
-    #     )
+    ## Fuzzify training with min association rules (occurrences>=1), then Linear (ALT)
+    with open("fuzzifiedData/trainFromAltNNACC/altNNACC_minLinearc1_fuzzy_trainResumes.json", "w") as file:
+        json.dump(
+            fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                training_resumes, mode="associationRules", association="min", frequencyThreshold=1, loadARMatrix=False        
+            ), mode="linear"), file, indent=4
+        )
     
-    # ## Fuzzify eval with min association rules (occurrences>=2), then Linear (ALT)
-    # with open("fuzzifiedData/evalFromNNACC/altNNACC_minLinearc1_fuzzy_evalResumes.json", "w") as file:
-    #     json.dump(
-    #         fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
-    #             eval_resumes, mode="associationRules", association="min", frequencyThreshold=1, loadARMatrix=False        
-    #         ), mode="linear"), file, indent=4
-    #     )
+    ## Fuzzify eval with min association rules (occurrences>=1), then Linear (ALT)
+    with open("fuzzifiedData/evalFromAltNNACC/altNNACC_minLinearc1_fuzzy_evalResumes.json", "w") as file:
+        json.dump(
+            fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                eval_resumes, mode="associationRules", association="min", frequencyThreshold=1, loadARMatrix=False        
+            ), mode="linear"), file, indent=4
+        )
     
-    # ## Fuzzify training with second association rules (occurrences>=2), then Linear (ALT)
-    # with open("fuzzifiedData/evalFromNNACC/altNNACC_secondLinearc1_fuzzy_trainResumes.json", "w") as file:
-    #     json.dump(
-    #         fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
-    #             training_resumes, mode="associationRules", association="second", frequencyThreshold=1, loadARMatrix=False        
-    #         ), mode="linear"), file, indent=4
-    #     )
+    ## Fuzzify training with second association rules (occurrences>=1), then Linear (ALT)
+    with open("fuzzifiedData/trainFromAltNNACC/altNNACC_secondLinearc1_fuzzy_trainResumes.json", "w") as file:
+        json.dump(
+            fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                training_resumes, mode="associationRules", association="second", frequencyThreshold=1, loadARMatrix=False        
+            ), mode="linear"), file, indent=4
+        )
         
-    # ## Fuzzify eval with second association rules (occurrences>=2), then Linear (ALT)
-    # with open("fuzzifiedData/evalFromNNACC/altNNACC_secondLinearc1_fuzzy_evalResumes.json", "w") as file:
-    #     json.dump(
-    #         fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
-    #             eval_resumes, mode="associationRules", association="second", frequencyThreshold=1, loadARMatrix=False        
-    #         ), mode="linear"), file, indent=4
-    #     )
+    ## Fuzzify eval with second association rules (occurrences>=1), then Linear (ALT)
+    with open("fuzzifiedData/evalFromAltNNACC/altNNACC_secondLinearc1_fuzzy_evalResumes.json", "w") as file:
+        json.dump(
+            fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                eval_resumes, mode="associationRules", association="second", frequencyThreshold=1, loadARMatrix=False        
+            ), mode="linear"), file, indent=4
+        )
     
-    # ## Fuzzify with Linear
-    # # Fuzzify training
-    # with open("fuzzifiedData/trainFromNNACC/altNNACC_linear_fuzzy_trainResumes.json", "w") as file:
-    #     json.dump(
-    #         fuzzyNeighbourAlt.fuzzify(training_resumes, mode="linear"), file, indent=4
-    #     )
+    ## Fuzzify with Linear
+    # Fuzzify training
+    with open("fuzzifiedData/trainFromAltNNACC/altNNACC_linear_fuzzy_trainResumes.json", "w") as file:
+        json.dump(
+            fuzzyNeighbourAlt.fuzzify(training_resumes, mode="linear"), file, indent=4
+        )
         
-    # # Fuzzify eval
-    # with open("fuzzifiedData/evalFromNNACC/altNNACC_linear_fuzzy_evalResumes.json", "w") as file:
-    #     json.dump(
-    #         fuzzyNeighbourAlt.fuzzify(eval_resumes, mode="linear"), file, indent=4
-    #     )
+    # Fuzzify eval
+    with open("fuzzifiedData/evalFromAltNNACC/altNNACC_linear_fuzzy_evalResumes.json", "w") as file:
+        json.dump(
+            fuzzyNeighbourAlt.fuzzify(eval_resumes, mode="linear"), file, indent=4
+        )
 
 
 
 
-    # ### User Log
-    # ## Fuzzify training with weighted association rules (occurrences>=2), then Log (ALT)
-    # with open("fuzzifiedData/trainFromNNACC/altNNACC_weightedLogc2_fuzzy_trainResumes.json", "w") as file:
-    #     json.dump(
-    #         fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
-    #             training_resumes, mode="associationRules", association="weighted", frequencyThreshold=2, loadARMatrix=False        
-    #         ), mode="log2"), file, indent=4
-    #     )
+    ### User Log
+    ## Fuzzify training with weighted association rules (occurrences>=2), then Log (ALT)
+    with open("fuzzifiedData/trainFromAltNNACC/altNNACC_weightedLogc2_fuzzy_trainResumes.json", "w") as file:
+        json.dump(
+            fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                training_resumes, mode="associationRules", association="weighted", frequencyThreshold=2, loadARMatrix=False        
+            ), mode="log2"), file, indent=4
+        )
     
-    # ## Fuzzify eval with weighted association rules (occurrences>=2), then Log (ALT)
-    # with open("fuzzifiedData/evalFromNNACC/altNNACC_weightedLogc2_fuzzy_evalResumes.json", "w") as file:
-    #     json.dump(
-    #         fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
-    #             eval_resumes, mode="associationRules", association="weighted", frequencyThreshold=2, loadARMatrix=False        
-    #         ), mode="log2"), file, indent=4
-    #     )
+    ## Fuzzify eval with weighted association rules (occurrences>=2), then Log (ALT)
+    with open("fuzzifiedData/evalFromAltNNACC/altNNACC_weightedLogc2_fuzzy_evalResumes.json", "w") as file:
+        json.dump(
+            fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                eval_resumes, mode="associationRules", association="weighted", frequencyThreshold=2, loadARMatrix=False        
+            ), mode="log2"), file, indent=4
+        )
     
-    # ## Fuzzify training with min association rules (occurrences>=2), then Log (ALT)
-    # with open("fuzzifiedData/trainFromNNACC/altNNACC_minLogc1_fuzzy_trainResumes.json", "w") as file:
-    #     json.dump(
-    #         fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
-    #             training_resumes, mode="associationRules", association="min", frequencyThreshold=1, loadARMatrix=False        
-    #         ), mode="log2"), file, indent=4
-    #     )
+    ## Fuzzify training with weighted association rules (occurrences>=1), then Log (ALT)
+    with open("fuzzifiedData/trainFromAltNNACC/altNNACC_weightedLogc1_fuzzy_trainResumes.json", "w") as file:
+        json.dump(
+            fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                training_resumes, mode="associationRules", association="weighted", frequencyThreshold=1, loadARMatrix=False        
+            ), mode="log2"), file, indent=4
+        )
     
-    # ## Fuzzify eval with min association rules (occurrences>=2), then Log (ALT)
-    # with open("fuzzifiedData/evalFromNNACC/altNNACC_minLogc1_fuzzy_evalResumes.json", "w") as file:
-    #     json.dump(
-    #         fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
-    #             eval_resumes, mode="associationRules", association="min", frequencyThreshold=1, loadARMatrix=False        
-    #         ), mode="log2"), file, indent=4
-    #     )
+    ## Fuzzify eval with weighted association rules (occurrences>=1), then Log (ALT)
+    with open("fuzzifiedData/evalFromAltNNACC/altNNACC_weightedLogc1_fuzzy_evalResumes.json", "w") as file:
+        json.dump(
+            fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                eval_resumes, mode="associationRules", association="weighted", frequencyThreshold=1, loadARMatrix=False        
+            ), mode="log2"), file, indent=4
+        )
     
-    # ## Fuzzify training with second association rules (occurrences>=2), then Log (ALT)
-    # with open("fuzzifiedData/evalFromNNACC/altNNACC_secondLogc1_fuzzy_trainResumes.json", "w") as file:
-    #     json.dump(
-    #         fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
-    #             training_resumes, mode="associationRules", association="second", frequencyThreshold=1, loadARMatrix=False        
-    #         ), mode="log2"), file, indent=4
-    #     )
+    ## Fuzzify training with min association rules (occurrences>=1), then Log (ALT)
+    with open("fuzzifiedData/trainFromAltNNACC/altNNACC_minLogc1_fuzzy_trainResumes.json", "w") as file:
+        json.dump(
+            fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                training_resumes, mode="associationRules", association="min", frequencyThreshold=1, loadARMatrix=False        
+            ), mode="log2"), file, indent=4
+        )
+    
+    ## Fuzzify eval with min association rules (occurrences>=1), then Log (ALT)
+    with open("fuzzifiedData/evalFromAltNNACC/altNNACC_minLogc1_fuzzy_evalResumes.json", "w") as file:
+        json.dump(
+            fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                eval_resumes, mode="associationRules", association="min", frequencyThreshold=1, loadARMatrix=False        
+            ), mode="log2"), file, indent=4
+        )
+    
+    ## Fuzzify training with second association rules (occurrences>=1), then Log (ALT)
+    with open("fuzzifiedData/trainFromAltNNACC/altNNACC_secondLogc1_fuzzy_trainResumes.json", "w") as file:
+        json.dump(
+            fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                training_resumes, mode="associationRules", association="second", frequencyThreshold=1, loadARMatrix=False        
+            ), mode="log2"), file, indent=4
+        )
         
-    # ## Fuzzify eval with second association rules (occurrences>=2), then Log (ALT)
-    # with open("fuzzifiedData/evalFromNNACC/altNNACC_secondLogc1_fuzzy_evalResumes.json", "w") as file:
-    #     json.dump(
-    #         fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
-    #             eval_resumes, mode="associationRules", association="second", frequencyThreshold=1, loadARMatrix=False        
-    #         ), mode="log2"), file, indent=4
-    #     )
+    ## Fuzzify eval with second association rules (occurrences>=1), then Log (ALT)
+    with open("fuzzifiedData/evalFromAltNNACC/altNNACC_secondLogc1_fuzzy_evalResumes.json", "w") as file:
+        json.dump(
+            fuzzyNeighbourAlt.fuzzify(fuzzyNeighbourAlt.fuzzify(
+                eval_resumes, mode="associationRules", association="second", frequencyThreshold=1, loadARMatrix=False        
+            ), mode="log2"), file, indent=4
+        )
     
-    # ## Fuzzify with Log
-    # # Fuzzify training
-    # with open("fuzzifiedData/trainFromNNACC/altNNACC_log_fuzzy_trainResumes.json", "w") as file:
-    #     json.dump(
-    #         fuzzyNeighbourAlt.fuzzify(training_resumes, mode="log2"), file, indent=4
-    #     )
+    ## Fuzzify with Log
+    # Fuzzify training
+    with open("fuzzifiedData/trainFromAltNNACC/altNNACC_log_fuzzy_trainResumes.json", "w") as file:
+        json.dump(
+            fuzzyNeighbourAlt.fuzzify(training_resumes, mode="log2"), file, indent=4
+        )
         
-    # # Fuzzify eval
-    # with open("fuzzifiedData/evalFromNNACC/altNNACC_log_fuzzy_evalResumes.json", "w") as file:
-    #     json.dump(
-    #         fuzzyNeighbourAlt.fuzzify(eval_resumes, mode="log2"), file, indent=4
-    #     )
+    # Fuzzify eval
+    with open("fuzzifiedData/evalFromAltNNACC/altNNACC_log_fuzzy_evalResumes.json", "w") as file:
+        json.dump(
+            fuzzyNeighbourAlt.fuzzify(eval_resumes, mode="log2"), file, indent=4
+        )
         
         
     #### On the courses
