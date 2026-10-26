@@ -13,10 +13,10 @@ import seaborn as sns
 import time
 
 # Should we display the plot at runtime
-SHOW = True
+SHOW = False
 
 # If true, does not plot anything, just get the dataframe, otherwise get the plots
-RETURN_DF = False
+RETURN_DF = True
 
 # Headers of the "headerless" txt (tsv) files  
 COLS = ["Iteration", "Average jobs", "Average reward", "Average goal gap", "Average pref cov", "Average total levels req", "Average skills req unique", "Average skills fully covered", "Average skills missing unique", "Time"]
