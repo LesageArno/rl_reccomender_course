@@ -1,5 +1,5 @@
 # Data Paths
-cv_path: Data - Collection/Fuzzy/altNNACC/altNNACC_minFixedk1_fuzzy_resumes.json                       # Path to learner profiles
+cv_path: Data - Collection/Fuzzy/altNNACC/altNNACC_minFixedk2_fuzzy_resumes.json                       # Path to learner profiles
 course_path: Data - Collection/Fuzzy/altNNACC/altNNACC_fixed_fuzzy_courses.json                   # Path to course data
 job_path: Data - Collection/Fuzzy/altNNACC/altNNACC_fixed_fuzzy_jobs.json                         # Path to job listings
 
