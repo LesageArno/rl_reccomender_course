@@ -257,8 +257,9 @@ class NeighbourResumeFuzzifier(SimpleFuzzifier):
                 # Get the set of neighbouring skills
                 neighbourSet = set(te.getNeighbours(self.bottomUpTaxonomy, self.topDownTaxonomy, skill[0]))
                 # Compute the alpha (the belonging to the fuzzy set of expertise).
-                kts = np.log2(1+len(neighbourSet))
-                nts = max(1,np.log2(1+len(neighbourSet.intersection(knownIDSet))))
+                # kts/nts
+                kts = np.log2(1+len(neighbourSet.intersection(knownIDSet)))
+                nts = max(1,np.log2(len(neighbourSet)))
                 alpha = kts/nts
             
             # If the skill is known, keep it as is.
@@ -303,8 +304,8 @@ class NeighbourResumeFuzzifier(SimpleFuzzifier):
             knownNeighbourSet = knownIDSet.intersection(neighbourSet)
             
             # Compute the alpha and append the skill.
-            kts = np.log2(1+len(neighbourSet))
-            nts = max(1,np.log2(1+len(neighbourSet.intersection(knownIDSet))))               
+            kts = np.log2(1+len(neighbourSet.intersection(knownIDSet)))
+            nts = max(1,np.log2(len(neighbourSet)))             
             alpha = gamma * sum(knownIDtoLevelMap.get(i,0) for i in knownNeighbourSet)/max(1,len(knownNeighbourSet)) + (1-gamma) * (kts/nts)
             skills.append([skill[0], max(minUnknownLevel,round(alpha, 4))])
         
