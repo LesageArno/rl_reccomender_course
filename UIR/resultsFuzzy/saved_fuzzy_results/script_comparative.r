@@ -110,53 +110,53 @@ if (sys.nframe() == 0){
     ))
     
     # Get for the average reward
-    #avgRewardDf <- dplyr::bind_rows(list(
+    avgRewardDf <- dplyr::bind_rows(list(
     #    lboot(df, "UIR80", "Average.reward", n=1000),
     #    lboot(df, "UIR100", "Average.reward", n=1000),
     #    lboot(df, "altUIR80", "Average.reward", n=1000),
     #    lboot(df, "altUIR100", "Average.reward", n=1000),
     #    lboot(df, "altNNACCUIR80", "Average.reward", n=1000),
-    #    lboot(df, "altSplitNNACCUIR80", "Average.reward", n=1000)
-    #))
+        lboot(df, "altSplitNNACCUIR80", "Average.reward", n=1000)
+    ))
     
     # Get for the average preference coverage
-    #avgPrefCoverageDf <- dplyr::bind_rows(list(
+    avgPrefCoverageDf <- dplyr::bind_rows(list(
     #    lboot(df, "UIR80", "Average.pref.cov", n=1000),
     #    lboot(df, "UIR100", "Average.pref.cov", n=1000),
     #    lboot(df, "altUIR80", "Average.pref.cov", n=1000),
     #    lboot(df, "altUIR100", "Average.pref.cov", n=1000),
     #    lboot(df, "altNNACCUIR80", "Average.pref.cov", n=1000),
-    #    lboot(df, "altSplitNNACCUIR80", "Average.pref.cov", n=1000)
-    #))
+        lboot(df, "altSplitNNACCUIR80", "Average.pref.cov", n=1000)
+    ))
      
     excludeMethods <- c("crisp", "minRuleFixedC2", "minRuleGamma1C2", "secondRuleFixedC2", "secondRuleGamma1C2", "weightedRuleFixedC2", "weightedRuleGamma1C2", "weightedRuleLogC2")
     
     # For UIR80
-    plotResults(avgJobDf, c("altUIR80", "UIR80"), "Average Opened Job UIR80")
-    plotResults(avgRewardDf, c("altUIR80", "UIR80"), "Average Reward UIR80")
-    plotResults(avgPrefCoverageDf, c("altUIR80", "UIR80"), "Average Pref Coverage UIR80")
+    #plotResults(avgJobDf, c("altUIR80", "UIR80"), "Average Opened Job UIR80")
+    #plotResults(avgRewardDf, c("altUIR80", "UIR80"), "Average Reward UIR80")
+    #plotResults(avgPrefCoverageDf, c("altUIR80", "UIR80"), "Average Pref Coverage UIR80")
     
-    plotResults(avgJobDf, c("altNNACCUIR80"), "Average Opened Job altNNACCUIR80")
-    plotResults(avgRewardDf, c("altNNACCUIR80"), "Average Reward altNNACCUIR80")
-    plotResults(avgPrefCoverageDf, c("altNNACCUIR80"), "Average Pref Coverage altNNACCUIR80")
+    #plotResults(avgJobDf, c("altNNACCUIR80"), "Average Opened Job altNNACCUIR80")
+    #plotResults(avgRewardDf, c("altNNACCUIR80"), "Average Reward altNNACCUIR80")
+    #plotResults(avgPrefCoverageDf, c("altNNACCUIR80"), "Average Pref Coverage altNNACCUIR80")
     
-    plotResults(avgJobDf, c("altSplitNNACCUIR80"), "Average Opened Job altSplitNNACCUIR80", excludeMethod = excludeMethods)
-    plotResults(avgRewardDf, c("altSplitNNACCUIR80"), "Average Reward altSplitNNACCUIR80", excludeMethod = excludeMethods)
-    plotResults(avgPrefCoverageDf, c("altSplitNNACCUIR80"), "Average Pref Coverage altSplitNNACCUIR80", excludeMethod = excludeMethods)
+    #plotResults(avgJobDf, c("altSplitNNACCUIR80"), "Average Opened Job altSplitNNACCUIR80", excludeMethod = excludeMethods)
+    #plotResults(avgRewardDf, c("altSplitNNACCUIR80"), "Average Reward altSplitNNACCUIR80", excludeMethod = excludeMethods)
+    #plotResults(avgPrefCoverageDf, c("altSplitNNACCUIR80"), "Average Pref Coverage altSplitNNACCUIR80", excludeMethod = excludeMethods)
     
     ## Box plot
     plotResultsAsBoxPlot(avgJobDf, c("altSplitNNACCUIR80"), title = "Average Opened Job altSplitNNACCUIR80", excludeMethod = excludeMethods)
-    #plotResultsAsBoxPlot(avgRewardDf, c("altSplitNNACCUIR80"), title = "Average Reward altSplitNNACCUIR80", excludeMethod = excludeMethods)
-    #plotResultsAsBoxPlot(avgPrefCoverageDf, c("altSplitNNACCUIR80"), title = "Average Pref Coverage altSplitNNACCUIR80", excludeMethod = excludeMethods)
+    plotResultsAsBoxPlot(avgRewardDf, c("altSplitNNACCUIR80"), title = "Average Reward altSplitNNACCUIR80", excludeMethod = excludeMethods)
+    plotResultsAsBoxPlot(avgPrefCoverageDf, c("altSplitNNACCUIR80"), title = "Average Pref Coverage altSplitNNACCUIR80", excludeMethod = excludeMethods)
     
     # For UIR100
-    plotResults(avgJobDf, c("altUIR100", "UIR100"), 2, "Average Opened Job UIR100")
-    plotResults(avgRewardDf, c("altUIR100", "UIR100"), 2, "Average Reward Job UIR100")
-    plotResults(avgPrefCoverageDf, c("altUIR100", "UIR100"), "Average Pref Coverage UIR100")
+    #plotResults(avgJobDf, c("altUIR100", "UIR100"), 2, "Average Opened Job UIR100")
+    #plotResults(avgRewardDf, c("altUIR100", "UIR100"), 2, "Average Reward Job UIR100")
+    #plotResults(avgPrefCoverageDf, c("altUIR100", "UIR100"), "Average Pref Coverage UIR100")
     
     # Export lboot results
-    #readODS::write_ods(avgJobDf %>% filter(Iteration==500000, Metric=="altSplitNNACCUIR80") %>% na.omit(), path = "bootResults.ods", sheet = "avgJob")
-    #readODS::write_ods(avgRewardDf %>% filter(Iteration==500000, Metric=="altSplitNNACCUIR80") %>% na.omit(), path = "bootResults.ods", sheet = "avgReward", append = T)
-    #readODS::write_ods(avgPrefCoverageDf %>% filter(Iteration==500000, Metric=="altSplitNNACCUIR80") %>% na.omit(), path = "bootResults.ods", sheet = "avgPrefCov", append = T)
+    readODS::write_ods(avgJobDf %>% filter(Iteration==500000, Metric=="altSplitNNACCUIR80", !(Method %in% excludeMethods)) %>% na.omit(), path = "bootResults.ods", sheet = "avgJob")
+    readODS::write_ods(avgRewardDf %>% filter(Iteration==500000, Metric=="altSplitNNACCUIR80", !(Method %in% excludeMethods)) %>% na.omit(), path = "bootResults.ods", sheet = "avgReward", append = T)
+    readODS::write_ods(avgPrefCoverageDf %>% filter(Iteration==500000, Metric=="altSplitNNACCUIR80", !(Method %in% excludeMethods)) %>% na.omit(), path = "bootResults.ods", sheet = "avgPrefCov", append = T)
 }
 

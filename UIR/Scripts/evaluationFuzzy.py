@@ -37,7 +37,7 @@ RESULTS_FOLDER_NAME = "saved_fuzzy_results" # FUZZY I: "saved_fuzzy_results", FU
 
 # FILTER
 IGNORE_START = ["plot", "data", "script", "."] # ["plot", "data", "script"]
-IGNORE_END = [".zip"] # ["zip"]
+IGNORE_END = [".zip", ".ods"] # ["zip"]
 
 ## Gather the files into one big dataframe
 df_list = []

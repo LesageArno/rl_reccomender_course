@@ -4,6 +4,7 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+
         {
             "name": "Python Debugger: Module Fuzzy 2",
             "type": "python",
@@ -34,6 +35,18 @@
             "type": "python",
             "request": "launch",
             "module": "UIR.Scripts.pipeline",
+            "args": [
+                "--config",
+                "UIR/config/run.yaml"
+            ],
+            "python": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python Debugger: Fuzzy Evaluation",
+            "type": "python",
+            "request": "launch",
+            "module": "UIR.Scripts.evaluationFuzzy",
             "args": [
                 "--config",
                 "UIR/config/run.yaml"
