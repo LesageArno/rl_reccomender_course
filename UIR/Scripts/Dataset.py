@@ -79,7 +79,7 @@ class Dataset:
         self.load_jobs()
         self.load_courses()
         self.get_subsample()
-        if self.fuzzyMode == 0:
+        if self.fuzzyMode < 2:
             self.make_course_consistent()
     
     # VERIFIED (dependencies: None)
@@ -401,7 +401,10 @@ class Dataset:
                     if provided_level == 1:
                         course[0][skill_id] = 0
                     else:
-                        course[0][skill_id] = provided_level - 1 # Should be min(provided_level, required_level in fuzzy) 
+                        if self.fuzzyMode == 0:
+                            course[0][skill_id] = provided_level - 1
+                        elif self.fuzzyMode == 1:
+                            course[0][skill_id] = min(provided_level, required_level) # Should be min(provided_level, required_level in fuzzy) 
 
     # VERIFIED (dependencies: None)
     # ATTRIBUTES DEPENDENCIES: fuzzyMode, jobs

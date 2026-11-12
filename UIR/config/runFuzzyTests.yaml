@@ -1,9 +1,9 @@
 # Data Paths
 taxonomy_path: Taxonomy/taxonomy.csv                    # Path to skill taxonomy data
-course_path: Data - Collection/Fuzzy/fuzzy_courses.json       # Path to course data
-cv_path: Data - Collection/Fuzzy/fuzzy_resumes.json           # Path to learner profiles
-job_path: Data - Collection/Fuzzy/fuzzy_jobs.json             # Path to job listings
-mastery_levels_path: Data - Collection/Fuzzy/fuzzy_mastery_levels.json  # Path to skill mastery levels
+course_path: Data - Collection/Fuzzy/alt_fixed_fuzzy_courses.json       # Path to course data
+cv_path: Data - Collection/Fuzzy/alt_fixed_fuzzy_resumes.json           # Path to learner profiles
+job_path: Data - Collection/Fuzzy/alt_fixed_fuzzy_jobs.json             # Path to job listings
+mastery_levels_path: Data - Collection/Fuzzy/alt_fuzzy_mastery_levels.json  # Path to skill mastery levels
 results_path: UIR/resultsFuzzy/preferences_v3_k                              # Directory for storing results_k
 name_exp: Employability                              # Branch name for organizing results
 pretrained_model_path: UIR/models_weights/preferences_v2/UIR-gap-based  # Path to pretrained model (if any)
