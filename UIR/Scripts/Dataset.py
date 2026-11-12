@@ -401,7 +401,7 @@ class Dataset:
                     if provided_level == 1:
                         course[0][skill_id] = 0
                     else:
-                        course[0][skill_id] = provided_level - 1
+                        course[0][skill_id] = provided_level - 1 # Should be min(provided_level, required_level in fuzzy) 
 
     # VERIFIED (dependencies: None)
     # ATTRIBUTES DEPENDENCIES: fuzzyMode, jobs

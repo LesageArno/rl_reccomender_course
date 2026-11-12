@@ -16,7 +16,7 @@ fuzzyMode: 2 #0 Crisp, 1 Fuzzy Set, 2 Fuzzy Set Type II
 useMaxOnAggregatedUseful: False
 useMaxOnAggregatedMissing: False
 useMaxOnAggregatedUnnecessary: False
-fuzzyThreshold: 1        # Threshold used to say that a course fit a requirement
+fuzzyThreshold: 1.0        # Threshold used to say that a course fit a requirement
 
 # When generating random person, what should we do about confidence if fuzzy II
 default_leftConfidence_courseReq: 0.2797116 # Put dispersion here (it is simpler than absolute position)
@@ -43,7 +43,7 @@ dataset_seed: 1092                                       # Set this seed in orde
 seed: 1092
 
 # Model Parameters
-threshold: 0.8                                         # Minimum matching threshold for job eligibility
+threshold: 1.0                                         # Minimum matching threshold for job eligibility
 model: ppo_mask                                        # Reinforcement learning algorithm (dqn, ppo, a2c, ppo_mask) only ppo and ppo_mask are implemented well
 total_steps: 500000                                    # Total training steps (normal to 500_000)
 eval_freq: 2000                                        # Evaluation frequency during training (normal to 2_000)
