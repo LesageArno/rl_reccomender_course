@@ -45,7 +45,9 @@ lboot <- function(df, metric, criterion, n=1000) {
                 }
                 
                 # Compute bootstrap error margin at 95%, store the results and continue
+                set.seed(0)
                 ci <- tryCatch({boot.ci(boot(action, boot.mean, R=n), type="perc")}, error = function(cond) {print(paste(method, metric, repetition, iteration, criterion))})
+                set.seed(NULL)
                 l[[i]] <- list(Metric=metric, Method=method, k=repetition, Iteration=iteration, avg=mean(action), lower=ci$percent[4], upper=ci$percent[5])
                 i <- i+1
                 

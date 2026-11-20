@@ -189,7 +189,7 @@ class NeighbourResumeFuzzifier(SimpleFuzzifier):
                 alpha = skill[1]
             
             # Register the skills
-            skills.append([skill[0], max(minUnknownLevel,round(alpha,4))])
+            skills.append([skill[0], max(minUnknownLevel,round(alpha,6))])
         return sorted(skills, key=lambda x: x[0])
     
     def getWeightedLinearAlpha(self, unknownSet:set[tuple[int,None]], knownSet:set[tuple[int,float]], minUnknownLevel:float=0, gamma:float=0.5) -> list[list[int, float]]:
@@ -227,7 +227,7 @@ class NeighbourResumeFuzzifier(SimpleFuzzifier):
             
             # Compute the alpha and append the skill.
             alpha = gamma * sum(knownIDtoLevelMap.get(i,0) for i in knownNeighbourSet)/max(1,len(knownNeighbourSet)) + (1-gamma) * len(knownNeighbourSet)/len(neighbourSet)
-            skills.append([skill[0], max(minUnknownLevel, round(alpha, 4))])
+            skills.append([skill[0], max(minUnknownLevel, round(alpha, 6))])
         
         # Return the skills
         return sorted(skills, key=lambda x: x[0])
@@ -267,7 +267,7 @@ class NeighbourResumeFuzzifier(SimpleFuzzifier):
                 alpha = skill[1]
             
             # Register the skills
-            skills.append([skill[0], max(minUnknownLevel, round(alpha,4))])
+            skills.append([skill[0], max(minUnknownLevel, round(alpha,6))])
         return sorted(skills, key=lambda x: x[0])
      
     def getWeightedLog2Alpha(self, unknownSet:set[tuple[int,None]], knownSet:set[tuple[int,float]], minUnknownLevel:float=0, gamma:float=0.5) -> list[list[int, float]]:
@@ -307,7 +307,7 @@ class NeighbourResumeFuzzifier(SimpleFuzzifier):
             kts = np.log2(1+len(neighbourSet.intersection(knownIDSet)))
             nts = max(1,np.log2(len(neighbourSet)))             
             alpha = gamma * sum(knownIDtoLevelMap.get(i,0) for i in knownNeighbourSet)/max(1,len(knownNeighbourSet)) + (1-gamma) * (kts/nts)
-            skills.append([skill[0], max(minUnknownLevel,round(alpha, 4))])
+            skills.append([skill[0], max(minUnknownLevel,round(alpha, 6))])
         
         # Return the skills
         return sorted(skills, key=lambda x: x[0])
@@ -372,7 +372,7 @@ class NeighbourResumeFuzzifier(SimpleFuzzifier):
                     associationFreqDict[s1][s2] += 0 if associationDict[s1][s2] is None else 1
                     
                     # Initialise association dict when a rule is detected
-                    associationDict[s1][s2] = 0 if associationDict[s2][s2] is None else associationDict[s2][s2]
+                    associationDict[s1][s2] = 0 if associationDict[s1][s2] is None else associationDict[s1][s2]
                     
                     # Apply the desired association
                     if association == "weighted": 
@@ -655,7 +655,50 @@ class simpleFuzzyIIFuzzifier():
         
         # Return the set.
         return toReturn
+
+class NeighbourResumeFuzzyIIFuzzifier(NeighbourResumeFuzzifier):
+    def __init__(self, levels:dict[str,float], df_taxonomy:pd.DataFrame, lvlCols:list[str], skillIdCol:str="unique_id"):
+        super().__init__(levels, df_taxonomy, lvlCols, skillIdCol)
         
+        # Compile the different fuzzification functions
+        self.mode = {"associationRules":self.getARDictAlpha}
+    
+    def getARDictAlpha(self, unknownSet:set[tuple[int,None]], knownSet:set[tuple[int,float]], frequencyThreshold:int = 10):
+        # Get the skills in the known set and retrieve the id of known skills
+        skills = [list(i) for i in knownSet]
+        skillKnownID = {k[0] for k in knownSet}
+                
+        # Infer unknown if any
+        if unknownSet != set():
+            # For each unknown, match the highest rule in term of expertise (if the threshold is passed)
+            for unkID, _ in unknownSet:
+                possibilities = {self.associationDict[knownID][unkID] for knownID in skillKnownID if self.associationFreqDict[knownID][unkID] >= frequencyThreshold}
+                possibilities.difference_update({None})
+                skills.append([unkID, None] if len(possibilities) == 0 else [unkID, max(possibilities)])
+        
+        skills_to_return = []
+        for skill, expertise in skills:
+            if expertise is None:
+                skills_to_return.append([skill, [expertise, None, None]])
+                continue
+            possibilities = np.array([
+                self.associationDict[knownID][skill] 
+                for knownID in skillKnownID 
+                if self.associationFreqDict[knownID][skill] >= frequencyThreshold 
+                and self.associationDict[knownID][skill] is not None
+            ] + [expertise])
+            
+            sub = possibilities[possibilities <= expertise]
+            left_confidence = abs(expertise - sub.mean()).__round__(6)   
+            
+            upp = possibilities[possibilities >= expertise]
+            right_confidence = abs(expertise - upp.mean()).__round__(6)
+
+            skills_to_return.append([skill, [expertise, left_confidence, right_confidence]])
+        
+        # Return the sorted version
+        return sorted(skills_to_return, key = lambda x: x[0])
+   
 if __name__ == "__main__":
     # Get the fuzzy mastery levels
     with open("fuzzifiedData/fuzzy_mastery_levels.json") as file:
@@ -677,6 +720,10 @@ if __name__ == "__main__":
     ## For Fuzzy II
     fuzzyII = simpleFuzzyIIFuzzifier(fuzzyMasteryLevels, UNKNOWN_DEFAULT)
     fuzzyII_crisp = simpleFuzzyIIFuzzifier(fuzzyMasteryLevels, CRISP_DEFAULT)
+    
+    # Load debug
+    with open("data/resumes_debug.json", "r") as file:
+        resumes_debug = json.load(file)
     
     # Load resumes
     with open("data/resumes.json", "r") as file:
@@ -720,6 +767,11 @@ if __name__ == "__main__":
     weightedARFuzzifier.loadAssociationRuleDict(training_resumes, association="weighted")
     secondARFuzzifier.loadAssociationRuleDict(training_resumes, association="second")
     minARFuzzifier.loadAssociationRuleDict(training_resumes, association="min")
+    
+    # Fit the association rules for Fuzzy II fuzzifier
+    secondARFuzzyIIFuzzifier = NeighbourResumeFuzzyIIFuzzifier(fuzzyMasteryLevelsAlt, pd.read_csv("data/taxonomy.csv"), te.LEVEL_COLS)
+    secondARFuzzyIIFuzzifier.loadAssociationRuleDict(resumes_debug, association="second")
+    secondARFuzzyIIFuzzifier.fuzzify(resumes_debug, "associationRules", loadARMatrix=False, frequencyThreshold=1)
     
     # Load job positions
     with open("data/jobs.json", "r") as file:
