@@ -11,50 +11,6 @@ from collections.abc import Callable
 import time
 
 UNKNOWN_DEFAULT = {
-    "data/courses.json": 0.5,
-    "data/jobs.json": 0.8,
-    "data/resumes.json": 0.5,
-    "confidence":{
-        # Provider
-        "left_provider_confidence":{
-            "data/courses.json":0.1, 
-            "data/resumes.json":0.1
-        },
-        "right_provider_confidence":{
-            "data/courses.json":0.1,
-            "data/resumes.json":0.1
-        },
-        # Require (Warning, contrary to the rest, here, it is the dispersion)
-        "required_confidence":{
-            "data/courses.json":0,
-            "data/jobs.json":0
-        }
-    }
-}
-
-CRISP_DEFAULT = {
-    "data/courses.json": 0.5,
-    "data/jobs.json": 0.8,
-    "data/resumes.json": 0.5,
-    "confidence":{
-        # Provider
-        "left_provider_confidence":{
-            "data/courses.json":0, 
-            "data/resumes.json":0
-        },
-        "right_provider_confidence":{
-            "data/courses.json":0,
-            "data/resumes.json":0
-        },
-        # Require (Warning, contrary to the rest, here, it is the dispersion)
-        "required_confidence":{
-            "data/courses.json":0,
-            "data/jobs.json":0
-        }
-    }
-}
-
-UNKNOWN_DEFAULT_ALT = {
     "data/courses.json": 0.6666666666666667,
     "data/jobs.json": 1,
     "data/resumes.json": 0.3333333333333333,
@@ -423,7 +379,7 @@ class NeighbourResumeFuzzifier(SimpleFuzzifier):
         
         return toFuzzify
 
-    def sample_want_avoid(self, learners:dict[str,Any], minWant:int = 1, maxWant:int = 15, avoidDistribution:dict[int,float] = {0:0.6, 1:0.25, 2:0.15}, seed:int = 42, useLevel3:bool = False) -> dict[str, Any]:
+    def sample_want_avoid(self, learners:dict[str,Any], minWant:int = 1, maxWant:int = 5, avoidDistribution:dict[int,float] = {0:0.6, 1:0.25, 2:0.15}, seed:int = 42, useLevel3:bool = False) -> dict[str, Any]:
         """Function to generate the preferences associated to each learner in the dataset.
 
         Args:
@@ -698,369 +654,292 @@ class NeighbourResumeFuzzyIIFuzzifier(NeighbourResumeFuzzifier):
         
         # Return the sorted version
         return sorted(skills_to_return, key = lambda x: x[0])
-   
-if __name__ == "__main__":
-    # Get the fuzzy mastery levels
-    with open("fuzzifiedData/fuzzy_mastery_levels.json") as file:
-        fuzzyMasteryLevels = json.load(file)    
-        
+
+def loadMasteryLevels() -> tuple[dict]:
+    """Load the mastery levels. If you have some changes, do it there.
+
+    Returns:
+        tuple[dict]: [UPDATE IF IT CHANGE] First the initial fuzzy mastery levels alt <1/3,2/3,1>
+    """
+            
     # Load alternative mastery level
     with open("fuzzifiedData/fuzzy_mastery_levels_alt.json") as file:
-        fuzzyMasteryLevelsAlt = json.load(file)
+        fuzzyMasteryLevels = json.load(file)
     
-    # Instantiate the fuzzifier
-    ## For the Training and Jobs
-    fuzzy = SimpleFuzzifier(fuzzyMasteryLevels)
-    fuzzyAlt = SimpleFuzzifier(fuzzyMasteryLevelsAlt)
-    
-    ## For the resumes
-    fuzzyNeighbour = NeighbourResumeFuzzifier(fuzzyMasteryLevels, pd.read_csv("data/taxonomy.csv"), te.LEVEL_COLS)
-    fuzzyNeighbourAlt = NeighbourResumeFuzzifier(fuzzyMasteryLevelsAlt, pd.read_csv("data/taxonomy.csv"), te.LEVEL_COLS)
-    
-    ## For Fuzzy II
-    fuzzyII = simpleFuzzyIIFuzzifier(fuzzyMasteryLevels, UNKNOWN_DEFAULT)
-    fuzzyII_crisp = simpleFuzzyIIFuzzifier(fuzzyMasteryLevels, CRISP_DEFAULT)
-    
-    # Load debug
+    return fuzzyMasteryLevels
+
+def loadResumes() -> tuple[dict]:
+    """Load the resumes. If you have some changes, do it there.
+
+    Returns:
+        tuple[dict]: [UPDATE IF IT CHANGE] Resumes, then training resumes, then evaluation resumes and debug resumes
+    """
+    # Load debug resumes
     with open("data/resumes_debug.json", "r") as file:
-        resumes_debug = json.load(file)
+        debug_resumes = json.load(file)
     
     # Load resumes
     with open("data/resumes.json", "r") as file:
         resumes = json.load(file)        
     
-    # Load training and test resumes
-    with open("data/resumes_train.json", "r") as file:
-        training_resumes = json.load(file)
-    with open("data/resumes_eval.json", "r") as file:
-        eval_resumes = json.load(file)
-    
-    # Generate preferences
-    # Uncomment for generation
-    with open("data/preferences.json", "w") as file:
-        json.dump(
-            fuzzyNeighbourAlt.sample_want_avoid(resumes, minWant=1, maxWant=15, avoidDistribution={0:0.6, 1:0.25, 2:0.15}, seed=42),
-            file,
-            indent=4
-        )
-    
-    with open("data/preferencesLV3.json", "w") as file:
-        json.dump(
-            fuzzyNeighbourAlt.sample_want_avoid(resumes, minWant=1, maxWant=15, avoidDistribution={0:0.6, 1:0.25, 2:0.15}, seed=42, useLevel3=True),
-            file,
-            indent=4
-        )
-    
-    # Generate the training and test set
-    # Uncomment for generation
-    training_resumes, eval_resumes = fuzzyNeighbourAlt.train_test_split(learners=resumes, trainProportion=0.7, seed=0)
-    with open("data/resumes_train.json", "w") as file:
-        json.dump(training_resumes, file, indent=4)
-    with open("data/resumes_eval.json", "w") as file:
-        json.dump(eval_resumes, file, indent=4)
+    try:
+        # Load training resumes
+        with open("data/resumes_train.json", "r") as file:
+            training_resumes = json.load(file)
         
-    # Fit the association rules onto the training resumes [COMMENT IF NO TRAINING SET IS USED]
-    weightedARFuzzifier = NeighbourResumeFuzzifier(fuzzyMasteryLevelsAlt, pd.read_csv("data/taxonomy.csv"), te.LEVEL_COLS)
-    secondARFuzzifier = NeighbourResumeFuzzifier(fuzzyMasteryLevelsAlt, pd.read_csv("data/taxonomy.csv"), te.LEVEL_COLS)
-    minARFuzzifier = NeighbourResumeFuzzifier(fuzzyMasteryLevelsAlt, pd.read_csv("data/taxonomy.csv"), te.LEVEL_COLS)
+        # Load test resumes
+        with open("data/resumes_eval.json", "r") as file:
+            eval_resumes = json.load(file)
+    except:
+        training_resumes = None
+        eval_resumes = None 
     
-    weightedARFuzzifier.loadAssociationRuleDict(training_resumes, association="weighted")
-    secondARFuzzifier.loadAssociationRuleDict(training_resumes, association="second")
-    minARFuzzifier.loadAssociationRuleDict(training_resumes, association="min")
+    return resumes, training_resumes, eval_resumes, debug_resumes
+
+def loadJobs() -> tuple[dict]:
+    """Load the jobs. If you have some changes, do it there.
     
-    # Fit the association rules for Fuzzy II fuzzifier
-    secondARFuzzyIIFuzzifier = NeighbourResumeFuzzyIIFuzzifier(fuzzyMasteryLevelsAlt, pd.read_csv("data/taxonomy.csv"), te.LEVEL_COLS)
-    secondARFuzzyIIFuzzifier.loadAssociationRuleDict(resumes_debug, association="second")
-    secondARFuzzyIIFuzzifier.fuzzify(resumes_debug, "associationRules", loadARMatrix=False, frequencyThreshold=1)
-    
+    Returns:
+        tuple[dict]: [UPDATE IF IT CHANGE] Load the jobs.
+    """
     # Load job positions
     with open("data/jobs.json", "r") as file:
         jobs = json.load(file)
     
+    return jobs
+
+def loadCourses() -> tuple[dict]:
+    """Load the courses. If you have some changes, do it there.
+    
+    Returns:
+        tuple[dict]: [UPDATE IF IT CHANGE] Load the courses.
+    """
     # Load courses
     with open("data/courses.json", "r") as file:
         courses = json.load(file)
+        
+    return courses
+
+def generateTrainTestResumes_and_save(learners:dict[str,Any], fuzzifier:NeighbourResumeFuzzifier, train_proportion:float = 0.7, seed:int = 0) -> tuple[dict]:
+    """Function to generate the train test split and save them in JSON.
+
+    Args:
+        learners (dict[str,Any]): The resumes dataset
+        train_proportion (float, optional): The proportion that will be used for training. Defaults to 0.7.
+        seed (int, optional): The seed of the split. Defaults to 0.
+
+    Returns:
+        tuple[dict]: The training and the test set.
+    """
+    training_resumes, eval_resumes = fuzzifier.train_test_split(learners=learners, trainProportion=train_proportion, seed=seed)
+    with open("data/resumes_train.json", "w") as file:
+        json.dump(training_resumes, file, indent=4)
+    with open("data/resumes_eval.json", "w") as file:
+        json.dump(eval_resumes, file, indent=4)
     
-    #### WITH NNACC Alt + Training
-    ### User Gamma 1
-    # Fuzzify training with weighted association rules (occurrences>=1), then Gamma 1 (ALT)
-    with open("fuzzifiedData/train/alt_weightedGamma1c1_fuzzy_trainResumes.json", "w") as file:
+    return training_resumes, eval_resumes
+
+def generatePreferences_and_save(resumes:dict[str,Any], fuzzifier:NeighbourResumeFuzzifier, minWant:int = 1, maxWant:int = 5, avoidDistribution:dict[int,float] = {0:0.6,1:0.25,2:0.15}, seed:int = 42):
+    """Generate the preference of each users.
+
+    Args:
+        resumes (dict[str,Any]): The resumes.
+        minWant (int, optional): The minimum number of skill ha. Defaults to 1.
+        maxWant (int, optional): _description_. Defaults to 15.
+        avoidDistribution (_type_, optional): _description_. Defaults to {0:0.6,1:0.25,2:0.15}.
+        seed (int, optional): _description_. Defaults to 42.
+    """
+    # Preferences on level four of the taxonomy
+    with open("data/preferences.json", "w") as file:
         json.dump(
-            weightedARFuzzifier.fuzzify(weightedARFuzzifier.fuzzify(
-                training_resumes, mode="associationRules", association="weighted", frequencyThreshold=1, loadARMatrix=False        
-            ), mode="weightedLog2", gamma=1), file, indent=4
-        )
-    
-    ## Fuzzify eval with weighted association rules (occurrences>=1), then Gamma 1 (ALT)
-    with open("fuzzifiedData/eval/alt_weightedGamma1c1_fuzzy_evalResumes.json", "w") as file:
-        json.dump(
-            weightedARFuzzifier.fuzzify(weightedARFuzzifier.fuzzify(
-                eval_resumes, mode="associationRules", association="weighted", frequencyThreshold=1, loadARMatrix=False        
-            ), mode="weightedLog2", gamma=1), file, indent=4
-        )
-    
-    ## Fuzzify training with min association rules (occurrences>=1), then Gamma 1 (ALT)
-    with open("fuzzifiedData/train/alt_minGamma1c1_fuzzy_trainResumes.json", "w") as file:
-        json.dump(
-            minARFuzzifier.fuzzify(minARFuzzifier.fuzzify(
-                training_resumes, mode="associationRules", association="min", frequencyThreshold=1, loadARMatrix=False        
-            ), mode="weightedLog2", gamma=1), file, indent=4
-        )
-    
-    ## Fuzzify eval with min association rules (occurrences>=1), then Gamma 1 (ALT)
-    with open("fuzzifiedData/eval/alt_minGamma1c1_fuzzy_evalResumes.json", "w") as file:
-        json.dump(
-            minARFuzzifier.fuzzify(minARFuzzifier.fuzzify(
-                eval_resumes, mode="associationRules", association="min", frequencyThreshold=1, loadARMatrix=False        
-            ), mode="weightedLog2", gamma=1), file, indent=4
-        )
-    
-    ## Fuzzify training with second association rules (occurrences>=1), then Gamma 1 (ALT)
-    with open("fuzzifiedData/train/alt_secondGamma1c1_fuzzy_trainResumes.json", "w") as file:
-        json.dump(
-            secondARFuzzifier.fuzzify(secondARFuzzifier.fuzzify(
-                training_resumes, mode="associationRules", association="second", frequencyThreshold=1, loadARMatrix=False        
-            ), mode="weightedLog2", gamma=1), file, indent=4
+            fuzzifier.sample_want_avoid(resumes, minWant=minWant, maxWant=maxWant, avoidDistribution=avoidDistribution, seed=seed),
+            file,
+            indent=4
         )
         
-    ## Fuzzify eval with second association rules (occurrences>=1), then Gamma 1 (ALT)
-    with open("fuzzifiedData/eval/alt_secondGamma1c1_fuzzy_evalResumes.json", "w") as file:
+    # Preference on level 3
+    with open("data/preferencesLV3.json", "w") as file:
         json.dump(
-            secondARFuzzifier.fuzzify(secondARFuzzifier.fuzzify(
-                eval_resumes, mode="associationRules", association="second", frequencyThreshold=1, loadARMatrix=False        
-            ), mode="weightedLog2", gamma=1), file, indent=4
-        )
-    
-    ## Fuzzify with Gamma1
-    # Fuzzify training
-    with open("fuzzifiedData/train/alt_gamma1_fuzzy_trainResumes.json", "w") as file:
-        json.dump(
-            fuzzyNeighbourAlt.fuzzify(training_resumes, mode="weightedLog2", gamma=1), file, indent=4
-        )
-        
-    # Fuzzify eval
-    with open("fuzzifiedData/eval/alt_gamma1_fuzzy_evalResumes.json", "w") as file:
-        json.dump(
-            fuzzyNeighbourAlt.fuzzify(eval_resumes, mode="weightedLog2", gamma=1), file, indent=4
-        )
-    
-    ### User 0
-    ## Fuzzify training with weighted association rules (occurrences>=1), then 0
-    with open("fuzzifiedData/train/alt_weighted0c1_fuzzy_trainResumes.json", "w") as file:
-        json.dump(
-            fuzzyAlt.fuzzify(weightedARFuzzifier.fuzzify(
-                training_resumes, mode="associationRules", association="weighted", frequencyThreshold=1, loadARMatrix=False        
-            ), unknownDefault=0), file, indent=4
-        )
-        
-    ## Fuzzify eval with weighted association rules (occurrences>=1), then 0
-    with open("fuzzifiedData/eval/alt_weighted0c1_fuzzy_evalResumes.json", "w") as file:
-        json.dump(
-            fuzzyAlt.fuzzify(weightedARFuzzifier.fuzzify(
-                eval_resumes, mode="associationRules", association="weighted", frequencyThreshold=1, loadARMatrix=False        
-            ), unknownDefault=0), file, indent=4
-        )
-        
-    
-    ### User Fixed
-    ## Fuzzify training with weighted association rules (occurrences>=1), then Fixed (ALT)
-    with open("fuzzifiedData/train/alt_weightedFixedc1_fuzzy_trainResumes.json", "w") as file:
-        json.dump(
-            fuzzyAlt.fuzzify(weightedARFuzzifier.fuzzify(
-                training_resumes, mode="associationRules", association="weighted", frequencyThreshold=1, loadARMatrix=False        
-            ), unknownDefault=fuzzyMasteryLevelsAlt["beginner"]), file, indent=4
-        )
-    
-    ## Fuzzify eval with weighted association rules (occurrences>=1), then Fixed (ALT)
-    with open("fuzzifiedData/eval/alt_weightedFixedc1_fuzzy_evalResumes.json", "w") as file:
-        json.dump(
-            fuzzyAlt.fuzzify(weightedARFuzzifier.fuzzify(
-                eval_resumes, mode="associationRules", association="weighted", frequencyThreshold=1, loadARMatrix=False        
-            ), unknownDefault=fuzzyMasteryLevelsAlt["beginner"]), file, indent=4
-        )
-    
-    ## Fuzzify training with min association rules (occurrences>=1), then Fixed (ALT)
-    with open("fuzzifiedData/train/alt_minFixedc1_fuzzy_trainResumes.json", "w") as file:
-        json.dump(
-            fuzzyAlt.fuzzify(minARFuzzifier.fuzzify(
-                training_resumes, mode="associationRules", association="min", frequencyThreshold=1, loadARMatrix=False        
-            ), unknownDefault=fuzzyMasteryLevelsAlt["beginner"]), file, indent=4
-        )
-    
-    ## Fuzzify eval with min association rules (occurrences>=1), then Fixed (ALT)
-    with open("fuzzifiedData/eval/alt_minFixedc1_fuzzy_evalResumes.json", "w") as file:
-        json.dump(
-            fuzzyAlt.fuzzify(minARFuzzifier.fuzzify(
-                eval_resumes, mode="associationRules", association="min", frequencyThreshold=1, loadARMatrix=False        
-            ), unknownDefault=fuzzyMasteryLevelsAlt["beginner"]), file, indent=4
-        )
-    
-    ## Fuzzify training with second association rules (occurrences>=1), then Fixed (ALT)
-    with open("fuzzifiedData/train/alt_secondFixedc1_fuzzy_trainResumes.json", "w") as file:
-        json.dump(
-            fuzzyAlt.fuzzify(secondARFuzzifier.fuzzify(
-                training_resumes, mode="associationRules", association="second", frequencyThreshold=1, loadARMatrix=False        
-            ), unknownDefault=fuzzyMasteryLevelsAlt["beginner"]), file, indent=4
-        )
-        
-    ## Fuzzify eval with second association rules (occurrences>=1), then Fixed (ALT)
-    with open("fuzzifiedData/eval/alt_secondFixedc1_fuzzy_evalResumes.json", "w") as file:
-        json.dump(
-            fuzzyAlt.fuzzify(secondARFuzzifier.fuzzify(
-                eval_resumes, mode="associationRules", association="second", frequencyThreshold=1, loadARMatrix=False        
-            ), unknownDefault=fuzzyMasteryLevelsAlt["beginner"]), file, indent=4
-        )
-    
-    ## Fuzzify with Fixed
-    # Fuzzify training
-    with open("fuzzifiedData/train/alt_fixed_fuzzy_trainResumes.json", "w") as file:
-        json.dump(
-            fuzzyAlt.fuzzify(training_resumes, unknownDefault=fuzzyMasteryLevelsAlt["beginner"]), file, indent=4
-        )
-        
-    # Fuzzify eval
-    with open("fuzzifiedData/eval/alt_fixed_fuzzy_evalResumes.json", "w") as file:
-        json.dump(
-            fuzzyAlt.fuzzify(eval_resumes, unknownDefault=fuzzyMasteryLevelsAlt["beginner"]), file, indent=4
+            fuzzifier.sample_want_avoid(resumes, minWant=minWant, maxWant=maxWant, avoidDistribution=avoidDistribution, seed=seed, useLevel3=True),
+            file,
+            indent=4
         )
 
-    ### User Linear
-    ## Fuzzify training with weighted association rules (occurrences>=1), then Linear (ALT)
-    with open("fuzzifiedData/train/alt_weightedLinearc1_fuzzy_trainResumes.json", "w") as file:
-        json.dump(
-            weightedARFuzzifier.fuzzify(weightedARFuzzifier.fuzzify(
-                training_resumes, mode="associationRules", association="weighted", frequencyThreshold=1, loadARMatrix=False        
-            ), mode="linear"), file, indent=4
-        )
-    
-    ## Fuzzify eval with weighted association rules (occurrences>=1), then Linear (ALT)
-    with open("fuzzifiedData/eval/alt_weightedLinearc1_fuzzy_evalResumes.json", "w") as file:
-        json.dump(
-            weightedARFuzzifier.fuzzify(weightedARFuzzifier.fuzzify(
-                eval_resumes, mode="associationRules", association="weighted", frequencyThreshold=1, loadARMatrix=False        
-            ), mode="linear"), file, indent=4
-        )
-    
-    ## Fuzzify training with min association rules (occurrences>=1), then Linear (ALT)
-    with open("fuzzifiedData/train/alt_minLinearc1_fuzzy_trainResumes.json", "w") as file:
-        json.dump(
-            minARFuzzifier.fuzzify(minARFuzzifier.fuzzify(
-                training_resumes, mode="associationRules", association="min", frequencyThreshold=1, loadARMatrix=False        
-            ), mode="linear"), file, indent=4
-        )
-    
-    ## Fuzzify eval with min association rules (occurrences>=1), then Linear (ALT)
-    with open("fuzzifiedData/eval/alt_minLinearc1_fuzzy_evalResumes.json", "w") as file:
-        json.dump(
-            minARFuzzifier.fuzzify(minARFuzzifier.fuzzify(
-                eval_resumes, mode="associationRules", association="min", frequencyThreshold=1, loadARMatrix=False        
-            ), mode="linear"), file, indent=4
-        )
-    
-    ## Fuzzify training with second association rules (occurrences>=1), then Linear (ALT)
-    with open("fuzzifiedData/train/alt_secondLinearc1_fuzzy_trainResumes.json", "w") as file:
-        json.dump(
-            secondARFuzzifier.fuzzify(secondARFuzzifier.fuzzify(
-                training_resumes, mode="associationRules", association="second", frequencyThreshold=1, loadARMatrix=False        
-            ), mode="linear"), file, indent=4
-        )
-        
-    ## Fuzzify eval with second association rules (occurrences>=1), then Linear (ALT)
-    with open("fuzzifiedData/eval/alt_secondLinearc1_fuzzy_evalResumes.json", "w") as file:
-        json.dump(
-            secondARFuzzifier.fuzzify(secondARFuzzifier.fuzzify(
-                eval_resumes, mode="associationRules", association="second", frequencyThreshold=1, loadARMatrix=False        
-            ), mode="linear"), file, indent=4
-        )
-    
-    ## Fuzzify with Linear
-    # Fuzzify training
-    with open("fuzzifiedData/train/alt_linear_fuzzy_trainResumes.json", "w") as file:
-        json.dump(
-            fuzzyNeighbourAlt.fuzzify(training_resumes, mode="linear"), file, indent=4
-        )
-        
-    # Fuzzify eval
-    with open("fuzzifiedData/eval/alt_linear_fuzzy_evalResumes.json", "w") as file:
-        json.dump(
-            fuzzyNeighbourAlt.fuzzify(eval_resumes, mode="linear"), file, indent=4
-        )
+def fuzzifyResumesAR(fuzzifierAR:NeighbourResumeFuzzifier, fixedFuzzifier:SimpleFuzzifier, training_resumes:dict[str,Any], eval_resumes:dict[str,Any], association:str, fuzzyMasteryLevels:dict[str,Any], frequencyThreshold:int=1, rootPath:str="fuzzifiedData", prefix:str="alt_"):
+    """Function to generate fuzzified training and test set and save them as json. It support all association with fixed, linear, log, gamma and 0 post fuzzification.
 
+    Args:
+        fuzzifierAR (NeighbourResumeFuzzifier): The fuzzifier using association rules. Be sure that this fuzzifier has already its association rules computed on the training set. 
+        fixedFuzzifier (SimpleFuzzifier): The fuzzifier to apply fixed post fuzzification (For 0 and fixed).
+        training_resumes (dict[str,Any]): The training set.
+        eval_resumes (dict[str,Any]): The evaluation set
+        association (str): One of the supported association `min`, `weighted` or `second`.
+        fuzzyMasteryLevels (dict[str,Any]): The mastery levels associated to `beginner`, `intermediate` and `expert` between 0 and 1.
+        frequencyThreshold (int, optional): The minimum threshold for which association rules can be used. Defaults to 1.
+        rootPath (str, optional): The folder in which the results are stored. Defaults to "fuzzifiedData".
+        prefix (str, optional): A prefix to "customize" the files name. Defaults to "alt_".
+    """
+    # Method used for the post association rule fuzzification
+    methods = {
+        "Gamma1":{"mode":"weightedLog2","gamma":1}, 
+        "0":{"unknownDefault":0}, 
+        "Fixed":{"unknownDefault":fuzzyMasteryLevels["beginner"]}, 
+        "Linear":{"mode":"linear"}, 
+        "Log":{"mode":"log2"}
+    }
+    
+    # Type of dataset used  
+    datasets = {
+        "train":training_resumes,
+        "eval":eval_resumes
+    }
+    
+    # For each methods
+    for key, value in methods.items():
+        # For each sets
+        for datasetMode, resumes in datasets.items():
+            # Open the corresponding file 
+            with open(f"{rootPath}/{datasetMode}/{prefix}{association}{key}c{frequencyThreshold}_fuzzy_{datasetMode}Resumes.json", "w") as file:
+                # Fuzzify using association rules, without loading the AR matrix
+                fuzzyARresumes = fuzzifierAR.fuzzify(resumes, mode="associationRules", association=association, frequencyThreshold=frequencyThreshold, loadARMatrix=False)
+                
+                # Post fuzzify with fixed if it is fixed or 0, with taxonomy methods otherwise
+                if key not in {"Fixed", "0"}:
+                    fuzzifiedResume = fuzzifierAR.fuzzify(fuzzyARresumes, **value)
+                else:
+                    fuzzifiedResume = fixedFuzzifier.fuzzify(fuzzyARresumes, **value)
+                
+                # Dump the files
+                json.dump(fuzzifiedResume, file, indent=4)
 
+def fuzzifyResumes(taxonomyFuzzifier:NeighbourResumeFuzzifier, fixedFuzzifier:SimpleFuzzifier, training_resumes:dict[str,Any], eval_resumes:dict[str,Any], fuzzyMasteryLevels:dict[str,Any], rootPath:str="fuzzifiedData", prefix:str="alt_"):
+    # Methods for the fuzzification
+    methods = {
+        "gamma1":{"mode":"weightedLog2","gamma":1},  
+        "fixed":{"unknownDefault":fuzzyMasteryLevels["beginner"]}, 
+        "linear":{"mode":"linear"}, 
+        "log":{"mode":"log2"}
+    }
+    
+    # Training and evaluation set
+    datasets = {
+        "train":training_resumes,
+        "eval":eval_resumes
+    }
+    
+    # For each methods
+    for key, value in methods.items():
+        # For each sets
+        for datasetMode, resumes in datasets.items():
+            # Open the corresponding file
+            with open(f"{rootPath}/{datasetMode}/{prefix}{key}_fuzzy_{datasetMode}Resumes.json", "w") as file:
+                # Fuzzify
+                if key not in {"fixed"}:
+                    fuzzifiedResume = taxonomyFuzzifier.fuzzify(resumes, **value)
+                else:
+                    fuzzifiedResume = fixedFuzzifier.fuzzify(resumes, **value)
+                
+                # Dump the result
+                json.dump(fuzzifiedResume, file, indent=4)
 
+if __name__ == "__main__":
+    # Load the data
+    fuzzyMasteryLevelsAlt = loadMasteryLevels()
+    resumes, training_resumes, eval_resumes, debug_resumes = loadResumes()
+    jobs = loadJobs()
+    courses = loadCourses()
+    
+    # Instantiate simple fuzzifiers
+    ## Fixed fuzzifier (job, courses, resumes)
+    fixedFuzzifier = SimpleFuzzifier(fuzzyMasteryLevelsAlt)
+    ## Taxonomy fuzzifier (resumes)
+    taxonomyFuzzifier = NeighbourResumeFuzzifier(fuzzyMasteryLevelsAlt, pd.read_csv("data/taxonomy.csv"), te.LEVEL_COLS)
+    
+    # Transform the data
+    ## Train-Test Split (no need to uncomment if they are already generated)
+    training_resumes, eval_resumes = generateTrainTestResumes_and_save(resumes, taxonomyFuzzifier, train_proportion=0.7, seed=0)
+    
+    ## Generate the preferences
+    generatePreferences_and_save(resumes, taxonomyFuzzifier, minWant = 1, maxWant = 5, avoidDistribution = {0:0.6,1:0.25,2:0.15}, seed = 42)
+    
+    
+    ## Association rule fuzzifier (resumes)
+    ### Instanciation
+    weightedARFuzzifier = NeighbourResumeFuzzifier(fuzzyMasteryLevelsAlt, pd.read_csv("data/taxonomy.csv"), te.LEVEL_COLS)
+    secondARFuzzifier = NeighbourResumeFuzzifier(fuzzyMasteryLevelsAlt, pd.read_csv("data/taxonomy.csv"), te.LEVEL_COLS)
+    minARFuzzifier = NeighbourResumeFuzzifier(fuzzyMasteryLevelsAlt, pd.read_csv("data/taxonomy.csv"), te.LEVEL_COLS)
+        
+    ### Association rules fitting
+    weightedARFuzzifier.loadAssociationRuleDict(training_resumes, association="weighted")
+    secondARFuzzifier.loadAssociationRuleDict(training_resumes, association="second")
+    minARFuzzifier.loadAssociationRuleDict(training_resumes, association="min")
+        
+    # Fit the association rules for Fuzzy II fuzzifier
+    #secondARFuzzyIIFuzzifier = NeighbourResumeFuzzyIIFuzzifier(fuzzyMasteryLevelsAlt, pd.read_csv("data/taxonomy.csv"), te.LEVEL_COLS)
+    #secondARFuzzyIIFuzzifier.loadAssociationRuleDict(debug_resumes, association="second")
+    #secondARFuzzyIIFuzzifier.fuzzify(debug_resumes, "associationRules", loadARMatrix=False, frequencyThreshold=1)
+    
+    
+    
+    
+    #### Fuzzy I with weighted associations
+    fuzzifyResumesAR(
+        fuzzifierAR=weightedARFuzzifier, 
+        fixedFuzzifier=fixedFuzzifier, 
+        training_resumes=training_resumes, 
+        eval_resumes=eval_resumes, 
+        association="weighted", 
+        fuzzyMasteryLevels=fuzzyMasteryLevelsAlt,
+        frequencyThreshold=1,
+        rootPath="fuzzifiedData",
+        prefix="alt_"
+    )
+    
+    #### Fuzzy I with second association
+    fuzzifyResumesAR(
+        fuzzifierAR=secondARFuzzifier, 
+        fixedFuzzifier=fixedFuzzifier, 
+        training_resumes=training_resumes, 
+        eval_resumes=eval_resumes, 
+        association="second", 
+        fuzzyMasteryLevels=fuzzyMasteryLevelsAlt,
+        frequencyThreshold=1,
+        rootPath="fuzzifiedData",
+        prefix="alt_"
+    )
 
-    ### User Log
-    ## Fuzzify training with weighted association rules (occurrences>=1), then Log (ALT)
-    with open("fuzzifiedData/train/alt_weightedLogc1_fuzzy_trainResumes.json", "w") as file:
-        json.dump(
-            weightedARFuzzifier.fuzzify(weightedARFuzzifier.fuzzify(
-                training_resumes, mode="associationRules", association="weighted", frequencyThreshold=1, loadARMatrix=False        
-            ), mode="log2"), file, indent=4
-        )
+    #### Fuzzy I with min association
+    fuzzifyResumesAR(
+        fuzzifierAR=minARFuzzifier, 
+        fixedFuzzifier=fixedFuzzifier, 
+        training_resumes=training_resumes, 
+        eval_resumes=eval_resumes, 
+        association="min", 
+        fuzzyMasteryLevels=fuzzyMasteryLevelsAlt,
+        frequencyThreshold=1,
+        rootPath="fuzzifiedData",
+        prefix="alt_"
+    )
     
-    ## Fuzzify eval with weighted association rules (occurrences>=1), then Log (ALT)
-    with open("fuzzifiedData/eval/alt_weightedLogc1_fuzzy_evalResumes.json", "w") as file:
-        json.dump(
-            weightedARFuzzifier.fuzzify(weightedARFuzzifier.fuzzify(
-                eval_resumes, mode="associationRules", association="weighted", frequencyThreshold=1, loadARMatrix=False        
-            ), mode="log2"), file, indent=4
-        )
-    
-    ## Fuzzify training with min association rules (occurrences>=1), then Log (ALT)
-    with open("fuzzifiedData/train/alt_minLogc1_fuzzy_trainResumes.json", "w") as file:
-        json.dump(
-            minARFuzzifier.fuzzify(minARFuzzifier.fuzzify(
-                training_resumes, mode="associationRules", association="min", frequencyThreshold=1, loadARMatrix=False        
-            ), mode="log2"), file, indent=4
-        )
-    
-    ## Fuzzify eval with min association rules (occurrences>=1), then Log (ALT)
-    with open("fuzzifiedData/eval/alt_minLogc1_fuzzy_evalResumes.json", "w") as file:
-        json.dump(
-            minARFuzzifier.fuzzify(minARFuzzifier.fuzzify(
-                eval_resumes, mode="associationRules", association="min", frequencyThreshold=1, loadARMatrix=False        
-            ), mode="log2"), file, indent=4
-        )
-    
-    ## Fuzzify training with second association rules (occurrences>=1), then Log (ALT)
-    with open("fuzzifiedData/train/alt_secondLogc1_fuzzy_trainResumes.json", "w") as file:
-        json.dump(
-            secondARFuzzifier.fuzzify(secondARFuzzifier.fuzzify(
-                training_resumes, mode="associationRules", association="second", frequencyThreshold=1, loadARMatrix=False        
-            ), mode="log2"), file, indent=4
-        )
-        
-    ## Fuzzify eval with second association rules (occurrences>=1), then Log (ALT)
-    with open("fuzzifiedData/eval/alt_secondLogc1_fuzzy_evalResumes.json", "w") as file:
-        json.dump(
-            secondARFuzzifier.fuzzify(secondARFuzzifier.fuzzify(
-                eval_resumes, mode="associationRules", association="second", frequencyThreshold=1, loadARMatrix=False        
-            ), mode="log2"), file, indent=4
-        )
-    
-    ## Fuzzify with Log
-    # Fuzzify training
-    with open("fuzzifiedData/train/alt_log_fuzzy_trainResumes.json", "w") as file:
-        json.dump(
-            fuzzyNeighbourAlt.fuzzify(training_resumes, mode="log2"), file, indent=4
-        )
-        
-    # Fuzzify eval
-    with open("fuzzifiedData/eval/alt_log_fuzzy_evalResumes.json", "w") as file:
-        json.dump(
-            fuzzyNeighbourAlt.fuzzify(eval_resumes, mode="log2"), file, indent=4
-        )
-        
+    #### Fuzzy I based on the taxonomy.
+    fuzzifyResumes(
+        taxonomyFuzzifier=taxonomyFuzzifier,
+        fixedFuzzifier=fixedFuzzifier,
+        training_resumes=training_resumes,
+        eval_resumes=eval_resumes,
+        fuzzyMasteryLevels=fuzzyMasteryLevelsAlt,
+        prefix="alt_"
+    )
         
     #### On the courses
     with open("fuzzifiedData/alt_fixed_fuzzy_courses.json", "w") as file:
-        json.dump(fuzzyAlt.fuzzify(courses, unknownDefault=UNKNOWN_DEFAULT_ALT["data/courses.json"]), file, indent=4)
+        json.dump(fixedFuzzifier.fuzzify(courses, unknownDefault=UNKNOWN_DEFAULT["data/courses.json"]), file, indent=4)
     
     #### On the jobs
     with open("fuzzifiedData/alt_fixed_fuzzy_jobs.json", "w") as file:
-        json.dump(fuzzyAlt.fuzzify(jobs, unknownDefault=UNKNOWN_DEFAULT_ALT["data/jobs.json"]), file, indent=4)
+        json.dump(fixedFuzzifier.fuzzify(jobs, unknownDefault=UNKNOWN_DEFAULT["data/jobs.json"]), file, indent=4)
     
     #### On all the resumes
     with open("fuzzifiedData/alt_fixed_fuzzy_resumes.json", "w") as file:
-        json.dump(fuzzyAlt.fuzzify(resumes, unknownDefault=UNKNOWN_DEFAULT_ALT["data/resumes.json"]), file, indent=4)
+        json.dump(fixedFuzzifier.fuzzify(resumes, unknownDefault=UNKNOWN_DEFAULT["data/resumes.json"]), file, indent=4)
         
